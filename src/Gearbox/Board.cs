@@ -766,24 +766,18 @@ namespace Gearbox
                     }
                 }
             }
-
-            RemoveIllegalMoves(movelist);
         }
 
-        private void RemoveIllegalMoves(MoveList movelist)
+        private bool AddMove(MoveList movelist, int source, int dest, char prom = '\0')
         {
-            int pack = 0;
-
-            for (int test=0; test < movelist.nmoves; ++test)
-            {
-                PushMove(movelist.array[test]);
-                bool illegal = IsIllegalPosition();
-                PopMove();
-                if (!illegal && pack < test)
-                    movelist.array[pack++] = movelist.array[test];
-            }
-
-            movelist.nmoves = pack;
+            // Append 'move' to 'movelist', but only if making that move doesn't cause leave the mover in check.
+            var move = new Move(source, dest, prom);
+            PushMove(move);
+            bool illegal = IsIllegalPosition();
+            PopMove();
+            if (!illegal)
+                movelist.Add(move);
+            return !illegal;
         }
 
         private bool IsLegalMove(int source, int dest, char prom = '\0')
@@ -806,7 +800,7 @@ namespace Gearbox
         {
             int dest = source + dir;
             if (0 == (square[dest] & (friend | Square.Offboard)))
-                movelist.Add(new Move(source, dest));
+                AddMove(movelist, source, dest);
         }
 
         private bool CanMove_Ray(int source, int dir, Square friend)
@@ -827,10 +821,10 @@ namespace Gearbox
         {
             int dest;
             for (dest = source + dir; square[dest] == Square.Empty; dest += dir)
-                movelist.Add(new Move(source, dest));
+                AddMove(movelist, source, dest);
 
             if (0 == (square[dest] & (friend | Square.Offboard)))
-                movelist.Add(new Move(source, dest));
+                AddMove(movelist, source, dest);
         }
 
         private void GenCastleKingside(MoveList movelist, int source, Square friend, Square enemy)
@@ -862,7 +856,7 @@ namespace Gearbox
 
             // Calling code will filter out the case of castling *into* check.
             // We don't need to handle that here.
-            movelist.Add(new Move(source, dest));
+            AddMove(movelist, source, dest);
         }
 
         private void GenCastleQueenside(MoveList movelist, int source, Square friend, Square enemy)
@@ -894,7 +888,7 @@ namespace Gearbox
 
             // Calling code will filter out the case of castling *into* check.
             // We don't need to handle that here.
-            movelist.Add(new Move(source, dest));
+            AddMove(movelist, source, dest);
         }
 
         private bool CanMove_Pawn(int source, Square friend, Square enemy, int pawndir, int homerank, int promrank)
@@ -965,19 +959,23 @@ namespace Gearbox
                 if (rank == promrank)
                 {
                     // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
-                    movelist.Add(new Move(source, dest, 'q'));
-                    movelist.Add(new Move(source, dest, 'r'));
-                    movelist.Add(new Move(source, dest, 'b'));
-                    movelist.Add(new Move(source, dest, 'n'));
+                    // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
+                    // so save time by avoiding redundant legality checks.
+                    if (AddMove(movelist, source, dest, 'q'))
+                    {
+                        movelist.Add(new Move(source, dest, 'r'));
+                        movelist.Add(new Move(source, dest, 'b'));
+                        movelist.Add(new Move(source, dest, 'n'));
+                    }
                 }
                 else
                 {
-                    movelist.Add(new Move(source, dest));
+                    AddMove(movelist, source, dest);
                     dest += pawndir;
 
                     // A pawn may move two squares forward on its first move, if both squares are empty.
                     if (rank == homerank && square[dest] == Square.Empty)
-                        movelist.Add(new Move(source, dest));
+                        AddMove(movelist, source, dest);
                 }
             }
 
@@ -987,14 +985,19 @@ namespace Gearbox
             {
                 if (rank == promrank)
                 {
-                    movelist.Add(new Move(source, dest, 'q'));
-                    movelist.Add(new Move(source, dest, 'r'));
-                    movelist.Add(new Move(source, dest, 'b'));
-                    movelist.Add(new Move(source, dest, 'n'));
+                    // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
+                    // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
+                    // so save time by avoiding redundant legality checks.
+                    if (AddMove(movelist, source, dest, 'q'))
+                    {
+                        movelist.Add(new Move(source, dest, 'r'));
+                        movelist.Add(new Move(source, dest, 'b'));
+                        movelist.Add(new Move(source, dest, 'n'));
+                    }
                 }
                 else
                 {
-                    movelist.Add(new Move(source, dest));
+                    AddMove(movelist, source, dest);
                 }
             }
 
@@ -1004,14 +1007,19 @@ namespace Gearbox
             {
                 if (rank == promrank)
                 {
-                    movelist.Add(new Move(source, dest, 'q'));
-                    movelist.Add(new Move(source, dest, 'r'));
-                    movelist.Add(new Move(source, dest, 'b'));
-                    movelist.Add(new Move(source, dest, 'n'));
+                    // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
+                    // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
+                    // so save time by avoiding redundant legality checks.
+                    if (AddMove(movelist, source, dest, 'q'))
+                    {
+                        movelist.Add(new Move(source, dest, 'r'));
+                        movelist.Add(new Move(source, dest, 'b'));
+                        movelist.Add(new Move(source, dest, 'n'));
+                    }
                 }
                 else
                 {
-                    movelist.Add(new Move(source, dest));
+                    AddMove(movelist, source, dest);
                 }
             }
         }
