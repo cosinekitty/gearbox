@@ -753,11 +753,11 @@ namespace Gearbox
                                 GenMove_Single(movelist, ofs, Direction.SW, friend);
                                 GenMove_Single(movelist, ofs, Direction.SE, friend);
                                 GenMove_Single(movelist, ofs, Direction.N,  friend);
-                                GenMove_Single(movelist, ofs, Direction.W,  friend);
                                 GenMove_Single(movelist, ofs, Direction.S,  friend);
-                                GenMove_Single(movelist, ofs, Direction.E,  friend);
-                                GenCastleKingside(movelist, ofs, friend, enemy);
-                                GenCastleQueenside(movelist, ofs, friend, enemy);
+                                if (GenMove_Single(movelist, ofs, Direction.E, friend))
+                                    GenCastleKingside(movelist, ofs, friend, enemy);
+                                if (GenMove_Single(movelist, ofs, Direction.W, friend))
+                                    GenCastleQueenside(movelist, ofs, friend, enemy);
                                 break;
 
                             default:
@@ -796,11 +796,12 @@ namespace Gearbox
             return false;
         }
 
-        private void GenMove_Single(MoveList movelist, int source, int dir, Square friend)
+        private bool GenMove_Single(MoveList movelist, int source, int dir, Square friend)
         {
             int dest = source + dir;
             if (0 == (square[dest] & (friend | Square.Offboard)))
-                AddMove(movelist, source, dest);
+                return AddMove(movelist, source, dest);
+            return false;
         }
 
         private bool CanMove_Ray(int source, int dir, Square friend)
@@ -850,12 +851,11 @@ namespace Gearbox
             if (square[source + Direction.E] != Square.Empty || square[dest] != Square.Empty)
                 return;
 
-            // not allowed to castle through check
-            if (IsAttackedBy(source + Direction.E, enemy))
-                return;
-
-            // Calling code will filter out the case of castling *into* check.
-            // We don't need to handle that here.
+            // Caller has already determined that we would not be castling *through* check.
+            // The caller verified that moving the king one square east is legal.
+            // If not, we don't call this function in the first place!
+            // AddMove() will filter out the case of castling *into* check,
+            // just like it tests any other move.
             AddMove(movelist, source, dest);
         }
 
@@ -882,12 +882,11 @@ namespace Gearbox
             if (square[source + Direction.W] != Square.Empty || square[dest] != Square.Empty || square[source + 3*Direction.W] != Square.Empty)
                 return;
 
-            // not allowed to castle through check
-            if (IsAttackedBy(source + Direction.W, enemy))
-                return;
-
-            // Calling code will filter out the case of castling *into* check.
-            // We don't need to handle that here.
+            // Caller has already determined that we would not be castling *through* check.
+            // The caller verified that moving the king one square west is legal.
+            // If not, we don't call this function in the first place!
+            // AddMove() will filter out the case of castling *into* check,
+            // just like it tests any other move.
             AddMove(movelist, source, dest);
         }
 
