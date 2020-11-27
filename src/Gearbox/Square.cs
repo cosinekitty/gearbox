@@ -13,6 +13,9 @@ namespace Gearbox
         Black    = 0x10,
         Offboard = 0x20,
 
+        PieceMask = 0x07,
+        SideMask = White | Black,
+
         WP = White | Pawn,
         WN = White | Knight,
         WB = White | Bishop,
