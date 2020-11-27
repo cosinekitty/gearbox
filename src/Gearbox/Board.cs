@@ -755,9 +755,29 @@ namespace Gearbox
                                 GenMove_Single(movelist, ofs, Direction.N,  friend);
                                 GenMove_Single(movelist, ofs, Direction.S,  friend);
                                 if (GenMove_Single(movelist, ofs, Direction.E, friend))
-                                    GenCastleKingside(movelist, ofs, friend, enemy);
+                                {
+                                    // Moving the king one square east is legal.
+                                    // See if castling kingside (O-O) is also legal.
+                                    if (!isPlayerInCheck && (isWhiteTurn ? whiteCanCastleKingside : blackCanCastleKingside))
+                                    {
+                                        // Not allowed to castle unless both squares between king and rook are empty.
+                                        int dest = ofs + 2*Direction.E;
+                                        if ((square[ofs + Direction.E] | square[dest]) == Square.Empty)
+                                            AddMove(movelist, ofs, dest);
+                                    }
+                                }
                                 if (GenMove_Single(movelist, ofs, Direction.W, friend))
-                                    GenCastleQueenside(movelist, ofs, friend, enemy);
+                                {
+                                    // Moving the king one square west is legal.
+                                    // See if castling queenside (O-O-O) is also legal.
+                                    if (!isPlayerInCheck && (isWhiteTurn ? whiteCanCastleQueenside : blackCanCastleQueenside))
+                                    {
+                                        // Not allowed to castle unless all 3 squares between king and rook are empty.
+                                        int dest = ofs + 2*Direction.W;
+                                        if ((square[ofs + Direction.W] | square[dest] | square[ofs + 3*Direction.W]) == Square.Empty)
+                                            AddMove(movelist, ofs, dest);
+                                    }
+                                }
                                 break;
 
                             default:
@@ -826,68 +846,6 @@ namespace Gearbox
 
             if (0 == (square[dest] & (friend | Square.Offboard)))
                 AddMove(movelist, source, dest);
-        }
-
-        private void GenCastleKingside(MoveList movelist, int source, Square friend, Square enemy)
-        {
-            // not allowed to castle while in check
-            if (isPlayerInCheck)
-                return;
-
-            // not allowed to castle if the king or the involved rook have moved/captured
-            if (friend == Square.White)
-            {
-                if (!whiteCanCastleKingside)
-                    return;
-            }
-            else
-            {
-                if (!blackCanCastleKingside)
-                    return;
-            }
-
-            // not allowed to castle unless squares between king and rook are empty
-            int dest = source + 2*Direction.E;
-            if (square[source + Direction.E] != Square.Empty || square[dest] != Square.Empty)
-                return;
-
-            // Caller has already determined that we would not be castling *through* check.
-            // The caller verified that moving the king one square east is legal.
-            // If not, we don't call this function in the first place!
-            // AddMove() will filter out the case of castling *into* check,
-            // just like it tests any other move.
-            AddMove(movelist, source, dest);
-        }
-
-        private void GenCastleQueenside(MoveList movelist, int source, Square friend, Square enemy)
-        {
-            // not allowed to castle while in check
-            if (isPlayerInCheck)
-                return;
-
-            // not allowed to castle if the king or the involved rook have moved/captured
-            if (friend == Square.White)
-            {
-                if (!whiteCanCastleQueenside)
-                    return;
-            }
-            else
-            {
-                if (!blackCanCastleQueenside)
-                    return;
-            }
-
-            // not allowed to castle unless squares between king and rook are empty
-            int dest = source + 2*Direction.W;
-            if (square[source + Direction.W] != Square.Empty || square[dest] != Square.Empty || square[source + 3*Direction.W] != Square.Empty)
-                return;
-
-            // Caller has already determined that we would not be castling *through* check.
-            // The caller verified that moving the king one square west is legal.
-            // If not, we don't call this function in the first place!
-            // AddMove() will filter out the case of castling *into* check,
-            // just like it tests any other move.
-            AddMove(movelist, source, dest);
         }
 
         private bool CanMove_Pawn(int source, Square friend, Square enemy, int pawndir, int homerank, int promrank)
