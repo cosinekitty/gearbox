@@ -592,6 +592,8 @@ namespace Gearbox
 
         private Square Lift(int ofs)
         {
+            if (square[ofs] == Square.Offboard)
+                throw new ArgumentException("Attempt to lift from offboard offset " + ofs);
             Square piece = square[ofs];
             square[ofs] = Square.Empty;
             return piece;
@@ -599,6 +601,8 @@ namespace Gearbox
 
         private void Drop(int ofs, Square piece)
         {
+            if (square[ofs] == Square.Offboard)
+                throw new ArgumentException("Attempt to drop to offboard offset " + ofs);
             square[ofs] = piece;
         }
 
