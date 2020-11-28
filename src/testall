@@ -1,0 +1,13 @@
+#!/bin/bash
+
+Fail()
+{
+    echo "FAIL($0): $1"
+    exit 1
+}
+
+cd BoardTest || Fail "Could not change to BoardTest directory."
+dotnet run || Fail "BoardTest"
+cd ..
+cat pass.txt
+exit 0
