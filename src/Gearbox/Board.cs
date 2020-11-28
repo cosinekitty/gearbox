@@ -384,12 +384,12 @@ namespace Gearbox
             {
                 case Square.WP:
                     if (move.dest == epTargetOffset)
-                        Lift(epTargetOffset + Direction.S);     // remove the captured black pawn from the board
+                        Lift(epTargetOffset + Direction.S, Square.BP);
                     break;
 
                 case Square.BP:
                     if (move.dest == epTargetOffset)
-                        Lift(epTargetOffset + Direction.N);     // remove the captured white pawn from the board
+                        Lift(epTargetOffset + Direction.N, Square.WP);
                     break;
             }
 
@@ -409,13 +409,13 @@ namespace Gearbox
                         if (move.dest == 27)
                         {
                             // White O-O : move the kingside rook around the king.
-                            Lift(28);
+                            Lift(28, Square.WR);
                             Drop(26, Square.WR);
                         }
                         else if (move.dest == 23)
                         {
                             // White O-O-O : move the queenside rook around the king.
-                            Lift(21);
+                            Lift(21, Square.WR);
                             Drop(24, Square.WR);
                         }
                     }
@@ -432,13 +432,13 @@ namespace Gearbox
                         if (move.dest == 97)
                         {
                             // Black O-O : move the kingside rook around the king.
-                            Lift(98);
+                            Lift(98, Square.BR);
                             Drop(96, Square.BR);
                         }
                         else if (move.dest == 93)
                         {
                             // Black O-O-O : move the queenside rook around the king.
-                            Lift(91);
+                            Lift(91, Square.BR);
                             Drop(94, Square.BR);
                         }
                     }
@@ -527,13 +527,13 @@ namespace Gearbox
                         if (unmove.move.dest == 27)
                         {
                             // Undo rook movement in White O-O.
-                            Lift(26);
+                            Lift(26, Square.WR);
                             Drop(28, Square.WR);
                         }
                         else if (unmove.move.dest == 23)
                         {
                             // Undo rook movement in White O-O-O.
-                            Lift(24);
+                            Lift(24, Square.WR);
                             Drop(21, Square.WR);
                         }
                     }
@@ -546,13 +546,13 @@ namespace Gearbox
                         if (unmove.move.dest == 97)
                         {
                             // Undo rook movement in Black O-O.
-                            Lift(96);
+                            Lift(96, Square.BR);
                             Drop(98, Square.BR);
                         }
                         else if (unmove.move.dest == 93)
                         {
                             // Undo rook movement in Black O-O-O.
-                            Lift(94);
+                            Lift(94, Square.BR);
                             Drop(91, Square.BR);
                         }
                     }
@@ -581,6 +581,13 @@ namespace Gearbox
 
             if (square[bkofs] != Square.BK)
                 throw new Exception("Black King is misplaced");
+        }
+
+        private void Lift(int ofs, Square expected)
+        {
+            Square lifted = Lift(ofs);
+            if (lifted != expected)
+                throw new Exception(string.Format("Expected to lift {0} from {1} but found {2}.", expected, Algebraic(ofs), lifted));
         }
 
         private Square Lift(int ofs)
