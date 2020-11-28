@@ -100,7 +100,7 @@ namespace Gearbox
             }
 
             fen.Append(isWhiteTurn ? " w " : " b ");
-            int pos = fen.Length;
+            int fenLengthBeforeCastling = fen.Length;
             if (whiteCanCastleKingside)
                 fen.Append('K');
             if (whiteCanCastleQueenside)
@@ -109,7 +109,7 @@ namespace Gearbox
                 fen.Append('k');
             if (blackCanCastleQueenside)
                 fen.Append('q');
-            if (fen.Length == pos)
+            if (fen.Length == fenLengthBeforeCastling)
                 fen.Append('-');
 
             if (epTargetOffset == 0)
@@ -324,6 +324,9 @@ namespace Gearbox
 
         public void PushMove(Move move)
         {
+            if (0 == (square[move.source] & Square.SideMask))
+                throw new ArgumentException("Attempt to move a non-piece");
+
             // Preserve information about the current board state.
             var unmove = new Unmove();
             unmove.move = move;
@@ -363,6 +366,7 @@ namespace Gearbox
 
             Lift(move.dest);    // remove captured piece (if any) from the board.
             Square piece = Lift(move.source);
+
             Square dropped;
             switch (move.prom)
             {
@@ -486,6 +490,12 @@ namespace Gearbox
             {
                 isPlayerInCheck = IsAttackedBy(bkofs, Square.White);
             }
+
+            if (square[wkofs] != Square.WK)
+                throw new Exception("White King is misplaced");
+
+            if (square[bkofs] != Square.BK)
+                throw new Exception("Black King is misplaced");
         }
 
         public void PopMove()
@@ -523,7 +533,7 @@ namespace Gearbox
                         else if (unmove.move.dest == 23)
                         {
                             // Undo rook movement in White O-O-O.
-                            Lift(25);
+                            Lift(24);
                             Drop(21, Square.WR);
                         }
                     }
@@ -542,7 +552,7 @@ namespace Gearbox
                         else if (unmove.move.dest == 93)
                         {
                             // Undo rook movement in Black O-O-O.
-                            Lift(95);
+                            Lift(94);
                             Drop(91, Square.BR);
                         }
                     }
@@ -565,6 +575,12 @@ namespace Gearbox
                 --fullMoveNumber;
 
             isWhiteTurn = !isWhiteTurn;
+
+            if (square[wkofs] != Square.WK)
+                throw new Exception("White King is misplaced");
+
+            if (square[bkofs] != Square.BK)
+                throw new Exception("Black King is misplaced");
         }
 
         private Square Lift(int ofs)

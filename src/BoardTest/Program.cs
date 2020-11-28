@@ -83,7 +83,16 @@ namespace BoardTest
                     ++lnum;
                     string correctMoveList = string.Join(' ', Split(line).OrderBy(t => t));
 
+                    string fenBefore = board.ForsythEdwardsNotation();
                     board.GenMoves(movelist);
+                    string fenAfter = board.ForsythEdwardsNotation();
+                    if (fenBefore != fenAfter)
+                    {
+                        Console.WriteLine("FAIL({0} line {1}): GenMoves corrupted the board.", filename, lnum);
+                        Console.WriteLine("before = {0}", fenBefore);
+                        Console.WriteLine("after  = {0}", fenAfter);
+                        return 1;
+                    }
                     Move[] marray = movelist.ToMoveArray();
                     string calcMoveList = string.Join(' ', marray.Select(m => m.ToString()).OrderBy(s => s));
 
