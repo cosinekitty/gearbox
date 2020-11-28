@@ -27,5 +27,10 @@ namespace Gearbox
 
             return array[--height];
         }
+
+        public void Reset()
+        {
+            height = 0;
+        }
     }
 }

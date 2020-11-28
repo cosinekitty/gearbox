@@ -1,3 +1,5 @@
+using System;
+
 namespace Gearbox
 {
     public class MoveList
@@ -39,6 +41,13 @@ namespace Gearbox
                     array[bestIndex] = swap;
                 }
             }
+        }
+
+        public Move[] ToMoveArray()
+        {
+            var copy = new Move[nmoves];
+            Array.Copy(array, copy, nmoves);
+            return copy;
         }
 
         // TODO: add Shuffle()

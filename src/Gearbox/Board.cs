@@ -9,7 +9,7 @@ namespace Gearbox
         // See this document for board layout:
         // https://docs.google.com/spreadsheets/d/12mNHhBPNH66jUZ6dGeRYKiSsRXGTedCG1qHCAgAaifk/edit?usp=sharing
 
-        private readonly Square[] square = new Square[120];
+        private readonly Square[] square = MakeEmptyBoard();
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
         private int wkofs;
         private int bkofs;
@@ -25,15 +25,27 @@ namespace Gearbox
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-        public Board(string fen = null)
+        private static Square[] MakeEmptyBoard()
         {
+            var square = new Square[120];
+
             for (int ofs=0; ofs<10; ++ofs)
                 square[ofs] = square[ofs+10] = square[ofs+100] = square[ofs+110] = Square.Offboard;
 
             for (int ofs=20; ofs < 100; ofs += 10)
                 square[ofs] = square[ofs+9] = Square.Offboard;
 
+            return square;
+        }
+
+        public Board(string fen = null)
+        {
             SetPosition(fen ?? StandardSetup);
+        }
+
+        public void Reset()
+        {
+            SetPosition(StandardSetup);
         }
 
         public string ForsythEdwardsNotation()
@@ -276,6 +288,8 @@ namespace Gearbox
 
             // Determine whether the current player is in check.
             isPlayerInCheck = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+
+            unmoveStack.Reset();
         }
 
         public void GenMoves(MoveList movelist)
@@ -877,30 +891,14 @@ namespace Gearbox
             // Check for diagonal capture toward the east.
             dest = source + pawndir + Direction.E;
             if (0 != (square[dest] & enemy) || dest == epTargetOffset)
-            {
-                if (rank == promrank)
-                {
-                    if (IsLegalMove(source, dest, 'q')) return true;
-                }
-                else
-                {
-                    if (IsLegalMove(source, dest)) return true;
-                }
-            }
+                if (IsLegalMove(source, dest, (rank == promrank) ? 'q' : '\0'))
+                    return true;
 
             // Check for diagonal capture toward the west.
             dest = source + pawndir + Direction.W;
             if (0 != (square[dest] & enemy) || dest == epTargetOffset)
-            {
-                if (rank == promrank)
-                {
-                    if (IsLegalMove(source, dest, 'q')) return true;
-                }
-                else
-                {
-                    if (IsLegalMove(source, dest)) return true;
-                }
-            }
+                if (IsLegalMove(source, dest, (rank == promrank) ? 'q' : '\0'))
+                    return true;
 
             return false;
         }
