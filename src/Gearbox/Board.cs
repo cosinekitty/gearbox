@@ -302,11 +302,6 @@ namespace Gearbox
             char file2, rank2;
             Algebraic(move.dest, out file2, out rank2);
 
-            PushMove(move);
-            bool check = isPlayerInCheck;
-            bool immobile = !PlayerCanMove();
-            PopMove();
-
             string movestr;
             Square piece = square[move.source] & Square.PieceMask;
             if ((piece == Square.King) && (move.dest - move.source == 2*Direction.E))
@@ -420,8 +415,8 @@ namespace Gearbox
                 }
             }
 
-            if (check)
-                movestr += immobile ? '#' : '+';
+            if (0 != (move.flags & MoveFlags.Check))
+                movestr += (0 != (move.flags & MoveFlags.Immobile)) ? '#' : '+';
 
             return movestr;
         }
@@ -983,9 +978,17 @@ namespace Gearbox
             var move = new Move(source, dest, prom);
             PushMove(move);
             bool illegal = IsIllegalPosition();
-            PopMove();
             if (!illegal)
+            {
+                if (isPlayerInCheck)
+                    move.flags |= MoveFlags.Check;
+
+                if (!PlayerCanMove())
+                    move.flags |= MoveFlags.Immobile;
+
                 movelist.Add(move);
+            }
+            PopMove();
             return !illegal;
         }
 

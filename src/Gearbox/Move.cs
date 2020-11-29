@@ -11,11 +11,19 @@ namespace Gearbox
         public const int Undefined   = -2000000000;
     }
 
+    public enum MoveFlags : byte
+    {
+        None = 0,
+        Check = 1,      // move causes check to the opponent
+        Immobile = 2,   // move leaves opponent with no legal moves (stalemate or checkmate)
+    }
+
     public struct Move
     {
         public byte source;
         public byte dest;
         public char prom;       // 'qrbn' if promotion
+        public MoveFlags flags;
         public int  score;
 
         public Move(int source, int dest)
@@ -23,6 +31,7 @@ namespace Gearbox
             this.source = (byte)source;
             this.dest = (byte)dest;
             this.prom = '\0';
+            this.flags = MoveFlags.None;
             this.score = Score.Undefined;
         }
 
@@ -31,6 +40,7 @@ namespace Gearbox
             this.source = (byte)source;
             this.dest = (byte)dest;
             this.prom = prom;
+            this.flags = MoveFlags.None;
             this.score = Score.Undefined;
         }
 
