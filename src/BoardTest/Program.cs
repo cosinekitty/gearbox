@@ -40,6 +40,7 @@ namespace BoardTest
             int gameCount = 0;
             var board = new Board();
             var movelist = new MoveList();
+            var scratch = new MoveList();
             var reFlags = new Regex(@"check=([01]) mobile=([01])");
             using (StreamReader infile = File.OpenText(filename))
             {
@@ -55,9 +56,10 @@ namespace BoardTest
                 //
                 //    Kept 1000 of 1476710 games.
                 //
-                // Each input record consists of 5 lines:
+                // Each input record consists of 6 lines:
                 //      ply longmove
-                //      legal_move_list
+                //      long_move_list
+                //      san_move_list
                 //      fen
                 //      check=[01] mobile=[01]
                 //      <blank>
@@ -81,7 +83,7 @@ namespace BoardTest
 
                     line = infile.ReadLine();
                     ++lnum;
-                    string correctMoveList = string.Join(' ', Split(line).OrderBy(t => t));
+                    string correctLongMoveList = string.Join(' ', Split(line).OrderBy(t => t));
 
                     string fenBefore = board.ForsythEdwardsNotation();
                     board.GenMoves(movelist);
@@ -94,15 +96,20 @@ namespace BoardTest
                         return 1;
                     }
                     Move[] marray = movelist.ToMoveArray();
-                    string calcMoveList = string.Join(' ', marray.Select(m => m.ToString()).OrderBy(s => s));
+                    string calcLongMoveList = string.Join(' ', marray.Select(m => m.ToString()).OrderBy(s => s));
 
-                    if (correctMoveList != calcMoveList)
+                    if (correctLongMoveList != calcLongMoveList)
                     {
-                        Console.WriteLine("FAIL({0} line {1}): movelist mismatch", filename, lnum);
-                        Console.WriteLine("correct = {0}", correctMoveList);
-                        Console.WriteLine("calc    = {0}", calcMoveList);
+                        Console.WriteLine("FAIL({0} line {1}): long movelist mismatch", filename, lnum);
+                        Console.WriteLine("correct = {0}", correctLongMoveList);
+                        Console.WriteLine("calc    = {0}", calcLongMoveList);
                         return 1;
                     }
+
+                    line = infile.ReadLine();
+                    ++lnum;
+                    string correctSanMoveList = string.Join(' ', Split(line).OrderBy(t => t));
+                    string calcSanMoveList = SanMoveList(board, movelist, scratch);
 
                     Move moveToMake = marray.First(m => m.ToString() == moveAlg);
                     board.PushMove(moveToMake);
@@ -151,6 +158,14 @@ namespace BoardTest
             }
             Console.WriteLine("PASS: LegalMoveTest for {0} games.", gameCount);
             return 0;
+        }
+
+        static string SanMoveList(Board board, MoveList movelist, MoveList scratch)
+        {
+            var sanlist = new string[movelist.nmoves];
+            for (int i=0; i < movelist.nmoves; ++i)
+                sanlist[i] = board.MoveNotation(movelist.array[i], movelist, scratch);
+            return string.Join(' ', sanlist.OrderBy(t => t));
         }
     }
 }

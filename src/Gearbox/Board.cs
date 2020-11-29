@@ -22,6 +22,7 @@ namespace Gearbox
         private bool blackCanCastleKingside;
         private bool blackCanCastleQueenside;
         private int epTargetOffset;     // offset behind pawn that just moved 2 squares; otherwise 0.
+        private string initialFen;      // needed for saving game to PGN file
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -121,21 +122,21 @@ namespace Gearbox
             return fen.ToString();
         }
 
-        public static string Algebraic(int offset)
+        public static void Algebraic(int offset, out char file, out char rank)
         {
+            file = (char)((offset % 10) - 1 + 'a');
+            rank = (char)((offset / 10) - 2 + '1');
             if (offset < 0 || offset >= 120)
                 throw new ArgumentException("Offset is out of bounds.");
+            if (file < 'a' || file > 'h' || rank < '1' || rank > '8')
+                throw new ArgumentException("Offset is outside the board.");
+        }
 
-            var array = new char[2]
-            {
-                (char)((offset % 10) - 1 + 'a'),
-                (char)((offset / 10) - 2 + '1')
-            };
-
-            if (array[0] < 'a' || array[0] > 'h' || array[1] < '1' || array[1] > '8')
-                throw new ArgumentException("Invalid offset.");
-
-            return new string(array);
+        public static string Algebraic(int offset)
+        {
+            char file, rank;
+            Algebraic(offset, out file, out rank);
+            return new string(new char[] {file, rank});
         }
 
         private static bool TryGetOffset(string algebraic, out int offset)
@@ -290,6 +291,153 @@ namespace Gearbox
             isPlayerInCheck = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
 
             unmoveStack.Reset();
+            initialFen = fen;
+        }
+
+        public string MoveNotation(Move move, MoveList legalMoves, MoveList scratch)
+        {
+            char file1, rank1;
+            Algebraic(move.source, out file1, out rank1);
+
+            char file2, rank2;
+            Algebraic(move.dest, out file2, out rank2);
+
+            PushMove(move);
+            bool check = isPlayerInCheck;
+            bool immobile = !PlayerCanMove();
+            PopMove();
+
+            string movestr;
+            Square piece = square[move.source] & Square.PieceMask;
+            if ((piece == Square.King) && (move.dest - move.source == 2*Direction.E))
+            {
+                movestr = "O-O";
+            }
+            else if ((piece == Square.King) && (move.dest - move.source == 2*Direction.W))
+            {
+                movestr = "O-O-O";
+            }
+            else
+            {
+                movestr = "";
+
+                Square capture = square[move.dest] & Square.PieceMask;
+                if ((piece == Square.Pawn) && (file1 != file2) && (capture == Square.Empty))
+                    capture = Square.Pawn;      // adjust for en passant capture
+
+                // Central to PGN is the concept of "ambiguous" notation.
+                // We want to figure out the minimum number of characters needed
+                // to unambiguously encode the chess move.
+                // Make a list of the subset of legal moves that have the
+                // same piece moving and the same destination square.
+                // Include only pawn promotions to the same promoted piece.
+                scratch.nmoves = 0;
+                for (int i=0; i < legalMoves.nmoves; ++i)
+                {
+                    Move lm = legalMoves.array[i];
+                    Square lp = square[lm.source] & Square.PieceMask;
+                    if (lp == piece && lm.dest == move.dest && lm.prom == move.prom)
+                        scratch.Add(lm);
+                }
+                if (scratch.nmoves == 0)
+                    throw new ArgumentException("Cannot format an illegal move.");
+
+                bool need_source_file = false;
+                bool need_source_rank = false;
+
+                if (scratch.nmoves > 1)
+                {
+                    /*
+                        [The following is quoted from http://www.very-best.de/pgn-spec.htm, section 8.2.3.]
+
+                        In the case of ambiguities (multiple pieces of the same type moving to the same square),
+                        the first appropriate disambiguating step of the three following steps is taken:
+
+                        First, if the moving pieces can be distinguished by their originating files,
+                        the originating file letter of the moving piece is inserted immediately after
+                        the moving piece letter.
+
+                        Second (when the first step fails), if the moving pieces can be distinguished by
+                        their originating ranks, the originating rank digit of the moving piece is inserted
+                        immediately after the moving piece letter.
+
+                        Third (when both the first and the second steps fail), the two character square
+                        coordinate of the originating square of the moving piece is inserted immediately
+                        after the moving piece letter.
+                    */
+
+                    // Check for distinct files and ranks for other moves that end up at 'dest'.
+                    int file_count = 0;
+                    int rank_count = 0;
+                    for (int i=0; i < scratch.nmoves; ++i)
+                    {
+                        char mfile, mrank;
+                        Algebraic(scratch.array[i].source, out mfile, out mrank);
+                        if (mfile == file1)
+                            ++file_count;
+                        if (mrank == rank1)
+                            ++rank_count;
+                    }
+
+                    if (file_count == 1)
+                    {
+                        need_source_file = true;
+                    }
+                    else
+                    {
+                        need_source_rank = true;
+                        if (rank_count > 1)
+                            need_source_file = true;
+                    }
+                }
+
+                if (piece == Square.Pawn)
+                {
+                    if (capture != Square.Empty)    // NOTE:  capture was set to PAWN above if this move is en passant.
+                        need_source_file = true;
+                }
+                else
+                {
+                    movestr += SanPieceSymbol(piece);
+                }
+
+                if (need_source_file)
+                    movestr += file1;
+
+                if (need_source_rank)
+                    movestr += rank1;
+
+                if (capture != Square.Empty)
+                    movestr += 'x';
+
+                movestr += file2;
+                movestr += rank2;
+
+                if (move.prom != '\0')
+                {
+                    movestr += '=';
+                    movestr += char.ToUpperInvariant(move.prom);
+                }
+            }
+
+            if (check)
+                movestr += immobile ? '#' : '+';
+
+            return movestr;
+        }
+
+        private static char SanPieceSymbol(Square piece)
+        {
+            switch (piece)
+            {
+                case Square.King:   return 'K';
+                case Square.Queen:  return 'Q';
+                case Square.Rook:   return 'R';
+                case Square.Bishop: return 'B';
+                case Square.Knight: return 'N';
+                default:
+                    throw new ArgumentException(string.Format("No SAN symbol for {0}", piece));
+            }
         }
 
         public void GenMoves(MoveList movelist)
