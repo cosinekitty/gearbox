@@ -26,7 +26,7 @@ Example PGN input:
 1. e4 { [%clk 0:10:00] } e5 { [%clk 0:10:00] } 2. Bc4 { [%clk 0:09:59] } c6 { [%clk 0:09:57] } 3. Qf3 { [%clk 0:10:01] } b5 { [%clk 0:10:00] } 4. Qxf7# { [%clk 0:09:57] } 1-0
 """
 
-MIN_ELO = 2400
+MIN_ELO = 2350
 MIN_TIME_CONTROL = 600
 
 reIntegerFront = re.compile(r'^[0-9]+')
@@ -42,8 +42,11 @@ def KeepGame(header):
     return header['Termination'] == 'Normal'
 
 if __name__ == '__main__':
-    inFileName = 'lichess_db_standard_rated_2020-10.pgn'
-    outFileName = 'filter.pgn'
+    if len(sys.argv) != 3:
+        print('USAGE: lifilter.py infile.pgn outfile.pgn')
+        sys.exit(1)
+    inFileName = sys.argv[1]
+    outFileName = sys.argv[2]
     totalGameCount = 0
     keptGameCount = 0
     with open(inFileName, 'rt') as infile:

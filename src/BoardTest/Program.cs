@@ -81,10 +81,6 @@ namespace BoardTest
                         board.Reset();
                     }
 
-                    line = infile.ReadLine();
-                    ++lnum;
-                    string correctLongMoveList = string.Join(' ', Split(line).OrderBy(t => t));
-
                     string fenBefore = board.ForsythEdwardsNotation();
                     board.GenMoves(movelist);
                     string fenAfter = board.ForsythEdwardsNotation();
@@ -96,15 +92,6 @@ namespace BoardTest
                         return 1;
                     }
                     Move[] marray = movelist.ToMoveArray();
-                    string calcLongMoveList = string.Join(' ', marray.Select(m => m.ToString()).OrderBy(s => s));
-
-                    if (correctLongMoveList != calcLongMoveList)
-                    {
-                        Console.WriteLine("FAIL({0} line {1}): long movelist mismatch", filename, lnum);
-                        Console.WriteLine("correct = {0}", correctLongMoveList);
-                        Console.WriteLine("calc    = {0}", calcLongMoveList);
-                        return 1;
-                    }
 
                     line = infile.ReadLine();
                     ++lnum;
