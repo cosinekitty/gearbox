@@ -23,6 +23,7 @@ namespace Gearbox
         private bool blackCanCastleQueenside;
         private int epTargetOffset;     // offset behind pawn that just moved 2 squares; otherwise 0.
         private string initialFen;      // needed for saving game to PGN file
+        private Ternary playerCanMove = Ternary.Unknown;
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -457,12 +458,19 @@ namespace Gearbox
 
         public bool PlayerCanMove()
         {
+            // If we have already figured out whether the player can move, recycle that information.
+            if (playerCanMove != Ternary.Unknown)
+                return playerCanMove == Ternary.Yes;
+
             // Return true if the current player has at least one legal move.
             // This is faster than generating all legal moves.
-            if (isWhiteTurn)
-                return PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7);
+            bool canMove = isWhiteTurn
+                ? PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7)
+                : PlayerCanMove(Square.Black, Square.White, Direction.S, 7, 2);
 
-            return PlayerCanMove(Square.Black, Square.White, Direction.S, 7, 2);
+            // Cache the work so we don't have to do it again for this position.
+            playerCanMove = canMove ? Ternary.Yes : Ternary.No;
+            return canMove;
         }
 
         public void PushMove(Move move)
@@ -477,6 +485,7 @@ namespace Gearbox
             unmove.epTargetOffset = epTargetOffset;
             unmove.halfMoveClock = halfMoveClock;
             unmove.isPlayerInCheck = isPlayerInCheck;
+            unmove.playerCanMove = playerCanMove;
             unmove.whiteCanCastleKingside = whiteCanCastleKingside;
             unmove.whiteCanCastleQueenside = whiteCanCastleQueenside;
             unmove.blackCanCastleKingside = blackCanCastleKingside;
@@ -622,16 +631,26 @@ namespace Gearbox
                 ++halfMoveClock;
 
             isWhiteTurn = !isWhiteTurn;
-
-            // Determine whether the current player is in check.
             if (isWhiteTurn)
-            {
-                isPlayerInCheck = IsAttackedBy(wkofs, Square.Black);
                 ++fullMoveNumber;
+
+            if (0 != (move.flags & MoveFlags.Valid))
+            {
+                // We already determined whether this move causes check, so no need to repeat that work.
+                isPlayerInCheck = (0 != (move.flags & MoveFlags.Check));
+
+                // We also already determined whether the opponent has at least one legal move.
+                playerCanMove = (0 != (move.flags & MoveFlags.Immobile)) ? Ternary.No : Ternary.Yes;
             }
             else
             {
-                isPlayerInCheck = IsAttackedBy(bkofs, Square.White);
+                // Determine whether the current player is in check.
+                isPlayerInCheck = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+
+                // We won't know whether the opponent has any legal moves unless PlayerCanMove() is called later.
+                // Note: any attempt to find out now would cause infinite recursion, because
+                // this function (PushMove) is called by PlayerCanMove.
+                playerCanMove = Ternary.Unknown;
             }
 
             if (square[wkofs] != Square.WK)
@@ -660,6 +679,7 @@ namespace Gearbox
             epTargetOffset = unmove.epTargetOffset;
             halfMoveClock = unmove.halfMoveClock;
             isPlayerInCheck = unmove.isPlayerInCheck;
+            playerCanMove = unmove.playerCanMove;
 
             switch (piece)
             {
@@ -980,6 +1000,8 @@ namespace Gearbox
             bool illegal = IsIllegalPosition();
             if (!illegal)
             {
+                move.flags = MoveFlags.Valid;
+
                 if (isPlayerInCheck)
                     move.flags |= MoveFlags.Check;
 

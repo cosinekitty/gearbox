@@ -13,9 +13,10 @@ namespace Gearbox
 
     public enum MoveFlags : byte
     {
-        None = 0,
-        Check = 1,      // move causes check to the opponent
-        Immobile = 2,   // move leaves opponent with no legal moves (stalemate or checkmate)
+        None = 0x00,
+        Valid = 0x01,       // the Check & Immobile flags are valid
+        Check = 0x02,       // move causes check to the opponent
+        Immobile = 0x04,    // move leaves opponent with no legal moves (stalemate or checkmate)
     }
 
     public struct Move
