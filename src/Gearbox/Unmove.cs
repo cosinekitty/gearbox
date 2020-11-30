@@ -13,7 +13,7 @@ namespace Gearbox
         public Square capture;
         public int epTargetOffset;
         public int halfMoveClock;
-        public bool isPlayerInCheck;
+        public Ternary playerInCheck;
         public Ternary playerCanMove;
         public bool whiteCanCastleKingside;
         public bool whiteCanCastleQueenside;

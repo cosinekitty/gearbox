@@ -16,14 +16,14 @@ namespace Gearbox
         private bool isWhiteTurn;
         private int fullMoveNumber;
         private int halfMoveClock;
-        private bool isPlayerInCheck;
         private bool whiteCanCastleKingside;
         private bool whiteCanCastleQueenside;
         private bool blackCanCastleKingside;
         private bool blackCanCastleQueenside;
         private int epTargetOffset;     // offset behind pawn that just moved 2 squares; otherwise 0.
         private string initialFen;      // needed for saving game to PGN file
-        private Ternary playerCanMove = Ternary.Unknown;
+        private Ternary playerInCheck;
+        private Ternary playerCanMove;
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -288,8 +288,8 @@ namespace Gearbox
             if (!int.TryParse(token[5], out fullMoveNumber) || fullMoveNumber < 1)
                 throw new ArgumentException("FEN invalid fullmove number.");
 
-            // Determine whether the current player is in check.
-            isPlayerInCheck = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+            playerInCheck = Ternary.Unknown;
+            playerCanMove = Ternary.Unknown;
 
             unmoveStack.Reset();
             initialFen = fen;
@@ -453,7 +453,12 @@ namespace Gearbox
 
         public bool IsPlayerInCheck()
         {
-            return isPlayerInCheck;
+            if (playerInCheck != Ternary.Unknown)
+                return playerInCheck == Ternary.Yes;
+
+            bool check = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+            playerInCheck = check ? Ternary.Yes : Ternary.No;
+            return check;
         }
 
         public bool PlayerCanMove()
@@ -484,7 +489,7 @@ namespace Gearbox
             unmove.capture = square[move.dest];
             unmove.epTargetOffset = epTargetOffset;
             unmove.halfMoveClock = halfMoveClock;
-            unmove.isPlayerInCheck = isPlayerInCheck;
+            unmove.playerInCheck = playerInCheck;
             unmove.playerCanMove = playerCanMove;
             unmove.whiteCanCastleKingside = whiteCanCastleKingside;
             unmove.whiteCanCastleQueenside = whiteCanCastleQueenside;
@@ -637,19 +642,16 @@ namespace Gearbox
             if (0 != (move.flags & MoveFlags.Valid))
             {
                 // We already determined whether this move causes check, so no need to repeat that work.
-                isPlayerInCheck = (0 != (move.flags & MoveFlags.Check));
+                playerInCheck = (0 != (move.flags & MoveFlags.Check)) ? Ternary.Yes : Ternary.No;
 
                 // We also already determined whether the opponent has at least one legal move.
                 playerCanMove = (0 != (move.flags & MoveFlags.Immobile)) ? Ternary.No : Ternary.Yes;
             }
             else
             {
-                // Determine whether the current player is in check.
-                isPlayerInCheck = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
-
-                // We won't know whether the opponent has any legal moves unless PlayerCanMove() is called later.
-                // Note: any attempt to find out now would cause infinite recursion, because
-                // this function (PushMove) is called by PlayerCanMove.
+                // Start undecided about whether the player is in check or can move.
+                // Lazy-evaluate these facts only when they are first needed.
+                playerInCheck = Ternary.Unknown;
                 playerCanMove = Ternary.Unknown;
             }
 
@@ -678,7 +680,7 @@ namespace Gearbox
             blackCanCastleQueenside = unmove.blackCanCastleQueenside;
             epTargetOffset = unmove.epTargetOffset;
             halfMoveClock = unmove.halfMoveClock;
-            isPlayerInCheck = unmove.isPlayerInCheck;
+            playerInCheck = unmove.playerInCheck;
             playerCanMove = unmove.playerCanMove;
 
             switch (piece)
@@ -962,7 +964,7 @@ namespace Gearbox
                                 {
                                     // Moving the king one square east is legal.
                                     // See if castling kingside (O-O) is also legal.
-                                    if (!isPlayerInCheck && (isWhiteTurn ? whiteCanCastleKingside : blackCanCastleKingside))
+                                    if ((isWhiteTurn ? whiteCanCastleKingside : blackCanCastleKingside) && !IsPlayerInCheck())
                                     {
                                         // Not allowed to castle unless both squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.E;
@@ -974,7 +976,7 @@ namespace Gearbox
                                 {
                                     // Moving the king one square west is legal.
                                     // See if castling queenside (O-O-O) is also legal.
-                                    if (!isPlayerInCheck && (isWhiteTurn ? whiteCanCastleQueenside : blackCanCastleQueenside))
+                                    if ((isWhiteTurn ? whiteCanCastleQueenside : blackCanCastleQueenside) && !IsPlayerInCheck())
                                     {
                                         // Not allowed to castle unless all 3 squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.W;
@@ -1002,7 +1004,7 @@ namespace Gearbox
             {
                 move.flags = MoveFlags.Valid;
 
-                if (isPlayerInCheck)
+                if (IsPlayerInCheck())
                     move.flags |= MoveFlags.Check;
 
                 if (!PlayerCanMove())
