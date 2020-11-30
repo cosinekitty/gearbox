@@ -297,26 +297,25 @@ namespace Gearbox
 
         public string MoveNotation(Move move, MoveList legalMoves, MoveList scratch)
         {
+            var san = new StringBuilder(7, 7);      // SAN moves can never be more than 7 characters long.
+
             char file1, rank1;
             Algebraic(move.source, out file1, out rank1);
 
             char file2, rank2;
             Algebraic(move.dest, out file2, out rank2);
 
-            string movestr;
             Square piece = square[move.source] & Square.PieceMask;
             if ((piece == Square.King) && (move.dest - move.source == 2*Direction.E))
             {
-                movestr = "O-O";
+                san.Append("O-O");
             }
             else if ((piece == Square.King) && (move.dest - move.source == 2*Direction.W))
             {
-                movestr = "O-O-O";
+                san.Append("O-O-O");
             }
             else
             {
-                movestr = "";
-
                 Square capture = square[move.dest] & Square.PieceMask;
                 if ((piece == Square.Pawn) && (file1 != file2) && (capture == Square.Empty))
                     capture = Square.Pawn;      // adjust for en passant capture
@@ -394,32 +393,32 @@ namespace Gearbox
                 }
                 else
                 {
-                    movestr += SanPieceSymbol(piece);
+                    san.Append(SanPieceSymbol(piece));
                 }
 
                 if (need_source_file)
-                    movestr += file1;
+                    san.Append(file1);
 
                 if (need_source_rank)
-                    movestr += rank1;
+                    san.Append(rank1);
 
                 if (capture != Square.Empty)
-                    movestr += 'x';
+                    san.Append('x');
 
-                movestr += file2;
-                movestr += rank2;
+                san.Append(file2);
+                san.Append(rank2);
 
                 if (move.prom != '\0')
                 {
-                    movestr += '=';
-                    movestr += char.ToUpperInvariant(move.prom);
+                    san.Append('=');
+                    san.Append(char.ToUpperInvariant(move.prom));
                 }
             }
 
             if (0 != (move.flags & MoveFlags.Check))
-                movestr += (0 != (move.flags & MoveFlags.Immobile)) ? '#' : '+';
+                san.Append((0 != (move.flags & MoveFlags.Immobile)) ? '#' : '+');
 
-            return movestr;
+            return san.ToString();
         }
 
         private static char SanPieceSymbol(Square piece)
