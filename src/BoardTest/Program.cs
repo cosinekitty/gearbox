@@ -35,8 +35,25 @@ namespace BoardTest
         static int Main(string[] args)
         {
             int rc;
+            if (0 != (rc = TestGameTags())) return rc;
             if (0 != (rc = TestStandardSetup())) return rc;
             if (0 != (rc = TestLegalMoves("gearbox_move_test.txt"))) return rc;
+            return 0;
+        }
+
+        static int TestGameTags()
+        {
+            const string expectedEmptyText = "[Event \"?\"]\n[Site \"?\"]\n[Date \"????.??.??\"]\n[Round \"?\"]\n[White \"?\"]\n[Black \"?\"]\n[Result \"*\"]\n\n";
+
+            var emptyTags = new GameTags();
+            string actualText = emptyTags.ToString();
+            if (actualText != expectedEmptyText)
+            {
+                Console.WriteLine("FAIL: empty tag text is incorrect:\n{0}", actualText);
+                Console.WriteLine("Correct is:\n{0}", expectedEmptyText);
+                return 1;
+            }
+            Console.WriteLine("PASS: Game Tags");
             return 0;
         }
 
@@ -51,7 +68,7 @@ namespace BoardTest
                 Console.WriteLine("FAIL: does not match standard setup.");
                 return 1;
             }
-            Console.WriteLine("PASS: StandardSetup");
+            Console.WriteLine("PASS: Standard Setup");
             return 0;
         }
 
