@@ -16,10 +16,7 @@ namespace Gearbox
         private bool isWhiteTurn;
         private int fullMoveNumber;
         private int halfMoveClock;
-        private bool whiteCanCastleKingside;
-        private bool whiteCanCastleQueenside;
-        private bool blackCanCastleKingside;
-        private bool blackCanCastleQueenside;
+        private CastlingFlags castling; // tracks movement of kings, movement/capture of rooks, for castling availability
         private int epTargetOffset;     // offset behind pawn that just moved 2 squares; otherwise 0.
         private string initialFen;      // needed for saving game to PGN file
         private Ternary playerInCheck;
@@ -109,13 +106,13 @@ namespace Gearbox
 
             fen.Append(isWhiteTurn ? " w " : " b ");
             int fenLengthBeforeCastling = fen.Length;
-            if (whiteCanCastleKingside)
+            if (0 != (castling & CastlingFlags.WhiteKingside))
                 fen.Append('K');
-            if (whiteCanCastleQueenside)
+            if (0 != (castling & CastlingFlags.WhiteQueenside))
                 fen.Append('Q');
-            if (blackCanCastleKingside)
+            if (0 != (castling & CastlingFlags.BlackKingside))
                 fen.Append('k');
-            if (blackCanCastleQueenside)
+            if (0 != (castling & CastlingFlags.BlackQueenside))
                 fen.Append('q');
             if (fen.Length == fenLengthBeforeCastling)
                 fen.Append('-');
@@ -264,23 +261,23 @@ namespace Gearbox
             }
 
             // token[2] = castling availability
-            whiteCanCastleKingside = whiteCanCastleQueenside = false;
-            blackCanCastleKingside = blackCanCastleQueenside = false;
+            CastlingFlags newCastling = CastlingFlags.None;
             if (token[2] != "-")
             {
                 foreach (char c in token[2])
                 {
                     switch (c)
                     {
-                        case 'K':   whiteCanCastleKingside  = true; break;
-                        case 'Q':   whiteCanCastleQueenside = true; break;
-                        case 'k':   blackCanCastleKingside  = true; break;
-                        case 'q':   blackCanCastleQueenside = true; break;
+                        case 'K':   newCastling |= CastlingFlags.WhiteKingside;  break;
+                        case 'Q':   newCastling |= CastlingFlags.BlackKingside;  break;
+                        case 'k':   newCastling |= CastlingFlags.WhiteQueenside; break;
+                        case 'q':   newCastling |= CastlingFlags.BlackQueenside; break;
                         default:
                             throw new ArgumentException("FEN castling availability is invalid.");
                     }
                 }
             }
+            castling = newCastling;
 
             // token[3] = en passant target
             if (token[3] == "-")
@@ -499,12 +496,11 @@ namespace Gearbox
             unmove.halfMoveClock = halfMoveClock;
             unmove.playerInCheck = playerInCheck;
             unmove.playerCanMove = playerCanMove;
-            unmove.whiteCanCastleKingside = whiteCanCastleKingside;
-            unmove.whiteCanCastleQueenside = whiteCanCastleQueenside;
-            unmove.blackCanCastleKingside = blackCanCastleKingside;
-            unmove.blackCanCastleQueenside = blackCanCastleQueenside;
+            unmove.castling = castling;
             unmove.hash = hash;
             unmoveStack.Push(unmove);
+
+            CastlingFlags newCastling = castling;
 
             // Capturing an unmoved rook destroys castling on that side.
             // If the rook has already moved away and back, the castling
@@ -513,16 +509,16 @@ namespace Gearbox
             {
                 case Square.WR:
                     if (move.dest == 28)
-                        whiteCanCastleKingside = false;
+                        newCastling &= ~CastlingFlags.WhiteKingside;
                     else if (move.dest == 21)
-                        whiteCanCastleQueenside = false;
+                        newCastling &= ~CastlingFlags.WhiteQueenside;
                     break;
 
                 case Square.BR:
                     if (move.dest == 98)
-                        blackCanCastleKingside = false;
+                        newCastling &= ~CastlingFlags.BlackKingside;
                     else if (move.dest == 91)
-                        blackCanCastleQueenside = false;
+                        newCastling &= ~CastlingFlags.BlackQueenside;
                     break;
 
                 case Square.WK:
@@ -565,8 +561,8 @@ namespace Gearbox
             switch (piece)
             {
                 case Square.WK:
-                    // White cannot castle after moving his King.
-                    whiteCanCastleKingside = whiteCanCastleQueenside = false;
+                    // White cannot castle in either direction after moving his King.
+                    newCastling &= ~(CastlingFlags.WhiteKingside | CastlingFlags.WhiteQueenside);
                     wkofs = move.dest;
 
                     // Check for White castling move.
@@ -588,8 +584,8 @@ namespace Gearbox
                     break;
 
                 case Square.BK:
-                    // Black cannot castle after moving his King.
-                    blackCanCastleKingside = blackCanCastleQueenside = false;
+                    // Black cannot castle in either direction after moving his King.
+                    newCastling &= ~(CastlingFlags.BlackKingside | CastlingFlags.BlackQueenside);
                     bkofs = move.dest;
 
                     // Check for Black castling move.
@@ -613,17 +609,17 @@ namespace Gearbox
                 case Square.WR:
                     // Moving a rook prevents castling on the same side.
                     if (move.source == 28)
-                        whiteCanCastleKingside = false;
+                        newCastling &= ~CastlingFlags.WhiteKingside;
                     else if (move.source == 21)
-                        whiteCanCastleQueenside = false;
+                        newCastling &= ~CastlingFlags.WhiteQueenside;
                     break;
 
                 case Square.BR:
                     // Moving a rook prevents castling on the same side.
                     if (move.source == 98)
-                        blackCanCastleKingside = false;
+                        newCastling &= ~CastlingFlags.BlackKingside;
                     else if (move.source == 91)
-                        blackCanCastleQueenside = false;
+                        newCastling &= ~CastlingFlags.BlackQueenside;
                     break;
 
                 case Square.WP:
@@ -638,6 +634,8 @@ namespace Gearbox
                         epTargetOffset = move.source + Direction.S;
                     break;
             }
+
+            castling = newCastling;
 
             if (unmove.capture != Square.Empty || (piece & Square.PieceMask) == Square.Pawn)
                 halfMoveClock = 0;
@@ -683,10 +681,7 @@ namespace Gearbox
             Drop(unmove.move.source, piece);
             Drop(unmove.move.dest, unmove.capture);
 
-            whiteCanCastleKingside = unmove.whiteCanCastleKingside;
-            whiteCanCastleQueenside = unmove.whiteCanCastleQueenside;
-            blackCanCastleKingside = unmove.blackCanCastleKingside;
-            blackCanCastleQueenside = unmove.blackCanCastleQueenside;
+            castling = unmove.castling;
             epTargetOffset = unmove.epTargetOffset;
             halfMoveClock = unmove.halfMoveClock;
             playerInCheck = unmove.playerInCheck;
@@ -1006,7 +1001,8 @@ namespace Gearbox
                                 {
                                     // Moving the king one square east is legal.
                                     // See if castling kingside (O-O) is also legal.
-                                    if ((isWhiteTurn ? whiteCanCastleKingside : blackCanCastleKingside) && !IsPlayerInCheck())
+                                    CastlingFlags flag = isWhiteTurn ? CastlingFlags.WhiteKingside : CastlingFlags.BlackKingside;
+                                    if ((0 != (castling & flag)) && !IsPlayerInCheck())
                                     {
                                         // Not allowed to castle unless both squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.E;
@@ -1018,7 +1014,8 @@ namespace Gearbox
                                 {
                                     // Moving the king one square west is legal.
                                     // See if castling queenside (O-O-O) is also legal.
-                                    if ((isWhiteTurn ? whiteCanCastleQueenside : blackCanCastleQueenside) && !IsPlayerInCheck())
+                                    CastlingFlags flag = isWhiteTurn ? CastlingFlags.WhiteQueenside : CastlingFlags.BlackQueenside;
+                                    if ((0 != (castling & flag)) && !IsPlayerInCheck())
                                     {
                                         // Not allowed to castle unless all 3 squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.W;
