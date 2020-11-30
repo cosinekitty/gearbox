@@ -537,6 +537,24 @@ namespace Gearbox
             return san.ToString();
         }
 
+        public string PortableGameNotation(GameTags tags)
+        {
+            // Preserve initial state in the GameTags.
+            string saveFen = tags.GetTag("FEN");
+
+            // Mutate the tags so that the output will be correct, if this is a nonstandard position.
+            tags.SetInitialState((initialFen == StandardSetup) ? null : initialFen);
+
+            string pgn = tags.ToString();
+            GameHistory history = GetGameHistory();
+            pgn += history.FormatMoveList(80);
+
+            // Restore the tags back the way they were, if we mutated them.
+            tags.SetInitialState(saveFen);
+
+            return pgn;
+        }
+
         private static char SanPieceSymbol(Square piece)
         {
             switch (piece)

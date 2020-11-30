@@ -64,7 +64,17 @@ namespace Gearbox
 
         public GameTags(string initialFen = null)
         {
-            if (!string.IsNullOrWhiteSpace(initialFen))
+            SetInitialState(initialFen);
+        }
+
+        public void SetInitialState(string initialFen)
+        {
+            if (string.IsNullOrWhiteSpace(initialFen))
+            {
+                tags.Remove("SetUp");
+                tags.Remove("FEN");
+            }
+            else
             {
                 SetTag("SetUp", "1");
                 SetTag("FEN", initialFen);

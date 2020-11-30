@@ -59,16 +59,13 @@ namespace BoardTest
             tags.SetTag("Opening", "Caro-Kann Defense");
             tags.SetTag("TimeControl", "600+0");
 
-            string listing = tags.ToString();
-
             Board board = BoardFromGame(@"e4 c6 d4 d5 Nc3 Nf6 e5 Ng8 f4 g6 Nf3 h5 Bd3 Nh6 O-O Bf5
                 Nh4 Bxd3 Qxd3 e6 Bd2 Be7 Nf3 Nf5 Rae1 Nd7 Nd1 a6 Ne3 c5 c3 Rc8 Nxf5 gxf5
                 Ng5 Nf8 h4 Ng6 g3 b5 Kh2 Qb6 b4 cxd4 cxd4 Rc4 Nf3 Bxb4 Rc1 Bxd2 Qxd2 O-O
                 Rfd1 Rfc8 Rxc4 Rxc4 Qe2 Qa5 Ng5 Kf8 Qxh5 Qxa2+ Kh3 Rc2 Nf3 Rf2 Rh1 Qe2
                 Qh6+ Ke8 Ng5 Qg4#");
 
-            GameHistory history = board.GetGameHistory();
-            listing += history.FormatMoveList(80);
+            string listing = board.PortableGameNotation(tags);
 
             string expected =
                 "[Event \"Rated Rapid game\"]\n" +
