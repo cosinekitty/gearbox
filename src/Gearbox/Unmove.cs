@@ -12,10 +12,11 @@ namespace Gearbox
         public Move move;
         public Square capture;
         public int epTargetOffset;
+        public Ternary epCaptureIsLegal;   // lazy-evaluated existence of at least one legal en passant capture
         public int halfMoveClock;
         public Ternary playerInCheck;
         public Ternary playerCanMove;
         public CastlingFlags castling;
-        public HashValue hash;      // used for sanity checking, not restoring, after each PopMove()
+        public HashValue pieceHash;         // used for sanity checking, not restoring, after each PopMove()
     }
 }

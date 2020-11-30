@@ -11,17 +11,18 @@ namespace Gearbox
 
         private readonly Square[] square = MakeEmptyBoard();
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
-        private int wkofs;
-        private int bkofs;
+        private int wkofs;              // location of the White King
+        private int bkofs;              // location of the Black King
         private bool isWhiteTurn;
         private int fullMoveNumber;
         private int halfMoveClock;
-        private CastlingFlags castling; // tracks movement of kings, movement/capture of rooks, for castling availability
-        private int epTargetOffset;     // offset behind pawn that just moved 2 squares; otherwise 0.
-        private string initialFen;      // needed for saving game to PGN file
+        private CastlingFlags castling;     // tracks movement of kings, movement/capture of rooks, for castling availability
+        private int epTargetOffset;         // offset behind pawn that just moved 2 squares; otherwise 0.
+        private Ternary epCaptureIsLegal;   // lazy-evaluated existence of at least one legal en passant capture
+        private string initialFen;          // needed for saving game to PGN file
         private Ternary playerInCheck;
         private Ternary playerCanMove;
-        private HashValue hash;
+        private HashValue pieceHash;
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -50,7 +51,79 @@ namespace Gearbox
 
         public HashValue Hash()
         {
+            // The hash value must identify the unique tactical situation.
+            // All factors that affect the tree of possible future game states
+            // must be represented in the returned pair of hash values.
+            // Start with the always-current hash of the piece configuration.
+            HashValue hash = pieceHash;
+
+            // Adjust for whether it is White's turn or Black's turn.
+            if (isWhiteTurn)
+            {
+                hash.a ^= HashSalt.Data[0, 0, 0];
+                hash.b ^= HashSalt.Data[0, 0, 1];
+            }
+
+            // Adjust for castling availability for both sides.
+            int c = (int)castling;
+            hash.a ^= HashSalt.Castling[c, 0];
+            hash.b ^= HashSalt.Castling[c, 1];
+
+            // Adjust for the ability to make an en passant capture, but only when it is actually possible.
+            // Just because epTargetOffset is set, doesn't mean there is a pawn that can capture there.
+            // We don't want to think two positions are different just because a pawn moved two squares,
+            // when the respective trees of future moves emanating from those positions are identical.
+            if (LegalEnPassantCaptureExists())
+            {
+                int file = 55 + (epTargetOffset % 10);      // 56..63
+                hash.a ^= HashSalt.Data[0, file, 0];
+                hash.b ^= HashSalt.Data[0, file, 1];
+            }
+
             return hash;
+        }
+
+        private bool LegalEnPassantCaptureExists()
+        {
+            if (epTargetOffset == 0)
+                return false;
+
+            if (epCaptureIsLegal != Ternary.Unknown)
+                return epCaptureIsLegal == Ternary.Yes;
+
+            Square taker;       // Would a White Pawn or a Black Pawn be doing the capture?
+            int dir;            // What direction would such a pawn move when not capturing?
+            if (isWhiteTurn)
+            {
+                taker = Square.WP;
+                dir = Direction.N;
+            }
+            else
+            {
+                taker = Square.BP;
+                dir = Direction.S;
+            }
+
+            // There are up to two places a capturing pawn could be located:
+            // 1. Diagonally and to the East of the en passant target.
+            // 2. Diagonally and to the West of the en passant target.
+            // Return true if either exists and capture is actually legal.
+            int source = epTargetOffset + Direction.E - dir;
+            if (square[source] == taker && IsLegalMove(source, epTargetOffset))
+            {
+                epCaptureIsLegal = Ternary.Yes;
+                return true;
+            }
+
+            source = epTargetOffset + Direction.W - dir;
+            if (square[source] == taker && IsLegalMove(source, epTargetOffset))
+            {
+                epCaptureIsLegal = Ternary.Yes;
+                return true;
+            }
+
+            epCaptureIsLegal = Ternary.No;
+            return false;
         }
 
         public string ForsythEdwardsNotation()
@@ -185,7 +258,7 @@ namespace Gearbox
             int total = 0;      // total number of squares filled (must end up 64)
             char file = 'a';
             char rank = '8';
-            this.bkofs = this.wkofs = 0;    // detect missing king(s)
+            bkofs = wkofs = 0;    // detect missing king(s)
 
             foreach (char c in token[0])
             {
@@ -218,13 +291,13 @@ namespace Gearbox
                             case 'b':   piece = Square.BB;  break;
                             case 'r':   piece = Square.BR;  break;
                             case 'q':   piece = Square.BQ;  break;
-                            case 'k':   piece = Square.BK;  this.bkofs = ofs;  break;
+                            case 'k':   piece = Square.BK;  bkofs = ofs;  break;
                             case 'P':   piece = Square.WP;  break;
                             case 'N':   piece = Square.WN;  break;
                             case 'B':   piece = Square.WB;  break;
                             case 'R':   piece = Square.WR;  break;
                             case 'Q':   piece = Square.WQ;  break;
-                            case 'K':   piece = Square.WK;  this.wkofs = ofs;  break;
+                            case 'K':   piece = Square.WK;  wkofs = ofs;  break;
                             default:
                                 throw new ArgumentException("Invalid character in Forsyth Edwards Notation (FEN).");
                         }
@@ -248,7 +321,7 @@ namespace Gearbox
             if (total != 64)
                 throw new ArgumentException("FEN layout did not contain exactly 64 squares.");
 
-            if (this.wkofs == 0 || this.bkofs == 0)
+            if (wkofs == 0 || bkofs == 0)
                 throw new ArgumentException("FEN does not include both kings.");
 
             // token[1] = turn to move
@@ -261,23 +334,22 @@ namespace Gearbox
             }
 
             // token[2] = castling availability
-            CastlingFlags newCastling = CastlingFlags.None;
+            castling = CastlingFlags.None;
             if (token[2] != "-")
             {
                 foreach (char c in token[2])
                 {
                     switch (c)
                     {
-                        case 'K':   newCastling |= CastlingFlags.WhiteKingside;  break;
-                        case 'Q':   newCastling |= CastlingFlags.BlackKingside;  break;
-                        case 'k':   newCastling |= CastlingFlags.WhiteQueenside; break;
-                        case 'q':   newCastling |= CastlingFlags.BlackQueenside; break;
+                        case 'K':   castling |= CastlingFlags.WhiteKingside;  break;
+                        case 'Q':   castling |= CastlingFlags.BlackKingside;  break;
+                        case 'k':   castling |= CastlingFlags.WhiteQueenside; break;
+                        case 'q':   castling |= CastlingFlags.BlackQueenside; break;
                         default:
                             throw new ArgumentException("FEN castling availability is invalid.");
                     }
                 }
             }
-            castling = newCastling;
 
             // token[3] = en passant target
             if (token[3] == "-")
@@ -293,6 +365,7 @@ namespace Gearbox
 
             playerInCheck = Ternary.Unknown;
             playerCanMove = Ternary.Unknown;
+            epCaptureIsLegal = Ternary.Unknown;
 
             unmoveStack.Reset();
             initialFen = fen;
@@ -493,14 +566,13 @@ namespace Gearbox
             unmove.move = move;
             unmove.capture = square[move.dest];
             unmove.epTargetOffset = epTargetOffset;
+            unmove.epCaptureIsLegal = epCaptureIsLegal;
             unmove.halfMoveClock = halfMoveClock;
             unmove.playerInCheck = playerInCheck;
             unmove.playerCanMove = playerCanMove;
             unmove.castling = castling;
-            unmove.hash = hash;
+            unmove.pieceHash = pieceHash;
             unmoveStack.Push(unmove);
-
-            CastlingFlags newCastling = castling;
 
             // Capturing an unmoved rook destroys castling on that side.
             // If the rook has already moved away and back, the castling
@@ -509,16 +581,16 @@ namespace Gearbox
             {
                 case Square.WR:
                     if (move.dest == 28)
-                        newCastling &= ~CastlingFlags.WhiteKingside;
+                        castling &= ~CastlingFlags.WhiteKingside;
                     else if (move.dest == 21)
-                        newCastling &= ~CastlingFlags.WhiteQueenside;
+                        castling &= ~CastlingFlags.WhiteQueenside;
                     break;
 
                 case Square.BR:
                     if (move.dest == 98)
-                        newCastling &= ~CastlingFlags.BlackKingside;
+                        castling &= ~CastlingFlags.BlackKingside;
                     else if (move.dest == 91)
-                        newCastling &= ~CastlingFlags.BlackQueenside;
+                        castling &= ~CastlingFlags.BlackQueenside;
                     break;
 
                 case Square.WK:
@@ -562,7 +634,7 @@ namespace Gearbox
             {
                 case Square.WK:
                     // White cannot castle in either direction after moving his King.
-                    newCastling &= ~(CastlingFlags.WhiteKingside | CastlingFlags.WhiteQueenside);
+                    castling &= ~(CastlingFlags.WhiteKingside | CastlingFlags.WhiteQueenside);
                     wkofs = move.dest;
 
                     // Check for White castling move.
@@ -585,7 +657,7 @@ namespace Gearbox
 
                 case Square.BK:
                     // Black cannot castle in either direction after moving his King.
-                    newCastling &= ~(CastlingFlags.BlackKingside | CastlingFlags.BlackQueenside);
+                    castling &= ~(CastlingFlags.BlackKingside | CastlingFlags.BlackQueenside);
                     bkofs = move.dest;
 
                     // Check for Black castling move.
@@ -609,17 +681,17 @@ namespace Gearbox
                 case Square.WR:
                     // Moving a rook prevents castling on the same side.
                     if (move.source == 28)
-                        newCastling &= ~CastlingFlags.WhiteKingside;
+                        castling &= ~CastlingFlags.WhiteKingside;
                     else if (move.source == 21)
-                        newCastling &= ~CastlingFlags.WhiteQueenside;
+                        castling &= ~CastlingFlags.WhiteQueenside;
                     break;
 
                 case Square.BR:
                     // Moving a rook prevents castling on the same side.
                     if (move.source == 98)
-                        newCastling &= ~CastlingFlags.BlackKingside;
+                        castling &= ~CastlingFlags.BlackKingside;
                     else if (move.source == 91)
-                        newCastling &= ~CastlingFlags.BlackQueenside;
+                        castling &= ~CastlingFlags.BlackQueenside;
                     break;
 
                 case Square.WP:
@@ -634,8 +706,6 @@ namespace Gearbox
                         epTargetOffset = move.source + Direction.S;
                     break;
             }
-
-            castling = newCastling;
 
             if (unmove.capture != Square.Empty || (piece & Square.PieceMask) == Square.Pawn)
                 halfMoveClock = 0;
@@ -683,6 +753,7 @@ namespace Gearbox
 
             castling = unmove.castling;
             epTargetOffset = unmove.epTargetOffset;
+            epCaptureIsLegal = unmove.epCaptureIsLegal;
             halfMoveClock = unmove.halfMoveClock;
             playerInCheck = unmove.playerInCheck;
             playerCanMove = unmove.playerCanMove;
@@ -751,7 +822,7 @@ namespace Gearbox
             if (square[bkofs] != Square.BK)
                 throw new Exception("Black King is misplaced");
 
-            if (hash.a != unmove.hash.a || hash.b != unmove.hash.b)
+            if (pieceHash.a != unmove.pieceHash.a || pieceHash.b != unmove.pieceHash.b)
                 throw new Exception("Hash value was not preserved");
         }
 
@@ -786,8 +857,8 @@ namespace Gearbox
             {
                 ulong a, b;
                 PieceHashValues(piece, ofs, out a, out b);
-                hash.a -= a;
-                hash.b -= b;
+                pieceHash.a -= a;
+                pieceHash.b -= b;
             }
             return piece;
         }
@@ -803,8 +874,8 @@ namespace Gearbox
             {
                 ulong a, b;
                 PieceHashValues(piece, ofs, out a, out b);
-                hash.a += a;
-                hash.b += b;
+                pieceHash.a += a;
+                pieceHash.b += b;
             }
         }
 
@@ -939,6 +1010,7 @@ namespace Gearbox
 
         private void GenMoves(MoveList movelist, Square friend, Square enemy, int pawndir, int homerank, int promrank)
         {
+            epCaptureIsLegal = Ternary.No;      // will change to Yes if GenMoves_Pawn() finds any legal en passant captures.
             movelist.nmoves = 0;
             for (int rank = 1; rank <= 8; ++rank)
             {
@@ -1193,7 +1265,9 @@ namespace Gearbox
                 }
                 else
                 {
-                    AddMove(movelist, source, dest);
+                    if (AddMove(movelist, source, dest))
+                        if (dest == epTargetOffset)
+                            epCaptureIsLegal = Ternary.Yes;
                 }
             }
 
@@ -1215,7 +1289,9 @@ namespace Gearbox
                 }
                 else
                 {
-                    AddMove(movelist, source, dest);
+                    if (AddMove(movelist, source, dest))
+                        if (dest == epTargetOffset)
+                            epCaptureIsLegal = Ternary.Yes;
                 }
             }
         }
