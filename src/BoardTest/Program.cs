@@ -36,9 +36,86 @@ namespace BoardTest
         {
             int rc;
             if (0 != (rc = TestGameTags())) return rc;
+            if (0 != (rc = TestGameListing())) return rc;
             if (0 != (rc = TestStandardSetup())) return rc;
             if (0 != (rc = TestLegalMoves("gearbox_move_test.txt"))) return rc;
             return 0;
+        }
+
+        static int TestGameListing()
+        {
+            var tags = new GameTags
+            {
+                Event = "Rated Rapid game",
+                Site = "https://lichess.org/JDY63HRY",
+                Date = "2020.10.01",
+                Round = "-",
+                White = "Montzer",
+                Black = "shotachkonia",
+                Result = GameResult.BlackWon,
+            };
+            tags.SetTag("UTCDate", "2020.10.01");
+            tags.SetTag("UTCTime", "07:57:31");
+            tags.SetTag("Opening", "Caro-Kann Defense");
+            tags.SetTag("TimeControl", "600+0");
+
+            string listing = tags.ToString();
+
+            Board board = BoardFromGame(@"e4 c6 d4 d5 Nc3 Nf6 e5 Ng8 f4 g6 Nf3 h5 Bd3 Nh6 O-O Bf5
+                Nh4 Bxd3 Qxd3 e6 Bd2 Be7 Nf3 Nf5 Rae1 Nd7 Nd1 a6 Ne3 c5 c3 Rc8 Nxf5 gxf5
+                Ng5 Nf8 h4 Ng6 g3 b5 Kh2 Qb6 b4 cxd4 cxd4 Rc4 Nf3 Bxb4 Rc1 Bxd2 Qxd2 O-O
+                Rfd1 Rfc8 Rxc4 Rxc4 Qe2 Qa5 Ng5 Kf8 Qxh5 Qxa2+ Kh3 Rc2 Nf3 Rf2 Rh1 Qe2
+                Qh6+ Ke8 Ng5 Qg4#");
+
+            GameHistory history = board.GetGameHistory();
+            listing += history.FormatMoveList(80);
+
+            string expected =
+                "[Event \"Rated Rapid game\"]\n" +
+                "[Site \"https://lichess.org/JDY63HRY\"]\n" +
+                "[Date \"2020.10.01\"]\n" +
+                "[Round \"-\"]\n" +
+                "[White \"Montzer\"]\n" +
+                "[Black \"shotachkonia\"]\n" +
+                "[Result \"0-1\"]\n" +
+                "[Opening \"Caro-Kann Defense\"]\n" +
+                "[TimeControl \"600+0\"]\n" +
+                "[UTCDate \"2020.10.01\"]\n" +
+                "[UTCTime \"07:57:31\"]\n" +
+                "\n" +
+                "1. e4 c6 2. d4 d5 3. Nc3 Nf6 4. e5 Ng8 5. f4 g6 6. Nf3 h5 7. Bd3 Nh6 8. O-O Bf5\n" +
+                "Nh4 Bxd3 10. Qxd3 e6 11. Bd2 Be7 12. Nf3 Nf5 13. Rae1 Nd7 14. Nd1 a6 15. Ne3 c5\n" +
+                "c3 Rc8 17. Nxf5 gxf5 18. Ng5 Nf8 19. h4 Ng6 20. g3 b5 21. Kh2 Qb6 22. b4 cxd4\n" +
+                "cxd4 Rc4 24. Nf3 Bxb4 25. Rc1 Bxd2 26. Qxd2 O-O 27. Rfd1 Rfc8 28. Rxc4 Rxc4 29.\n" +
+                "Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2 35. Qh6+ Ke8\n" +
+                "Ng5 Qg4#\n";
+
+            if (listing != expected)
+            {
+                Console.WriteLine("FAIL: game listing is wrong:");
+                Console.WriteLine(listing);
+                Console.WriteLine("Expected:");
+                Console.WriteLine(expected);
+                return 1;
+            }
+
+            Console.WriteLine("PASS: Game Listing");
+            return 0;
+        }
+
+        private static Board BoardFromGame(string text)
+        {
+            var board = new Board();
+            var legalMoves = new MoveList();
+            var scratch = new MoveList();
+            string[] list = Split(text);
+            foreach (string san in list)
+            {
+                board.GenMoves(legalMoves);
+                Move move = legalMoves.ToMoveArray().First(m => san == board.MoveNotation(m, legalMoves, scratch));
+                board.PushMove(move);
+            }
+            return board;
         }
 
         static int TestGameTags()

@@ -25,6 +25,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Gearbox
 {
@@ -56,6 +57,20 @@ namespace Gearbox
 
         private readonly Dictionary<string, string> tags = new Dictionary<string, string>();
 
+        private static string Normalize(string raw)
+        {
+            return Regex.Replace(raw ?? "", @"\s+", " ").Trim();
+        }
+
+        public GameTags(string initialFen = null)
+        {
+            if (!string.IsNullOrWhiteSpace(initialFen))
+            {
+                SetTag("SetUp", "1");
+                SetTag("FEN", initialFen);
+            }
+        }
+
         public string GetTag(string key)
         {
             string value;
@@ -73,7 +88,7 @@ namespace Gearbox
             if (value == null)
                 tags.Remove(key);
             else
-                tags[key] = value;
+                tags[key] = Normalize(value);
         }
 
         public string Event

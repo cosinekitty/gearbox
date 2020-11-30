@@ -72,6 +72,10 @@ namespace Gearbox
             SetPosition(StandardSetup);
         }
 
+        public int FullMoveNumber { get { return fullMoveNumber; } }
+        public bool IsWhiteTurn { get { return isWhiteTurn; } }
+        public bool IsBlackTurn { get { return !isWhiteTurn; } }
+
         public HashValue Hash()
         {
             // The hash value must identify the unique tactical situation.
@@ -147,6 +151,16 @@ namespace Gearbox
 
             epCaptureIsLegal = Ternary.No;
             return false;
+        }
+
+        public GameHistory GetGameHistory()
+        {
+            var moveArray = new Move[unmoveStack.height];
+            for (int i=0; i < unmoveStack.height; ++i)
+                moveArray[i] = unmoveStack.array[i].move;
+
+            string optionalFen = (initialFen == StandardSetup) ? null : initialFen;
+            return new GameHistory(optionalFen, moveArray);
         }
 
         public string ForsythEdwardsNotation()
@@ -391,7 +405,7 @@ namespace Gearbox
             epCaptureIsLegal = Ternary.Unknown;
 
             unmoveStack.Reset();
-            initialFen = fen;
+            initialFen = string.Join(" ", token);   // normalize the whitespace in the FEN string
         }
 
         public string MoveNotation(Move move, MoveList legalMoves, MoveList scratch)
