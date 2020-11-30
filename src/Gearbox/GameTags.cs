@@ -137,31 +137,32 @@ namespace Gearbox
             set { SetTag("Black", value); }
         }
 
+        public static string FormatResult(GameResult result)
+        {
+            switch (result)
+            {
+                case GameResult.WhiteWon:   return "1-0";
+                case GameResult.BlackWon:   return "0-1";
+                case GameResult.Draw:       return "1/2-1/2";
+                default:                    return "*";
+            }
+        }
+
+        public static GameResult ParseResult(string text)
+        {
+            switch (text)
+            {
+                case "1-0":     return GameResult.WhiteWon;
+                case "0-1":     return GameResult.BlackWon;
+                case "1/2-1/2": return GameResult.Draw;
+                default:        return GameResult.InProgress;
+            }
+        }
+
         public GameResult Result
         {
-            get
-            {
-                switch (GetTag("Result"))
-                {
-                    case "0-1":     return GameResult.BlackWon;
-                    case "1-0":     return GameResult.WhiteWon;
-                    case "1/2-1/2": return GameResult.Draw;
-                    default:        return GameResult.InProgress;
-                }
-            }
-
-            set
-            {
-                string text;
-                switch (value)
-                {
-                    case GameResult.BlackWon:   text = "0-1";       break;
-                    case GameResult.WhiteWon:   text = "1-0";       break;
-                    case GameResult.Draw:       text = "1/2-1/2";   break;
-                    default:                    text = "*";         break;
-                }
-                SetTag("Result", text);
-            }
+            get { return ParseResult(GetTag("Result")); }
+            set { SetTag("Result", FormatResult(value)); }
         }
 
         private string TagLine(string key)

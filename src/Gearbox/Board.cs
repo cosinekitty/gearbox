@@ -160,7 +160,8 @@ namespace Gearbox
                 moveArray[i] = unmoveStack.array[i].move;
 
             string optionalFen = (initialFen == StandardSetup) ? null : initialFen;
-            return new GameHistory(optionalFen, moveArray);
+            GameResult result = GetGameResult();
+            return new GameHistory(optionalFen, moveArray, result);
         }
 
         public string ForsythEdwardsNotation()
@@ -541,9 +542,13 @@ namespace Gearbox
         {
             // Preserve initial state in the GameTags.
             string saveFen = tags.GetTag("FEN");
+            GameResult saveResult = tags.Result;
 
             // Mutate the tags so that the output will be correct, if this is a nonstandard position.
             tags.SetInitialState((initialFen == StandardSetup) ? null : initialFen);
+
+            // Update the game result (win, loss, draw, in progress)...
+            tags.Result = GetGameResult();
 
             string pgn = tags.ToString();
             GameHistory history = GetGameHistory();
@@ -551,8 +556,33 @@ namespace Gearbox
 
             // Restore the tags back the way they were, if we mutated them.
             tags.SetInitialState(saveFen);
+            tags.Result = saveResult;
 
             return pgn;
+        }
+
+        public GameResult GetGameResult()
+        {
+            if (!PlayerCanMove())
+            {
+                if (IsPlayerInCheck())
+                {
+                    // checkmate
+                    return isWhiteTurn ? GameResult.BlackWon : GameResult.WhiteWon;
+                }
+
+                return GameResult.Draw;     // stalemate
+            }
+
+            // ISSUE #6 - This needs more work for other ways a game can end:
+            // 1. Resignation
+            // 2. Loss on time?
+            // 3. Draw by agreement
+            // 4. Draw by repetition of the same position 3 times
+            // 5. Draw by the 50 Move rule
+            // 6. Draw by insufficient mating material on both sides
+
+            return GameResult.InProgress;
         }
 
         private static char SanPieceSymbol(Square piece)

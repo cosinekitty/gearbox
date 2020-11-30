@@ -52,7 +52,6 @@ namespace BoardTest
                 Round = "-",
                 White = "Montzer",
                 Black = "shotachkonia",
-                Result = GameResult.BlackWon,
             };
             tags.SetTag("UTCDate", "2020.10.01");
             tags.SetTag("UTCTime", "07:57:31");
@@ -85,7 +84,7 @@ namespace BoardTest
                 "c3 Rc8 17. Nxf5 gxf5 18. Ng5 Nf8 19. h4 Ng6 20. g3 b5 21. Kh2 Qb6 22. b4 cxd4\n" +
                 "cxd4 Rc4 24. Nf3 Bxb4 25. Rc1 Bxd2 26. Qxd2 O-O 27. Rfd1 Rfc8 28. Rxc4 Rxc4 29.\n" +
                 "Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2 35. Qh6+ Ke8\n" +
-                "Ng5 Qg4#\n";
+                "Ng5 Qg4# 0-1\n";
 
             if (listing != expected)
             {

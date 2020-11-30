@@ -32,11 +32,13 @@ namespace Gearbox
     {
         public readonly string InitialState;    // If null, assume standard chess. Otherwise, starting configuration in Forsyth Edwards Notation (FEN).
         public readonly Move[] MoveHistory;     // The list of moves from the starting configuration to the current configuration.
+        public readonly GameResult Result;      // whether the game ended, and what the outcome was
 
-        internal GameHistory(string initialState, Move[] moveHistory)
+        internal GameHistory(string initialState, Move[] moveHistory, GameResult result)
         {
             this.InitialState = initialState;
             this.MoveHistory = moveHistory;
+            this.Result = result;
         }
 
         public string FormatMoveList(int maxLineLength)
@@ -62,6 +64,8 @@ namespace Gearbox
                 tlist.Add(san);
                 board.PushMove(move);
             }
+
+            tlist.Add(GameTags.FormatResult(Result));
 
             // Format the list of tokens by delimiting with a mixture
             // of spaces and newlines so as to best satisfy maxLineLength.
