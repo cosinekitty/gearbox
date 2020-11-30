@@ -24,6 +24,7 @@ namespace Gearbox
         private string initialFen;      // needed for saving game to PGN file
         private Ternary playerInCheck;
         private Ternary playerCanMove;
+        private HashValue hash;
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -48,6 +49,11 @@ namespace Gearbox
         public void Reset()
         {
             SetPosition(StandardSetup);
+        }
+
+        public HashValue Hash()
+        {
+            return hash;
         }
 
         public string ForsythEdwardsNotation()
@@ -235,7 +241,7 @@ namespace Gearbox
                     {
                         if (square[ofs] == Square.Offboard)
                             throw new ArgumentException("FEN content went outside the board.");
-                        square[ofs] = piece;
+                        Drop(ofs, piece);
                         ++ofs;
                         ++file;
                     }
@@ -494,6 +500,7 @@ namespace Gearbox
             unmove.whiteCanCastleQueenside = whiteCanCastleQueenside;
             unmove.blackCanCastleKingside = blackCanCastleKingside;
             unmove.blackCanCastleQueenside = blackCanCastleQueenside;
+            unmove.hash = hash;
             unmoveStack.Push(unmove);
 
             // Capturing an unmoved rook destroys castling on that side.
@@ -745,6 +752,9 @@ namespace Gearbox
 
             if (square[bkofs] != Square.BK)
                 throw new Exception("Black King is misplaced");
+
+            if (hash.a != unmove.hash.a || hash.b != unmove.hash.b)
+                throw new Exception("Hash value was not preserved");
         }
 
         private void Lift(int ofs, Square expected)
@@ -754,12 +764,33 @@ namespace Gearbox
                 throw new Exception(string.Format("Expected to lift {0} from {1} but found {2}.", expected, Algebraic(ofs), lifted));
         }
 
+        private static void PieceHashValues(Square piece, int ofs, out ulong a, out ulong b)
+        {
+            int pindex = (int)(piece & Square.PieceMask) - 1;
+            if (0 != (piece & Square.Black))
+                pindex += 6;
+
+            int file = (ofs % 10) - 1;
+            int rank = (ofs / 10) - 2;
+            int sindex = 8*rank + file;
+
+            a = HashSalt.Data[pindex, sindex, 0];
+            b = HashSalt.Data[pindex, sindex, 1];
+        }
+
         private Square Lift(int ofs)
         {
             if (square[ofs] == Square.Offboard)
                 throw new ArgumentException("Attempt to lift from offboard offset " + ofs);
             Square piece = square[ofs];
             square[ofs] = Square.Empty;
+            if (piece != Square.Empty)
+            {
+                ulong a, b;
+                PieceHashValues(piece, ofs, out a, out b);
+                hash.a -= a;
+                hash.b -= b;
+            }
             return piece;
         }
 
@@ -767,7 +798,16 @@ namespace Gearbox
         {
             if (square[ofs] == Square.Offboard)
                 throw new ArgumentException("Attempt to drop to offboard offset " + ofs);
+
             square[ofs] = piece;
+
+            if (piece != Square.Empty)
+            {
+                ulong a, b;
+                PieceHashValues(piece, ofs, out a, out b);
+                hash.a += a;
+                hash.b += b;
+            }
         }
 
         private bool IsAttackedBy(int ofs, Square side)

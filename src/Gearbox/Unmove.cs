@@ -19,5 +19,6 @@ namespace Gearbox
         public bool whiteCanCastleQueenside;
         public bool blackCanCastleKingside;
         public bool blackCanCastleQueenside;
+        public HashValue hash;      // used for sanity checking, not restoring, after each PopMove()
     }
 }

@@ -19,6 +19,7 @@ namespace BoardTest
         static int TestStandardSetup()
         {
             var board = new Board();
+            Console.WriteLine(board.Hash());
             string fen = board.ForsythEdwardsNotation();
             Console.WriteLine(fen);
             if (fen != Board.StandardSetup)
