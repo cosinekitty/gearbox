@@ -64,12 +64,7 @@ namespace Gearbox
 
         public Board(string fen = null)
         {
-            SetPosition(fen ?? StandardSetup);
-        }
-
-        public void Reset()
-        {
-            SetPosition(StandardSetup);
+            SetPosition(fen);
         }
 
         public int FullMoveNumber { get { return fullMoveNumber; } }
@@ -283,6 +278,9 @@ namespace Gearbox
 
         public void SetPosition(string fen)
         {
+            if (fen == null)
+                fen = StandardSetup;
+
             // https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
             // https://ia902908.us.archive.org/26/items/pgn-standard-1994-03-12/PGN_standard_1994-03-12.txt
 

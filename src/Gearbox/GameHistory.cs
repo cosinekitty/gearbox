@@ -96,10 +96,13 @@ namespace Gearbox
                 else
                 {
                     if (len > 0)
+                    {
                         sb.Append(' ');
-                    sb.Append(t);
-                    len += extra;
+                        ++len;
+                    }
                 }
+                sb.Append(t);
+                len += t.Length;
             }
 
             if (len > 0)

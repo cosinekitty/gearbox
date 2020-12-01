@@ -80,11 +80,11 @@ namespace BoardTest
                 "[UTCTime \"07:57:31\"]\n" +
                 "\n" +
                 "1. e4 c6 2. d4 d5 3. Nc3 Nf6 4. e5 Ng8 5. f4 g6 6. Nf3 h5 7. Bd3 Nh6 8. O-O Bf5\n" +
-                "Nh4 Bxd3 10. Qxd3 e6 11. Bd2 Be7 12. Nf3 Nf5 13. Rae1 Nd7 14. Nd1 a6 15. Ne3 c5\n" +
-                "c3 Rc8 17. Nxf5 gxf5 18. Ng5 Nf8 19. h4 Ng6 20. g3 b5 21. Kh2 Qb6 22. b4 cxd4\n" +
-                "cxd4 Rc4 24. Nf3 Bxb4 25. Rc1 Bxd2 26. Qxd2 O-O 27. Rfd1 Rfc8 28. Rxc4 Rxc4 29.\n" +
-                "Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2 35. Qh6+ Ke8\n" +
-                "Ng5 Qg4# 0-1\n"
+                "9. Nh4 Bxd3 10. Qxd3 e6 11. Bd2 Be7 12. Nf3 Nf5 13. Rae1 Nd7 14. Nd1 a6 15. Ne3\n" +
+                "c5 16. c3 Rc8 17. Nxf5 gxf5 18. Ng5 Nf8 19. h4 Ng6 20. g3 b5 21. Kh2 Qb6 22. b4\n" +
+                "cxd4 23. cxd4 Rc4 24. Nf3 Bxb4 25. Rc1 Bxd2 26. Qxd2 O-O 27. Rfd1 Rfc8 28. Rxc4\n" +
+                "Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2\n" +
+                "35. Qh6+ Ke8 36. Ng5 Qg4# 0-1\n"
             ).Replace("\n", Environment.NewLine);
 
             if (listing != expected)
@@ -97,6 +97,30 @@ namespace BoardTest
             }
 
             Console.WriteLine("PASS: Game Listing");
+
+            // Try reparsing the game from PGN.
+            int count = 0;
+            string require = string.Join(" ", board.GetGameHistory().MoveHistory);
+            foreach (Game game in Game.FromString(expected))
+            {
+                ++count;
+                string verify = string.Join(" ", game.MoveHistory);
+                if (require != verify)
+                {
+                    Console.WriteLine("FAIL: parsed PGN move history is wrong:");
+                    Console.WriteLine(verify);
+                    Console.WriteLine("Expected:");
+                    Console.WriteLine(require);
+                    return 1;
+                }
+            }
+
+            if (count != 1)
+            {
+                Console.WriteLine("FAIL: expected 1 game but found {0}", count);
+            }
+
+            Console.WriteLine("PASS: Parse PGN.");
             return 0;
         }
 
@@ -196,7 +220,7 @@ namespace BoardTest
                     if (ply == 0)
                     {
                         ++gameCount;
-                        board.Reset();
+                        board.SetPosition(null);
                     }
 
                     string fenBefore = board.ForsythEdwardsNotation();
