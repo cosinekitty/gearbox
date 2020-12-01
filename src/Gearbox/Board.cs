@@ -563,7 +563,7 @@ namespace Gearbox
         public string PortableGameNotation(GameTags originalTags)
         {
             // Make a copy of the provided tags, so we can mutate them without side-effects to the caller.
-            GameTags tags = originalTags.Clone();
+            GameTags tags = (originalTags == null) ? (new GameTags()) : originalTags.Clone();
 
             // Mutate the tags so that the output will be correct, if this is a nonstandard position.
             tags.InitialState = initialFen;
@@ -592,9 +592,9 @@ namespace Gearbox
             }
 
             // ISSUE #6 - This needs more work for other ways a game can end:
-            // 1. Resignation
+            // 1. Resignation?
             // 2. Loss on time?
-            // 3. Draw by agreement
+            // 3. Draw by agreement?
             // 4. Draw by repetition of the same position 3 times
             // 5. Draw by the 50 Move rule
             // 6. Draw by insufficient mating material on both sides
