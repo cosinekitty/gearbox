@@ -36,9 +36,9 @@ namespace BoardTest
         static int Main(string[] args)
         {
             int rc;
+            if (0 != (rc = TestStandardSetup())) return rc;
             if (0 != (rc = TestGameTags())) return rc;
             if (0 != (rc = TestGameListing())) return rc;
-            if (0 != (rc = TestStandardSetup())) return rc;
             if (0 != (rc = TestLegalMoves("gearbox_move_test.txt"))) return rc;
             return 0;
         }
@@ -101,29 +101,18 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             return 0;
         }
 
-        static string NormalizeLineEndings(string raw)
-        {
-            // Handle the fact that hardcoded unit tests in this source code can
-            // have their line endings changed on different operating systems,
-            // and the editor format may not match the native OS format.
-            bool r = raw.Contains('\r');
-            bool n = raw.Contains('\n');
-
-            if (r && n)     // Windows
-                return raw.Replace("\r", "").Replace("\n", Environment.NewLine);
-
-            if (r)          // Mac OS
-                return raw.Replace("\r", Environment.NewLine);
-
-            // Linux
-            return raw.Replace("\n", Environment.NewLine);
-        }
-
         static int TestGameTags()
         {
-            string expectedEmptyText =
-                ("[Event \"?\"]\n[Site \"?\"]\n[Date \"????.??.??\"]\n[Round \"?\"]\n[White \"?\"]\n[Black \"?\"]\n[Result \"*\"]\n\n")
-                .Replace("\n", Environment.NewLine);
+            string expectedEmptyText = NormalizeLineEndings(
+@"[Event ""?""]
+[Site ""?""]
+[Date ""????.??.??""]
+[Round ""?""]
+[White ""?""]
+[Black ""?""]
+[Result ""*""]
+
+");
 
             var emptyTags = new GameTags();
             string actualText = emptyTags.ToString();
@@ -275,6 +264,24 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             for (int i=0; i < movelist.nmoves; ++i)
                 sanlist[i] = board.MoveNotation(movelist.array[i], movelist, scratch);
             return string.Join(' ', sanlist.OrderBy(t => t));
+        }
+
+        static string NormalizeLineEndings(string raw)
+        {
+            // Handle the fact that hardcoded unit tests in this source code can
+            // have their line endings changed on different operating systems,
+            // and the editor format may not match the native OS format.
+            bool r = raw.Contains('\r');
+            bool n = raw.Contains('\n');
+
+            if (r && n)     // Windows
+                return raw.Replace("\r", "").Replace("\n", Environment.NewLine);
+
+            if (r)          // Mac OS
+                return raw.Replace("\r", Environment.NewLine);
+
+            // Linux
+            return raw.Replace("\n", Environment.NewLine);
         }
     }
 }
