@@ -129,10 +129,12 @@ namespace Gearbox
                                 history.Clear();
                                 tags = new GameTags();
                                 startedAnotherGame = false;
+                                state = ParseState.InHeader;
                                 break;
 
-                            case ".":
-                                // ignore periods
+                            case ".":   // ignore periods after move numbers, "...", etc.
+                            case "?":   // ignore bad-move annotations
+                            case "!":   // ignore good-move annotations
                                 break;
 
                             default:
