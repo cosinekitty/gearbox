@@ -25,9 +25,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Gearbox
 {
@@ -77,12 +75,17 @@ namespace Gearbox
             var board = new Board();
             var legalMoves = new MoveList();
             var scratch = new MoveList();
+            bool startedAnotherGame = false;
+            int lnum = 1;
+
             foreach (Token t in Tokens(reader))
             {
+                lnum = t.LineNumber;
                 switch (state)
                 {
                     case ParseState.InHeader:
                         t.RequireSymbol();
+                        startedAnotherGame = true;
 
                         // Expect either '[' to begin a tag, or anything else to indicate the game has started.
                         if (t.Text == "[")
@@ -98,7 +101,7 @@ namespace Gearbox
                         break;
 
                     case ParseState.ExpectTagName:
-                        tagName = t.RequireSymbol().Text;
+                        tagName = t.RequireTagName().Text;
                         state = ParseState.ExpectTagValue;
                         break;
 
@@ -125,6 +128,7 @@ namespace Gearbox
                                 yield return new Game(tags, history.ToArray());
                                 history.Clear();
                                 tags = new GameTags();
+                                startedAnotherGame = false;
                                 break;
 
                             case ".":
@@ -132,27 +136,30 @@ namespace Gearbox
                                 break;
 
                             default:
-                                if (char.IsLetter(t.Text[0]))
+                                if (t.StartsWithLetter())
                                 {
                                     // Assume this is a SAN move.
                                     board.GenMoves(legalMoves);
-                                    Move move = new Move();
-                                    foreach (Move m in legalMoves.ToMoveArray())
+                                    bool found = false;
+                                    foreach (Move move in legalMoves.ToMoveArray())
                                     {
-                                        string san = board.MoveNotation(m, legalMoves, scratch);
+                                        string san = board.MoveNotation(move, legalMoves, scratch);
                                         if (san == t.Text)
                                         {
-                                            move = m;
+                                            board.PushMove(move);
+                                            history.Add(move);
+                                            found = true;
                                             break;
                                         }
                                     }
-                                    if (move.source == 0)
+                                    if (!found)
                                         throw new PortableGameNotationException(t.LineNumber, string.Format("Illegal move {0}", t.Text));
-                                    board.PushMove(move);
-                                    history.Add(move);
                                 }
-                                else if (!Regex.IsMatch(t.Text, @"^[0-9]+$"))
-                                    throw new PortableGameNotationException(t.LineNumber, string.Format("Invalid move syntax near '{0}'", t.Text));
+                                else
+                                {
+                                    // Ignore move numbers, but report bad syntax on any other token.
+                                    t.RequireMoveNumber();
+                                }
                                 break;
                         }
                         break;
@@ -160,6 +167,24 @@ namespace Gearbox
                     default:
                         throw new PortableGameNotationException(t.LineNumber, "Unknown parse state near: " + t.Text);
                 }
+            }
+
+            switch (state)
+            {
+                case ParseState.InHeader:
+                case ParseState.InGame:
+                    if (startedAnotherGame)
+                    {
+                        // We hit end of input after starting to parse another game.
+                        // Although it is not conformant with the PGN spec, tolerate a missing game terminator.
+                        yield return new Game(tags, history.ToArray());
+                    }
+                    break;
+
+                default:
+                    // We were probably in the middle of parsing a tag when we ran out of tokens.
+                    // The input was likely truncated or corrupted.
+                    throw new PortableGameNotationException(lnum, "Unexpected end of input");
             }
         }
 
@@ -338,6 +363,48 @@ namespace Gearbox
                 throw new PortableGameNotationException(LineNumber, string.Format("Expected symbol but found '{0}'", Text));
             if (string.IsNullOrWhiteSpace(Text))
                 throw new PortableGameNotationException(LineNumber, "Scanned a blank symbol!");
+            return this;
+        }
+
+        internal bool StartsWithLetter()
+        {
+            if (Text.Length == 0)
+                return false;
+
+            char c = char.ToUpperInvariant(Text[0]);
+            return c >= 'A' && c <= 'Z';
+        }
+
+        internal Token RequireMoveNumber()
+        {
+            RequireSymbol();
+
+            int i;
+            for (i=0; i < Text.Length; ++i)
+            {
+                char c = Text[i];
+                if (c < '0' || c > '9')
+                    throw new PortableGameNotationException(LineNumber, string.Format("Invalid move syntax near '{0}'", Text));
+            }
+
+            return this;
+        }
+
+        internal Token RequireTagName()
+        {
+            RequireSymbol();
+
+            if (!StartsWithLetter())
+                throw new PortableGameNotationException(LineNumber, string.Format("First character of tag name must be a letter, but found '{0}'", Text));
+
+            for (int i=1; i < Text.Length; ++i)
+            {
+                char c = char.ToUpperInvariant(Text[i]);
+                bool valid = (c == '_') || (c >= 'A' && c <= 'Z') || (c >= '0' || c <= '9');
+                if (!valid)
+                    throw new PortableGameNotationException(LineNumber, string.Format("Invalid character(s) in tag name '{0}'", Text));
+            }
+
             return this;
         }
 

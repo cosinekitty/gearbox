@@ -64,20 +64,43 @@ namespace Gearbox
 
         public GameTags(string initialFen = null)
         {
-            SetInitialState(initialFen);
+            InitialState = initialFen;
         }
 
-        public void SetInitialState(string initialFen)
+        private GameTags(Dictionary <string, string> tags)
         {
-            if (string.IsNullOrWhiteSpace(initialFen))
+            this.tags = tags;
+        }
+
+        public GameTags Clone()
+        {
+            var copy = new Dictionary<string, string>();
+
+            foreach (var kv in this.tags)
+                copy.Add(kv.Key, kv.Value);
+
+            return new GameTags(copy);
+        }
+
+        public string InitialState
+        {
+            get
             {
-                tags.Remove("SetUp");
-                tags.Remove("FEN");
+                return GetTag("FEN");
             }
-            else
+
+            set
             {
-                SetTag("SetUp", "1");
-                SetTag("FEN", initialFen);
+                if (string.IsNullOrWhiteSpace(value) || Normalize(value) == Board.StandardSetup)
+                {
+                    tags.Remove("SetUp");
+                    tags.Remove("FEN");
+                }
+                else
+                {
+                    SetTag("SetUp", "1");
+                    SetTag("FEN", value);
+                }
             }
         }
 

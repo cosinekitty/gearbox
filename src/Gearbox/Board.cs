@@ -23,6 +23,7 @@
 */
 
 using System;
+using System.Linq;
 using System.Text;
 
 namespace Gearbox
@@ -65,6 +66,29 @@ namespace Gearbox
         public Board(string fen = null)
         {
             SetPosition(fen);
+        }
+
+        public static Board FromGame(Game game)
+        {
+            if (game == null)
+                return new Board();
+
+            var board = new Board(game.Tags.InitialState);
+            foreach (Move move in game.MoveHistory)
+                board.PushMove(move);
+
+            return board;
+        }
+
+        public static Board FromPgnText(string pgn)
+        {
+            // Extract the first full game from the PGN string.
+            // This function won't work for processing multiple games from a string.
+            // For that, do something like:
+            // foreach (Game game in Game.FromString(pgn)) { Board b = Board.FromGame(game); ... }
+
+            Game game = Game.FromString(pgn).FirstOrDefault();
+            return Board.FromGame(game);
         }
 
         public int FullMoveNumber { get { return fullMoveNumber; } }
@@ -536,14 +560,13 @@ namespace Gearbox
             return san.ToString();
         }
 
-        public string PortableGameNotation(GameTags tags)
+        public string PortableGameNotation(GameTags originalTags)
         {
-            // Preserve initial state in the GameTags.
-            string saveFen = tags.GetTag("FEN");
-            GameResult saveResult = tags.Result;
+            // Make a copy of the provided tags, so we can mutate them without side-effects to the caller.
+            GameTags tags = originalTags.Clone();
 
             // Mutate the tags so that the output will be correct, if this is a nonstandard position.
-            tags.SetInitialState((initialFen == StandardSetup) ? null : initialFen);
+            tags.InitialState = initialFen;
 
             // Update the game result (win, loss, draw, in progress)...
             tags.Result = GetGameResult();
@@ -551,10 +574,6 @@ namespace Gearbox
             string pgn = tags.ToString();
             GameHistory history = GetGameHistory();
             pgn += history.FormatMoveList(80);
-
-            // Restore the tags back the way they were, if we mutated them.
-            tags.SetInitialState(saveFen);
-            tags.Result = saveResult;
 
             return pgn;
         }
