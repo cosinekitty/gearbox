@@ -352,6 +352,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             new Puzzle("Qxe7",  4, "r6k/p1qnrQ1p/2pb4/1p6/3P1BR1/2P3P1/PP3P1P/R5K1 w - - 1 22"),        // https://lichess.org/imjiXGEj/white#42
             new Puzzle("Qxf7+", 6, "3rr1k1/R4ppp/8/1p2b3/3P4/1Q3N1q/1P3P2/5RK1 w - - 0 27"),            // https://lichess.org/8kw3bPuD/white#52
             new Puzzle("Be1",   6, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),         // https://lichess.org/UulmeeB6/white#60
+            //new Puzzle("f6g5",  7, "r1r3k1/1b3ppp/p3pq2/1p6/1Q1p4/1B1P4/PPP2PPP/R4RK1 b - - 5 17"),     // https://lichess.org/training/62379
         };
 
         static bool TestPuzzles()
@@ -369,10 +370,10 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 thinker.SetSearchLimit(puzzle.searchLimit);
                 Move move = thinker.Search(board);
                 string san = board.MoveNotation(move, legal, scratch);
-                Console.WriteLine("PUZZLE: {0} = {1} [{2}]", san, Score.Format(move.score), puzzle.fen);
-                if (san != puzzle.san)
+                Console.WriteLine("PUZZLE: {0,-7} {1,8}  [{2}]", san, Score.Format(move.score), puzzle.fen);
+                if (san != puzzle.movetext && move.ToString() != puzzle.movetext)
                 {
-                    Console.WriteLine("FAIL(TestPuzzles): expected {0}", puzzle.san);
+                    Console.WriteLine("FAIL(TestPuzzles): expected {0}, found san={1}, uci={2}", puzzle.movetext, san, move);
                     return false;
                 }
                 ++count;
@@ -385,15 +386,15 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
 
     internal class Puzzle
     {
-        public string san;
+        public string movetext;     // can be either SAN (Qxb5+) or UCI (c4b5).
         public int searchLimit;
         public string fen;
 
-        public Puzzle(string san, int searchLimit, string fen)
+        public Puzzle(string movetext, int searchLimit, string fen)
         {
-            this.san = san;
-            this.fen = fen;
+            this.movetext = movetext;
             this.searchLimit = searchLimit;
+            this.fen = fen;
         }
     }
 }
