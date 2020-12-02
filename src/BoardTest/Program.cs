@@ -23,6 +23,7 @@
 */
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -35,20 +36,28 @@ namespace BoardTest
     {
         static int Main(string[] args)
         {
-            const string fenFileName = "final_positions.txt";
+            bool fast = args.Length == 1 && args[0] == "fast";
 
-            int rc;
-            if (0 != (rc = TestStandardSetup())) return rc;
-            if (0 != (rc = TestGameTags())) return rc;
-            if (0 != (rc = TestGameListing())) return rc;
-            int gameCount;
-            if (0 != (rc = TestLegalMoves("gearbox_move_test.txt", fenFileName, out gameCount))) return rc;
-            if (0 != (rc = TestPgnLoader("testgames.pgn", fenFileName, gameCount))) return rc;
-            if (0 != (rc = TestPuzzles())) return rc;
-            return 0;
+            return (
+                TestStandardSetup() &&
+                TestGameTags() &&
+                TestPuzzles() &&
+                TestGameListing() &&
+                (fast || TestPgn())
+            ) ? 0 : 1;
         }
 
-        static int TestPgnLoader(string pgnFileName, string fenFileName, int expectedGameCount)
+        static bool TestPgn()
+        {
+            int gameCount;
+            const string fenFileName = "final_positions.txt";
+            return (
+                TestLegalMoves("gearbox_move_test.txt", fenFileName, out gameCount) &&
+                TestPgnLoader("testgames.pgn", fenFileName, gameCount)
+            );
+        }
+
+        static bool TestPgnLoader(string pgnFileName, string fenFileName, int expectedGameCount)
         {
             int count = 0;
             using (StreamReader fenfile = File.OpenText(fenFileName))
@@ -62,7 +71,7 @@ namespace BoardTest
                     if (expectedFen == null)
                     {
                         Console.WriteLine("FAIL(TestPgnLoader): hit end of file {0}", fenFileName);
-                        return 1;
+                        return false;
                     }
                     if (calcFen != expectedFen)
                     {
@@ -70,20 +79,20 @@ namespace BoardTest
                         Console.WriteLine(calcFen);
                         Console.WriteLine("Expected FEN:");
                         Console.WriteLine(expectedFen);
-                        return 1;
+                        return false;
                     }
                 }
             }
             if (count != expectedGameCount)
             {
                 Console.WriteLine("FAIL(TestPgnLoader): expected {0} games, found {1}.", expectedGameCount, count);
-                return 1;
+                return false;
             }
             Console.WriteLine("PASS: PGN Loader ({0} games)", count);
-            return 0;
+            return true;
         }
 
-        static int TestGameListing()
+        static bool TestGameListing()
         {
             var tags = new GameTags
             {
@@ -134,14 +143,14 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 Console.WriteLine(listing);
                 Console.WriteLine("Expected:");
                 Console.WriteLine(expected);
-                return 1;
+                return false;
             }
 
             Console.WriteLine("PASS: Game Listing");
-            return 0;
+            return true;
         }
 
-        static int TestGameTags()
+        static bool TestGameTags()
         {
             string expectedEmptyText = NormalizeLineEndings(
 @"[Event ""?""]
@@ -160,13 +169,13 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             {
                 Console.WriteLine("FAIL: empty tag text is incorrect:\n{0}", actualText);
                 Console.WriteLine("Correct is:\n{0}", expectedEmptyText);
-                return 1;
+                return false;
             }
             Console.WriteLine("PASS: Game Tags");
-            return 0;
+            return true;
         }
 
-        static int TestStandardSetup()
+        static bool TestStandardSetup()
         {
             var board = new Board();
             Console.WriteLine(board.Hash());
@@ -175,10 +184,10 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             if (fen != Board.StandardSetup)
             {
                 Console.WriteLine("FAIL: does not match standard setup.");
-                return 1;
+                return false;
             }
             Console.WriteLine("PASS: Standard Setup");
-            return 0;
+            return true;
         }
 
         static string[] Split(string line)
@@ -186,7 +195,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             return line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
         }
 
-        static int TestLegalMoves(string inFileName, string outFileName, out int gameCount)
+        static bool TestLegalMoves(string inFileName, string outFileName, out int gameCount)
         {
             gameCount = 0;
             var board = new Board();
@@ -248,7 +257,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                         Console.WriteLine("FAIL({0} line {1}): GenMoves corrupted the board.", inFileName, lnum);
                         Console.WriteLine("before = {0}", fenBefore);
                         Console.WriteLine("after  = {0}", fenAfter);
-                        return 1;
+                        return false;
                     }
                     Move[] marray = movelist.ToMoveArray();
 
@@ -269,7 +278,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                         Console.WriteLine("FAIL({0} line {1}): FEN mismatch", inFileName, lnum);
                         Console.WriteLine("correct = {0}", correctFen);
                         Console.WriteLine("calc    = {0}", calcFen);
-                        return 1;
+                        return false;
                     }
 
                     line = infile.ReadLine();
@@ -278,20 +287,20 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                     if (!m.Success)
                     {
                         Console.WriteLine("FAIL({0} line {1}): did not match flags regex", inFileName, lnum);
-                        return 1;
+                        return false;
                     }
                     bool correctCheck = (m.Groups[1].Value == "1");
                     bool correctMobility = (m.Groups[2].Value == "1");
                     if (correctCheck != board.IsPlayerInCheck())
                     {
                         Console.WriteLine("FAIL({0} line {1}): check should have been {2}", inFileName, lnum, correctCheck);
-                        return 1;
+                        return false;
                     }
 
                     if (correctMobility != board.PlayerCanMove())
                     {
                         Console.WriteLine("FAIL({0} line {1}): mobility should have been {2}", inFileName, lnum, correctMobility);
-                        return 1;
+                        return false;
                     }
 
                     line = infile.ReadLine();
@@ -299,7 +308,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                     if (line != "")
                     {
                         Console.WriteLine("FAIL({0} line {1}): expected blank line.", inFileName, lnum);
-                        return 1;
+                        return false;
                     }
                 }
 
@@ -307,7 +316,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                     outfile.WriteLine(prevFen);
             }
             Console.WriteLine("PASS: LegalMoveTest for {0} games.", gameCount);
-            return 0;
+            return true;
         }
 
         static string SanMoveList(Board board, MoveList movelist, MoveList scratch)
@@ -338,17 +347,21 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
 
         static Puzzle[] PuzzleList =
         {
-            new Puzzle("Rc8#", 1, "6k1/5ppp/8/8/8/8/2R2K2/8 w - - 10 6"),   // simple back-rank checkmate
-            //new Puzzle("Be1", 6, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),  // https://lichess.org/UulmeeB6/white#60
+            new Puzzle("Rc8#",  1, "6k1/5ppp/8/8/8/8/2R2K2/8 w - - 10 6"),                              // simple back-rank checkmate
+            new Puzzle("Rb8",   4, "5Q2/3bp3/p2q2k1/P1pP1ppp/1rP1p2P/4P1P1/5PN1/R5K1 b - - 0 36"),      // https://lichess.org/rntVQfLj/black#71
+            new Puzzle("Qxe7",  4, "r6k/p1qnrQ1p/2pb4/1p6/3P1BR1/2P3P1/PP3P1P/R5K1 w - - 1 22"),        // https://lichess.org/imjiXGEj/white#42
+            new Puzzle("Qxf7+", 6, "3rr1k1/R4ppp/8/1p2b3/3P4/1Q3N1q/1P3P2/5RK1 w - - 0 27"),            // https://lichess.org/8kw3bPuD/white#52
+            //new Puzzle("Be1",   6, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),         // https://lichess.org/UulmeeB6/white#60
         };
 
-        static int TestPuzzles()
+        static bool TestPuzzles()
         {
             var board = new Board();
             var thinker = new Thinker();
             var legal = new MoveList();
             var scratch = new MoveList();
             int count = 0;
+            var clock = Stopwatch.StartNew();
             foreach (Puzzle puzzle in PuzzleList)
             {
                 board.SetPosition(puzzle.fen);
@@ -356,16 +369,17 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 thinker.SetSearchLimit(puzzle.searchLimit);
                 Move move = thinker.Search(board);
                 string san = board.MoveNotation(move, legal, scratch);
+                Console.WriteLine("PUZZLE: {0} = {1} [{2}]", san, Score.Format(move.score), puzzle.fen);
                 if (san != puzzle.san)
                 {
-                    Console.WriteLine("FAIL(TestPuzzles): {0}", puzzle.fen);
-                    Console.WriteLine("Expected: {0}, Calculated: {1}", puzzle.san, san);
-                    return 1;
+                    Console.WriteLine("FAIL(TestPuzzles): expected {0}", puzzle.san);
+                    return false;
                 }
                 ++count;
             }
-            Console.WriteLine("PASS: {0} puzzles.", count);
-            return 0;
+            clock.Stop();
+            Console.WriteLine("PASS: {0} puzzles in {1} seconds", count, clock.Elapsed.TotalSeconds.ToString("0.000"));
+            return true;
         }
     }
 

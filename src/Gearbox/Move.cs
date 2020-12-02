@@ -22,6 +22,8 @@
     SOFTWARE.
 */
 
+using System;
+
 namespace Gearbox
 {
     public static class Score
@@ -46,9 +48,38 @@ namespace Gearbox
         public const int Undefined   = int.MinValue;
 
         // Helper functions.
-        public static int Checkmate(int depth)
+        public static int CheckmateLoss(int depth)
         {
             return FriendMated + depth;
+        }
+
+        public static int CheckmateWin(int depth)
+        {
+            return EnemyMated - depth;
+        }
+
+        public static string Format(int score)
+        {
+            if (score > WonForFriend)
+                return string.Format("#{0}", 1 + (EnemyMated - score)/2);
+
+            if (score < WonForEnemy)
+                return string.Format("#-{0}", 1 + (FriendMated + score)/2);
+
+            if (score == 0)
+                return "0";
+
+            string text;
+            if (score < 0)
+            {
+                text = "-";
+                score = -score;
+            }
+            else
+                text = "+";
+
+            text += string.Format("{0}.{1}", score / 1000000, (score % 1000000).ToString("000000"));
+            return text;
         }
     }
 

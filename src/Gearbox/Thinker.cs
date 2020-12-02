@@ -39,7 +39,7 @@ namespace Gearbox
         {
             Stratum stratum = StratumForDepth(0);
             MoveList legal = stratum.legal;
-            Move bestMove = new Move();
+            Move bestMove = new Move { score = Score.NegInf };
             for (int i=0; i < legal.nmoves; ++i)
             {
                 Move move = legal.array[i];
@@ -49,6 +49,8 @@ namespace Gearbox
                 if (move.score > bestMove.score)
                     bestMove = move;
             }
+            if (bestMove.source == 0)
+                throw new Exception("SearchRoot failed to find a move.");
             return bestMove;
         }
 
@@ -58,7 +60,7 @@ namespace Gearbox
             if (!board.PlayerCanMove())
             {
                 if (board.IsPlayerInCheck())
-                    return Score.Checkmate(depth);
+                    return Score.CheckmateLoss(depth);
 
                 return Score.Draw;
             }
