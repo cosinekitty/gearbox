@@ -44,7 +44,7 @@ namespace Gearbox
             {
                 Move move = legal.array[i];
                 board.PushMove(move);
-                move.score = -NegaMax(board, 1, limit);
+                move.score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score);
                 board.PopMove();
                 if (move.score > bestMove.score)
                     bestMove = move;
@@ -54,7 +54,7 @@ namespace Gearbox
             return bestMove;
         }
 
-        private int NegaMax(Board board, int depth, int limit)
+        private int NegaMax(Board board, int depth, int limit, int alpha, int beta)
         {
             // Is the game over? Score immediately if so.
             if (!board.PlayerCanMove())
@@ -76,10 +76,17 @@ namespace Gearbox
             {
                 Move move = legal.array[i];
                 board.PushMove(move);
-                int score = -NegaMax(board, 1 + depth, limit);
+                int score = -NegaMax(board, 1 + depth, limit, -beta, -alpha);
                 board.PopMove();
+
                 if (score > bestScore)
                     bestScore = score;
+
+                if (score >= beta)
+                    break;      // pruning: This move is TOO GOOD... opponent has better (or equal) options than this position.
+
+                if (score > alpha)
+                    alpha = score;
             }
 
             return bestScore;
