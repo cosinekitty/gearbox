@@ -36,6 +36,15 @@ namespace Gearbox
             Move bestMove = SearchRoot(board, 1);
             for (int limit = 2; limit < maxSearchLimit; ++limit)
             {
+                // Sort in descending order by score.
+                stratum.legal.Sort(-1);
+
+                // Even though we sorted, pruning can make unequal moves appear equal.
+                // Therefore, always put the very best move we found previously at
+                // the front of the list.
+                stratum.legal.MoveToFront(bestMove);
+
+                // Search one level deeper.
                 bestMove = SearchRoot(board, limit);
             }
             return bestMove;
@@ -48,12 +57,11 @@ namespace Gearbox
             Move bestMove = new Move { score = Score.NegInf };
             for (int i=0; i < legal.nmoves; ++i)
             {
-                Move move = legal.array[i];
-                board.PushMove(move);
-                move.score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score);
+                board.PushMove(legal.array[i]);
+                legal.array[i].score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score);
                 board.PopMove();
-                if (move.score > bestMove.score)
-                    bestMove = move;
+                if (legal.array[i].score > bestMove.score)
+                    bestMove = legal.array[i];
             }
             if (bestMove.source == 0)
                 throw new Exception("SearchRoot failed to find a move.");

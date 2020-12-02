@@ -40,11 +40,20 @@ namespace Gearbox
             array[nmoves++] = m;
         }
 
+        public Move[] ToMoveArray()
+        {
+            var copy = new Move[nmoves];
+            Array.Copy(array, copy, nmoves);
+            return copy;
+        }
+
         public void Sort(int dir)
         {
             // Because move lists are fairly short, I believe
             // a cache-friendly O(n^2) selection sort is fine.
             // I may revisit this assumption later.
+            // Also reconsider later whether it matters that this function
+            // shuffles moves having equal scores.
             for (int i=0; i+1 < nmoves; ++i)
             {
                 int bestIndex = i;
@@ -67,13 +76,6 @@ namespace Gearbox
             }
         }
 
-        public Move[] ToMoveArray()
-        {
-            var copy = new Move[nmoves];
-            Array.Copy(array, copy, nmoves);
-            return copy;
-        }
-
         public void Shuffle()
         {
             if (nmoves > 1)
@@ -90,6 +92,26 @@ namespace Gearbox
                     }
                 }
             }
+        }
+
+        public void MoveToFront(Move best)
+        {
+            // Find the move matching 'best' in the list.
+            // Move the matching move to the front of the list without disturbing
+            // the relative order of the other moves.
+            for (int i=0; i < nmoves; ++i)
+            {
+                Move move = array[i];
+                if (best.source == move.source && best.dest == move.dest && best.prom == move.prom)
+                {
+                    for (int k=i; k > 0; --k)
+                        array[k] = array[k-1];
+                    array[0] = move;
+                    return;
+                }
+            }
+
+            throw new ArgumentException(string.Format("Move was not found in list: {0}", best));
         }
     }
 }
