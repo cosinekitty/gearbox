@@ -74,6 +74,22 @@ namespace Gearbox
             return copy;
         }
 
-        // TODO: add Shuffle()
+        public void Shuffle()
+        {
+            if (nmoves > 1)
+            {
+                var rand = new Random();
+                for (int i = 1; i < nmoves; ++i)
+                {
+                    int r = rand.Next(i+1);
+                    if (r < i)
+                    {
+                        Move swap = array[r];
+                        array[r] = array[i];
+                        array[i] = swap;
+                    }
+                }
+            }
+        }
     }
 }

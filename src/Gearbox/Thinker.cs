@@ -27,6 +27,12 @@ namespace Gearbox
             if (stratum.legal.nmoves == 1)
                 return stratum.legal.array[0];    // There is only one legal move, so return it.
 
+            // Shuffle the move list to eliminate any bias
+            // introduced by the legal move generator.
+            // This is a way of giving the computer more interesting
+            // play when there are different options judged equal.
+            stratum.legal.Shuffle();
+
             Move bestMove = SearchRoot(board, 1);
             for (int limit = 2; limit < maxSearchLimit; ++limit)
             {
