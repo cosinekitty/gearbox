@@ -36,12 +36,19 @@ namespace Gearbox
             Move bestMove = SearchRoot(board, 1);
             for (int limit = 2; limit < maxSearchLimit; ++limit)
             {
+                if (bestMove.score >= Score.WonForFriend)
+                    break;      // we found an optimal forced mate, so there is no reason to keep working
+
+                if (bestMove.score <= Score.WonForEnemy)
+                    break;      // we are going to lose... give up and cry!
+
                 // Sort in descending order by score.
                 stratum.legal.Sort(-1);
 
                 // Even though we sorted, pruning can make unequal moves appear equal.
                 // Therefore, always put the very best move we found previously at
-                // the front of the list.
+                // the front of the list. This helps improve pruning for the deeper search
+                // we are about to do.
                 stratum.legal.MoveToFront(bestMove);
 
                 // Search one level deeper.
@@ -54,7 +61,7 @@ namespace Gearbox
         {
             Stratum stratum = StratumForDepth(0);
             MoveList legal = stratum.legal;
-            Move bestMove = new Move { score = Score.NegInf };
+            Move bestMove = Move.Null;
             for (int i=0; i < legal.nmoves; ++i)
             {
                 board.PushMove(legal.array[i]);
@@ -85,22 +92,23 @@ namespace Gearbox
             Stratum stratum = StratumForDepth(depth);
             MoveList legal = stratum.legal;
             board.GenMoves(legal);
+
             int bestScore = Score.NegInf;
             for (int i = 0; i < legal.nmoves; ++i)
             {
                 Move move = legal.array[i];
                 board.PushMove(move);
-                int score = -NegaMax(board, 1 + depth, limit, -beta, -alpha);
+                move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha);
                 board.PopMove();
 
-                if (score > bestScore)
-                    bestScore = score;
+                if (move.score > bestScore)
+                    bestScore = move.score;
 
-                if (score >= beta)
-                    break;      // pruning: This move is TOO GOOD... opponent has better (or equal) options than this position.
+                if (move.score >= beta)
+                    break;      // This move is TOO GOOD... opponent has better (or equal) options than this position.
 
-                if (score > alpha)
-                    alpha = score;
+                if (move.score > alpha)
+                    alpha = move.score;
             }
 
             return bestScore;

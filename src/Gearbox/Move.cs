@@ -95,9 +95,11 @@ namespace Gearbox
     {
         public byte source;
         public byte dest;
-        public char prom;       // 'qrbn' if promotion
+        public char prom;       // 'qrbn' if promotion, '\0' otherwise
         public MoveFlags flags;
         public int  score;
+
+        public static readonly Move Null = new Move { score = Score.NegInf };
 
         public Move(int source, int dest)
         {
