@@ -33,7 +33,7 @@ namespace Gearbox
         // See this document for board layout:
         // https://docs.google.com/spreadsheets/d/12mNHhBPNH66jUZ6dGeRYKiSsRXGTedCG1qHCAgAaifk/edit?usp=sharing
 
-        private readonly Square[] square = MakeEmptyBoard();
+        internal readonly Square[] square = MakeEmptyBoard();
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
         private int wkofs;              // location of the White King
         private int bkofs;              // location of the Black King

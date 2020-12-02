@@ -28,11 +28,28 @@ namespace Gearbox
     {
         // Scores are roughly in units of "micropawns".
         public const int Draw = 0;
+
+        // Scores relative to White/Black...
         public const int WonForWhite = +1000000000;
         public const int WonForBlack = -1000000000;
         public const int WhiteMate   = +1100000000;
         public const int BlackMate   = -1100000000;
-        public const int Undefined   = -2000000000;
+
+        // Negamax scores: relative to current player / opposite player...
+        public const int WonForFriend = +1000000000;
+        public const int WonForEnemy  = -1000000000;
+        public const int EnemyMated   = +1100000000;
+        public const int FriendMated  = -1100000000;
+
+        public const int NegInf      = -2000000000;
+        public const int PosInf      = +2000000000;
+        public const int Undefined   = int.MinValue;
+
+        // Helper functions.
+        public static int Checkmate(int depth)
+        {
+            return FriendMated + depth;
+        }
     }
 
     public enum MoveFlags : byte
@@ -71,6 +88,8 @@ namespace Gearbox
 
         public override string ToString()
         {
+            if (source == 0)
+                return "----";  // this is a null move
             string alg = Board.Algebraic(source) + Board.Algebraic(dest);
             return (prom == '\0') ? alg : (alg + prom);
         }

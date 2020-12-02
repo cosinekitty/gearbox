@@ -44,6 +44,7 @@ namespace BoardTest
             int gameCount;
             if (0 != (rc = TestLegalMoves("gearbox_move_test.txt", fenFileName, out gameCount))) return rc;
             if (0 != (rc = TestPgnLoader("testgames.pgn", fenFileName, gameCount))) return rc;
+            if (0 != (rc = TestPuzzles())) return rc;
             return 0;
         }
 
@@ -333,6 +334,52 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
 
             // Linux
             return raw.Replace("\n", Environment.NewLine);
+        }
+
+        static Puzzle[] PuzzleList =
+        {
+            new Puzzle("Rc8#", 1, "6k1/5ppp/8/8/8/8/2R2K2/8 w - - 10 6"),   // simple back-rank checkmate
+            //new Puzzle("Be1", 6, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),  // https://lichess.org/UulmeeB6/white#60
+        };
+
+        static int TestPuzzles()
+        {
+            var board = new Board();
+            var thinker = new Thinker();
+            var legal = new MoveList();
+            var scratch = new MoveList();
+            int count = 0;
+            foreach (Puzzle puzzle in PuzzleList)
+            {
+                board.SetPosition(puzzle.fen);
+                board.GenMoves(legal);
+                thinker.SetSearchLimit(puzzle.searchLimit);
+                Move move = thinker.Search(board);
+                string san = board.MoveNotation(move, legal, scratch);
+                if (san != puzzle.san)
+                {
+                    Console.WriteLine("FAIL(TestPuzzles): {0}", puzzle.fen);
+                    Console.WriteLine("Expected: {0}, Calculated: {1}", puzzle.san, san);
+                    return 1;
+                }
+                ++count;
+            }
+            Console.WriteLine("PASS: {0} puzzles.", count);
+            return 0;
+        }
+    }
+
+    internal class Puzzle
+    {
+        public string san;
+        public int searchLimit;
+        public string fen;
+
+        public Puzzle(string san, int searchLimit, string fen)
+        {
+            this.san = san;
+            this.fen = fen;
+            this.searchLimit = searchLimit;
         }
     }
 }
