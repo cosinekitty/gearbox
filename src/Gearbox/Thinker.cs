@@ -9,7 +9,8 @@ namespace Gearbox
     public class Thinker
     {
         private int maxSearchLimit;
-        private List<Stratum> stratumList = new List<Stratum>();
+        private int quiescentCheckLimit = 1;
+        private List<Stratum> stratumList = new List<Stratum>(100);
 
         public void SetSearchLimit(int maxSearchLimit)
         {
@@ -65,7 +66,7 @@ namespace Gearbox
             for (int i=0; i < legal.nmoves; ++i)
             {
                 board.PushMove(legal.array[i]);
-                legal.array[i].score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score);
+                legal.array[i].score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score, 0);
                 board.PopMove();
                 if (legal.array[i].score > bestMove.score)
                     bestMove = legal.array[i];
@@ -75,7 +76,7 @@ namespace Gearbox
             return bestMove;
         }
 
-        private int NegaMax(Board board, int depth, int limit, int alpha, int beta)
+        private int NegaMax(Board board, int depth, int limit, int alpha, int beta, int checkCount)
         {
             // Is the game over? Score immediately if so.
             if (!board.PlayerCanMove())
@@ -86,31 +87,65 @@ namespace Gearbox
                 return Score.Draw;
             }
 
-            if (depth >= limit)
-                return Eval(board, depth);
-
+            int bestScore = Score.NegInf;
             Stratum stratum = StratumForDepth(depth);
             MoveList legal = stratum.legal;
-            board.GenMoves(legal);
+            MoveGen opt;
+            if (depth < limit)
+            {
+                // Full-width search: generate all legal moves for this position.
+                opt = MoveGen.All;
+            }
+            else
+            {
+                // Quiescence search.
+                // Start with the evaluation of the current node only.
+                bestScore = Eval(board, depth);
 
-            int bestScore = Score.NegInf;
+                // Consider "doing nothing" a move; it is a valid way to interpret quiescence.
+                if (bestScore >= beta)
+                    goto prune;
+
+                if (bestScore > alpha)
+                    alpha = bestScore;
+
+                // Examine "special" moves only: all captures and a limited number of checks.
+                if (checkCount < quiescentCheckLimit)
+                    opt = MoveGen.ChecksAndCaptures;
+                else
+                    opt = MoveGen.Captures;
+            }
+            board.GenMoves(legal, opt);
+
             for (int i = 0; i < legal.nmoves; ++i)
             {
                 Move move = legal.array[i];
                 board.PushMove(move);
-                move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha);
+                int nextCheckCount = checkCount;
+                if (opt == MoveGen.ChecksAndCaptures)
+                {
+                    // We generated a list that contains three categories of moves:
+                    // 1. Non-capture moves that cause check.
+                    // 2. Captures that cause check.
+                    // 3. Captures that do not cause check.
+                    // In case #1 only, we "burn" one of our chances to explore these
+                    // non-captures in the quiescence search.
+                    if (0 == (move.flags & MoveFlags.Capture))
+                        ++nextCheckCount;
+                }
+                move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha, nextCheckCount);
                 board.PopMove();
 
                 if (move.score > bestScore)
                     bestScore = move.score;
 
                 if (move.score >= beta)
-                    break;      // This move is TOO GOOD... opponent has better (or equal) options than this position.
+                    goto prune;      // This move is TOO GOOD... opponent has better (or equal) options than this position.
 
                 if (move.score > alpha)
                     alpha = move.score;
             }
-
+prune:
             return bestScore;
         }
 

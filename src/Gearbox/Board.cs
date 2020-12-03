@@ -616,12 +616,12 @@ namespace Gearbox
             }
         }
 
-        public void GenMoves(MoveList movelist)
+        public void GenMoves(MoveList movelist, MoveGen opt = MoveGen.All)
         {
             if (isWhiteTurn)
-                GenMoves(movelist, Square.White, Square.Black, Direction.N, 2, 7);
+                GenMoves(movelist, opt, Square.White, Square.Black, Direction.N, 2, 7);
             else
-                GenMoves(movelist, Square.Black, Square.White, Direction.S, 7, 2);
+                GenMoves(movelist, opt, Square.Black, Square.White, Direction.S, 7, 2);
         }
 
         private bool IsIllegalPosition()
@@ -1110,7 +1110,7 @@ namespace Gearbox
             return false;
         }
 
-        private void GenMoves(MoveList movelist, Square friend, Square enemy, int pawndir, int homerank, int promrank)
+        private void GenMoves(MoveList movelist, MoveGen opt, Square friend, Square enemy, int pawndir, int homerank, int promrank)
         {
             epCaptureIsLegal = Ternary.No;      // will change to Yes if GenMoves_Pawn() finds any legal en passant captures.
             movelist.nmoves = 0;
@@ -1125,76 +1125,74 @@ namespace Gearbox
                         switch (p & Square.PieceMask)
                         {
                             case Square.Pawn:
-                                GenMoves_Pawn(movelist, ofs, friend, enemy, pawndir, homerank, promrank);
+                                GenMoves_Pawn(movelist, opt, ofs, friend, enemy, pawndir, homerank, promrank);
                                 break;
 
                             case Square.Knight:
-                                GenMove_Single(movelist, ofs, Direction.NEE, friend);
-                                GenMove_Single(movelist, ofs, Direction.NNE, friend);
-                                GenMove_Single(movelist, ofs, Direction.NNW, friend);
-                                GenMove_Single(movelist, ofs, Direction.NWW, friend);
-                                GenMove_Single(movelist, ofs, Direction.SWW, friend);
-                                GenMove_Single(movelist, ofs, Direction.SSW, friend);
-                                GenMove_Single(movelist, ofs, Direction.SSE, friend);
-                                GenMove_Single(movelist, ofs, Direction.SEE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.NEE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.NNE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.NNW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.NWW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SWW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SSW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SSE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SEE, friend);
                                 break;
 
                             case Square.Bishop:
-                                GenMoves_Ray(movelist, ofs, Direction.NE, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.NW, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.SW, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.SE, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.NE, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.NW, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.SW, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.SE, friend);
                                 break;
 
                             case Square.Rook:
-                                GenMoves_Ray(movelist, ofs, Direction.N, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.W, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.S, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.E, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.N, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.W, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.S, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.E, friend);
                                 break;
 
                             case Square.Queen:
-                                GenMoves_Ray(movelist, ofs, Direction.NE, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.NW, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.SW, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.SE, friend);
-                                GenMoves_Ray(movelist, ofs, Direction.N,  friend);
-                                GenMoves_Ray(movelist, ofs, Direction.W,  friend);
-                                GenMoves_Ray(movelist, ofs, Direction.S,  friend);
-                                GenMoves_Ray(movelist, ofs, Direction.E,  friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.NE, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.NW, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.SW, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.SE, friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.N,  friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.W,  friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.S,  friend);
+                                GenMoves_Ray(movelist, opt, ofs, Direction.E,  friend);
                                 break;
 
                             case Square.King:
-                                GenMove_Single(movelist, ofs, Direction.NE, friend);
-                                GenMove_Single(movelist, ofs, Direction.NW, friend);
-                                GenMove_Single(movelist, ofs, Direction.SW, friend);
-                                GenMove_Single(movelist, ofs, Direction.SE, friend);
-                                GenMove_Single(movelist, ofs, Direction.N,  friend);
-                                GenMove_Single(movelist, ofs, Direction.S,  friend);
-                                if (GenMove_Single(movelist, ofs, Direction.E, friend))
+                                GenMove_Single(movelist, opt, ofs, Direction.NE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.NW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SW, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.SE, friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.N,  friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.S,  friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.E,  friend);
+                                GenMove_Single(movelist, opt, ofs, Direction.W,  friend);
+                                if (opt != MoveGen.Captures)
                                 {
-                                    // Moving the king one square east is legal.
-                                    // See if castling kingside (O-O) is also legal.
+                                    // See if castling kingside (O-O) is legal.
                                     CastlingFlags flag = isWhiteTurn ? CastlingFlags.WhiteKingside : CastlingFlags.BlackKingside;
-                                    if ((0 != (castling & flag)) && !IsPlayerInCheck())
+                                    if ((0 != (castling & flag)) && !IsPlayerInCheck() && !IsAttackedBy(ofs + Direction.E, enemy))
                                     {
                                         // Not allowed to castle unless both squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.E;
                                         if ((square[ofs + Direction.E] | square[dest]) == Square.Empty)
-                                            AddMove(movelist, ofs, dest);
+                                            AddMove(movelist, opt, ofs, dest);
                                     }
-                                }
-                                if (GenMove_Single(movelist, ofs, Direction.W, friend))
-                                {
-                                    // Moving the king one square west is legal.
-                                    // See if castling queenside (O-O-O) is also legal.
-                                    CastlingFlags flag = isWhiteTurn ? CastlingFlags.WhiteQueenside : CastlingFlags.BlackQueenside;
-                                    if ((0 != (castling & flag)) && !IsPlayerInCheck())
+
+                                    // See if castling queenside (O-O-O) is legal.
+                                    flag = isWhiteTurn ? CastlingFlags.WhiteQueenside : CastlingFlags.BlackQueenside;
+                                    if ((0 != (castling & flag)) && !IsPlayerInCheck() && !IsAttackedBy(ofs + Direction.W, enemy))
                                     {
                                         // Not allowed to castle unless all 3 squares between king and rook are empty.
                                         int dest = ofs + 2*Direction.W;
                                         if ((square[ofs + Direction.W] | square[dest] | square[ofs + 3*Direction.W]) == Square.Empty)
-                                            AddMove(movelist, ofs, dest);
+                                            AddMove(movelist, opt, ofs, dest);
                                     }
                                 }
                                 break;
@@ -1207,23 +1205,39 @@ namespace Gearbox
             }
         }
 
-        private bool AddMove(MoveList movelist, int source, int dest, char prom = '\0', bool knownLegal = false)
+        private bool AddMove(
+            MoveList movelist,
+            MoveGen opt,
+            int source,
+            int dest,
+            char prom = '\0',
+            bool knownLegal = false,
+            bool knownCapture = false)
         {
-            // Append 'move' to 'movelist', but only if making that move doesn't cause leave the mover in check.
+            bool capture = (square[dest] != Square.Empty) || (prom != '\0') || knownCapture;
+
+            // We can filter out non-captures when requested, without even trying the move.
+            if ((opt == MoveGen.Captures) && !capture)
+                return false;
+
+            // Append 'move' to 'movelist', but only if making that move doesn't leave the mover in check.
             var move = new Move(source, dest, prom);
             PushMove(move);
             bool legal = knownLegal || !IsIllegalPosition();
             if (legal)
             {
-                move.flags = MoveFlags.Valid;
-
-                if (IsPlayerInCheck())
-                    move.flags |= MoveFlags.Check;
-
-                if (!PlayerCanMove())
-                    move.flags |= MoveFlags.Immobile;
-
-                movelist.Add(move);
+                bool check = IsPlayerInCheck();
+                if ((opt != MoveGen.ChecksAndCaptures) || capture || check)
+                {
+                    move.flags = MoveFlags.Valid;
+                    if (check)
+                        move.flags |= MoveFlags.Check;
+                    if (capture)
+                        move.flags |= MoveFlags.Capture;
+                    if (!PlayerCanMove())
+                        move.flags |= MoveFlags.Immobile;
+                    movelist.Add(move);
+                }
             }
             PopMove();
             return legal;
@@ -1245,11 +1259,11 @@ namespace Gearbox
             return false;
         }
 
-        private bool GenMove_Single(MoveList movelist, int source, int dir, Square friend)
+        private bool GenMove_Single(MoveList movelist, MoveGen opt, int source, int dir, Square friend)
         {
             int dest = source + dir;
             if (0 == (square[dest] & (friend | Square.Offboard)))
-                return AddMove(movelist, source, dest);
+                return AddMove(movelist, opt, source, dest);
             return false;
         }
 
@@ -1267,14 +1281,15 @@ namespace Gearbox
             return false;
         }
 
-        private void GenMoves_Ray(MoveList movelist, int source, int dir, Square friend)
+        private void GenMoves_Ray(MoveList movelist, MoveGen opt, int source, int dir, Square friend)
         {
             int dest;
             for (dest = source + dir; square[dest] == Square.Empty; dest += dir)
-                AddMove(movelist, source, dest);
+                if (opt != MoveGen.Captures)
+                    AddMove(movelist, opt, source, dest);
 
             if (0 == (square[dest] & (friend | Square.Offboard)))
-                AddMove(movelist, source, dest);
+                AddMove(movelist, opt, source, dest);
         }
 
         private bool CanMove_Pawn(int source, Square friend, Square enemy, int pawndir, int homerank, int promrank)
@@ -1318,7 +1333,8 @@ namespace Gearbox
             return false;
         }
 
-        private void GenMoves_Pawn(MoveList movelist, int source, Square friend, Square enemy, int pawndir, int homerank, int promrank)
+        private void GenMoves_Pawn(
+            MoveList movelist, MoveGen opt, int source, Square friend, Square enemy, int pawndir, int homerank, int promrank)
         {
             int rank = (source / 10) - 1;   // calculate starting rank of the pawn to be moved, 1..8.
 
@@ -1331,21 +1347,21 @@ namespace Gearbox
                     // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
                     // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
                     // so save time by avoiding redundant legality checks.
-                    if (AddMove(movelist, source, dest, 'q', false))
+                    if (AddMove(movelist, opt, source, dest, 'q', false))
                     {
-                        AddMove(movelist, source, dest, 'r', true);
-                        AddMove(movelist, source, dest, 'b', true);
-                        AddMove(movelist, source, dest, 'n', true);
+                        AddMove(movelist, opt, source, dest, 'r', true);
+                        AddMove(movelist, opt, source, dest, 'b', true);
+                        AddMove(movelist, opt, source, dest, 'n', true);
                     }
                 }
                 else
                 {
-                    AddMove(movelist, source, dest);
+                    AddMove(movelist, opt, source, dest);
                     dest += pawndir;
 
                     // A pawn may move two squares forward on its first move, if both squares are empty.
                     if (rank == homerank && square[dest] == Square.Empty)
-                        AddMove(movelist, source, dest);
+                        AddMove(movelist, opt, source, dest);
                 }
             }
 
@@ -1358,16 +1374,16 @@ namespace Gearbox
                     // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
                     // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
                     // so save time by avoiding redundant legality checks.
-                    if (AddMove(movelist, source, dest, 'q', false))
+                    if (AddMove(movelist, opt, source, dest, 'q', false))
                     {
-                        AddMove(movelist, source, dest, 'r', true);
-                        AddMove(movelist, source, dest, 'b', true);
-                        AddMove(movelist, source, dest, 'n', true);
+                        AddMove(movelist, opt, source, dest, 'r', true);
+                        AddMove(movelist, opt, source, dest, 'b', true);
+                        AddMove(movelist, opt, source, dest, 'n', true);
                     }
                 }
                 else
                 {
-                    if (AddMove(movelist, source, dest))
+                    if (AddMove(movelist, opt, source, dest, '\0', false, true))
                         if (dest == epTargetOffset)
                             epCaptureIsLegal = Ternary.Yes;
                 }
@@ -1382,16 +1398,16 @@ namespace Gearbox
                     // A pawn reaching the opponent's home rank may promote to Queen, Rook, Bishop, or Knight.
                     // If a promotion to a queen is legal, so is a promotion to rook, bishop, or knight,
                     // so save time by avoiding redundant legality checks.
-                    if (AddMove(movelist, source, dest, 'q', false))
+                    if (AddMove(movelist, opt, source, dest, 'q', false))
                     {
-                        AddMove(movelist, source, dest, 'r', true);
-                        AddMove(movelist, source, dest, 'b', true);
-                        AddMove(movelist, source, dest, 'n', true);
+                        AddMove(movelist, opt, source, dest, 'r', true);
+                        AddMove(movelist, opt, source, dest, 'b', true);
+                        AddMove(movelist, opt, source, dest, 'n', true);
                     }
                 }
                 else
                 {
-                    if (AddMove(movelist, source, dest))
+                    if (AddMove(movelist, opt, source, dest, '\0', false, true))
                         if (dest == epTargetOffset)
                             epCaptureIsLegal = Ternary.Yes;
                 }
