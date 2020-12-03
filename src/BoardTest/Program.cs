@@ -353,7 +353,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             new Puzzle(2.9, "Qxf7+", 3, "3rr1k1/R4ppp/8/1p2b3/3P4/1Q3N1q/1P3P2/5RK1 w - - 0 27"),           // https://lichess.org/8kw3bPuD/white#52
             new Puzzle(1.9, "d8h4",  3, "rn1q1rk1/ppp2ppp/3bp3/8/2B5/2P2Q2/P1PP1PPP/R1B2RK1 b - - 0 10"),   // https://lichess.org/training/62387
             new Puzzle(1.1, "f6c6",  5, "8/pp2k1rp/2b2R2/1p2pPP1/5n2/1PP5/P2K4/6R1 w - - 3 34"),            // https://lichess.org/training/62394
-            new Puzzle(1.9, "a6b5",  5, "rn1qkb1r/3ppppp/b4n2/1NpP4/8/4P3/PP3PPP/R1BQKBNR b KQkq - 0 7"),    // https://lichess.org/training/62398
+            new Puzzle(1.9, "a6b5",  5, "rn1qkb1r/3ppppp/b4n2/1NpP4/8/4P3/PP3PPP/R1BQKBNR b KQkq - 0 7"),   // https://lichess.org/training/62398
+            new Puzzle(1.9, "a1e1",  3, "8/5pkp/4p1p1/6q1/P1r5/2N1n2P/1P2Q1P1/R5K1 w - - 1 28"),            // https://lichess.org/training/62414
             //new Puzzle("Be1",   6, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),           // https://lichess.org/UulmeeB6/white#60
             //new Puzzle("f6g5",  7, "r1r3k1/1b3ppp/p3pq2/1p6/1Q1p4/1B1P4/PPP2PPP/R4RK1 b - - 5 17"),       // https://lichess.org/training/62379
         };
