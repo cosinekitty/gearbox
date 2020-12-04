@@ -94,7 +94,7 @@ namespace Gearbox
             }
         }
 
-        public void MoveToFront(Move best)
+        public bool MoveToFront(Move best)
         {
             // Find the move matching 'best' in the list.
             // Move the matching move to the front of the list without disturbing
@@ -107,11 +107,11 @@ namespace Gearbox
                     for (int k=i; k > 0; --k)
                         array[k] = array[k-1];
                     array[0] = move;
-                    return;
+                    return true;
                 }
             }
 
-            throw new ArgumentException(string.Format("Move was not found in list: {0}", best));
+            return false;       // did not find the move in the list
         }
     }
 }

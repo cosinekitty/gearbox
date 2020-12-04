@@ -9,8 +9,9 @@ namespace Gearbox
     public class Thinker
     {
         private int maxSearchLimit;
-        private int quiescentCheckLimit = 1;
+        private int quiescentCheckLimit = 3;
         private List<Stratum> stratumList = new List<Stratum>(100);
+        private HashTable xpos = new HashTable(10000000);
 
         public void SetSearchLimit(int maxSearchLimit)
         {
@@ -87,7 +88,8 @@ namespace Gearbox
                 return Score.Draw;
             }
 
-            int bestScore = Score.NegInf;
+            HashValue hash = board.Hash();
+            Move bestMove = Move.Null;
             Stratum stratum = StratumForDepth(depth);
             MoveList legal = stratum.legal;
             MoveGen opt;
@@ -100,14 +102,14 @@ namespace Gearbox
             {
                 // Quiescence search.
                 // Start with the evaluation of the current node only.
-                bestScore = Eval(board, depth);
+                bestMove.score = Eval(board, depth);
 
                 // Consider "doing nothing" a move; it is a valid way to interpret quiescence.
-                if (bestScore >= beta)
+                if (bestMove.score >= beta)
                     goto prune;
 
-                if (bestScore > alpha)
-                    alpha = bestScore;
+                if (bestMove.score > alpha)
+                    alpha = bestMove.score;
 
                 // Examine "special" moves only: all captures and a limited number of checks.
                 if (checkCount < quiescentCheckLimit)
@@ -116,6 +118,11 @@ namespace Gearbox
                     opt = MoveGen.Captures;
             }
             board.GenMoves(legal, opt);
+
+            // See if we can improve move ordering using previous work saved in the hash table.
+            HashEntry entry = xpos.Read(hash);
+            if (entry.verify == hash.b)
+                legal.MoveToFront(entry.move);
 
             for (int i = 0; i < legal.nmoves; ++i)
             {
@@ -136,8 +143,8 @@ namespace Gearbox
                 move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha, nextCheckCount);
                 board.PopMove();
 
-                if (move.score > bestScore)
-                    bestScore = move.score;
+                if (move.score > bestMove.score)
+                    bestMove = move;
 
                 if (move.score >= beta)
                     goto prune;      // This move is TOO GOOD... opponent has better (or equal) options than this position.
@@ -146,7 +153,8 @@ namespace Gearbox
                     alpha = move.score;
             }
 prune:
-            return bestScore;
+            xpos.Update(hash, bestMove, alpha, beta, limit-depth);
+            return bestMove.score;
         }
 
         private int Eval(Board board, int depth)

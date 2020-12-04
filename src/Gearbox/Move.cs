@@ -122,10 +122,15 @@ namespace Gearbox
 
         public override string ToString()
         {
-            if (source == 0)
-                return "----";  // this is a null move
+            if (IsNull())
+                return "----";
             string alg = Board.Algebraic(source) + Board.Algebraic(dest);
             return (prom == '\0') ? alg : (alg + prom);
+        }
+
+        public bool IsNull()
+        {
+            return source == 0;
         }
     }
 }
