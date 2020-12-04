@@ -366,18 +366,25 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             var legal = new MoveList();
             var scratch = new MoveList();
             int count = 0;
-            var clock = Stopwatch.StartNew();
+            var puzzleTime = new Stopwatch();
+            var totalTime = Stopwatch.StartNew();
+            Console.WriteLine("        move       score     time  [starting position]");
             foreach (Puzzle puzzle in PuzzleList)
             {
                 board.SetPosition(puzzle.fen);
                 board.GenMoves(legal);
                 thinker.SetSearchLimit(puzzle.searchLimit);
+                puzzleTime.Restart();
                 Move move = thinker.Search(board);
+                puzzleTime.Stop();
+                string elapsed = puzzleTime.Elapsed.TotalSeconds.ToString("F3");
+                string score = Score.Format(move.score);
                 string san = board.MoveNotation(move, legal, scratch);
-                Console.WriteLine("PUZZLE: {0,-7} {1,8}  [{2}]", san, Score.Format(move.score), puzzle.fen);
-                if (san != puzzle.movetext && move.ToString() != puzzle.movetext)
+                string uci = move.ToString();
+                Console.WriteLine("PUZZLE: {0,-7} {1,8} {2,8}  [{3}]", san, score, elapsed, puzzle.fen);
+                if (puzzle.movetext != san && puzzle.movetext != uci)
                 {
-                    Console.WriteLine("FAIL(TestPuzzles): expected {0}, found san={1}, uci={2}", puzzle.movetext, san, move);
+                    Console.WriteLine("FAIL(TestPuzzles): expected {0}, found san={1}, uci={2}", puzzle.movetext, san, uci);
                     return false;
                 }
                 if (move.score < puzzle.minScore)
@@ -387,8 +394,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 }
                 ++count;
             }
-            clock.Stop();
-            Console.WriteLine("PASS: {0} puzzles in {1} seconds", count, clock.Elapsed.TotalSeconds.ToString("0.000"));
+            totalTime.Stop();
+            Console.WriteLine("PASS: {0} puzzles in {1} seconds", count, totalTime.Elapsed.TotalSeconds.ToString("0.000"));
             return true;
         }
     }
