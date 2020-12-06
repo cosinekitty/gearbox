@@ -67,7 +67,7 @@ namespace Gearbox
                 return string.Format("#-{0}", 1 + (FriendMated + score)/2);
 
             if (score == 0)
-                return "0";
+                return "0.000";
 
             string text;
             if (score < 0)

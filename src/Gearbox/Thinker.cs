@@ -11,16 +11,23 @@ namespace Gearbox
         private int maxSearchLimit;
         private int quiescentCheckLimit = 3;
         private List<Stratum> stratumList = new List<Stratum>(100);
-        private HashTable xpos = new HashTable(10000000);
+        private HashTable xpos = new HashTable(50000000);
+        private int evalCount;
 
         public void SetSearchLimit(int maxSearchLimit)
         {
             this.maxSearchLimit = maxSearchLimit;
         }
 
+        public int EvalCount
+        {
+            get { return evalCount; }
+        }
+
         public Move Search(Board board)
         {
             // Iterative deepening search.
+            evalCount = 0;
             var stratum = StratumForDepth(0);
             board.GenMoves(stratum.legal);
             if (stratum.legal.nmoves == 0)
@@ -159,6 +166,8 @@ prune:
 
         private int Eval(Board board, int depth)
         {
+            ++evalCount;
+
             // Evaluate the board with scores relative to White.
             int score = 0;
 
