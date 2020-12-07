@@ -95,7 +95,19 @@ namespace Gearbox
                 return Score.Draw;
             }
 
+            // If we have seen this position before,
+            // see if we can recycle its value.
+            // CONCERNS:
+            // 1. draw by repetition may be missed.
+            // 2. incorrect evaluation due to alpha-beta pruning.
             HashValue hash = board.Hash();
+            HashEntry entry = xpos.Read(hash);
+            if (entry.verify == hash.b)
+            {
+                if (entry.height >= limit-depth && entry.alpha <= alpha && entry.beta >= beta)
+                    return entry.move.score;
+            }
+
             Move bestMove = Move.Null;
             Stratum stratum = StratumForDepth(depth);
             MoveList legal = stratum.legal;
@@ -127,7 +139,6 @@ namespace Gearbox
             board.GenMoves(legal, opt);
 
             // See if we can improve move ordering using previous work saved in the hash table.
-            HashEntry entry = xpos.Read(hash);
             if (entry.verify == hash.b)
                 legal.MoveToFront(entry.move);
 
