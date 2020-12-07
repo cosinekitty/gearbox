@@ -138,37 +138,34 @@ namespace Gearbox
             }
             board.GenMoves(legal, opt);
 
-            if (opt == MoveGen.All)
+            // Preliminary sort: assume captures cause more pruning than non-captures.
+            // Try more valuable captures/promotions before less valuable ones.
+            for (int i = 0; i < legal.nmoves; ++i)
             {
-                // Preliminary sort: assume captures cause more pruning than non-captures.
-                // Try more valuable captures/promotions before less valuable ones.
-                for (int i = 0; i < legal.nmoves; ++i)
+                Move move = legal.array[i];
+                int score = 0;
+                switch (move.prom)
                 {
-                    Move move = legal.array[i];
-                    int score = 0;
-                    switch (move.prom)
-                    {
-                        case 'q':   score += Score.Queen;   break;
-                        case 'r':   score += Score.Rook;    break;
-                        case 'b':   score += Score.Bishop;  break;
-                        case 'n':   score += Score.Knight;  break;
-                    }
-                    switch (board.square[move.dest] & Square.PieceMask)
-                    {
-                        case Square.Queen:  score += Score.Queen;   break;
-                        case Square.Rook:   score += Score.Rook;    break;
-                        case Square.Bishop: score += Score.Bishop;  break;
-                        case Square.Knight: score += Score.Knight;  break;
-                        case Square.Pawn:   score += Score.Pawn;    break;
-                        case Square.Empty:
-                            if ((move.prom == '\0') && 0 != (move.flags & MoveFlags.Capture))
-                                score += Score.Pawn;    // en passant capture
-                                break;
-                    }
-                    legal.array[i].score = score;
+                    case 'q':   score += Score.Queen;   break;
+                    case 'r':   score += Score.Rook;    break;
+                    case 'b':   score += Score.Bishop;  break;
+                    case 'n':   score += Score.Knight;  break;
                 }
-                legal.Sort();
+                switch (board.square[move.dest] & Square.PieceMask)
+                {
+                    case Square.Queen:  score += Score.Queen;   break;
+                    case Square.Rook:   score += Score.Rook;    break;
+                    case Square.Bishop: score += Score.Bishop;  break;
+                    case Square.Knight: score += Score.Knight;  break;
+                    case Square.Pawn:   score += Score.Pawn;    break;
+                    case Square.Empty:
+                        if ((move.prom == '\0') && 0 != (move.flags & MoveFlags.Capture))
+                            score += Score.Pawn;    // en passant capture
+                            break;
+                }
+                legal.array[i].score = score;
             }
+            legal.Sort();
 
             // See if we can improve move ordering using previous work saved in the hash table.
             if (entry.verify == hash.b)
