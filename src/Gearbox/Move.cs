@@ -48,11 +48,13 @@ namespace Gearbox
         public const int Undefined   = int.MinValue;
 
         // Raw piece values... must be adjusted for tradoff bonus/penalty, etc.
-        public const int Pawn   = 1000000;
-        public const int Knight = 2900000;
-        public const int Bishop = 3100000;
-        public const int Rook   = 5000000;
-        public const int Queen  = 9000000;
+        internal const int Pawn   = 1000000;
+        internal const int Knight = 2900000;
+        internal const int Bishop = 3100000;
+        internal const int Rook   = 5000000;
+        internal const int Queen  = 9000000;
+
+        internal const int CheckBonus = 100000;
 
         // Helper functions.
         public static int CheckmateLoss(int depth)

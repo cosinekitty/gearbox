@@ -204,6 +204,13 @@ namespace Gearbox
                             score += Score.Pawn;    // en passant capture
                         break;
                 }
+                if (0 != (move.flags & MoveFlags.Check))
+                {
+                    if (0 != (move.flags & MoveFlags.Immobile))
+                        score += Score.WonForWhite;     // immediate checkmate!
+                    else
+                        score += Score.CheckBonus;      // small bonus for checking moves
+                }
                 legal.array[i].score = score;
             }
             legal.Sort();
