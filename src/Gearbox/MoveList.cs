@@ -47,8 +47,9 @@ namespace Gearbox
             return copy;
         }
 
-        public void Sort(int dir)
+        public void Sort()
         {
+            // Sort move in descending order of their 'score' fields.
             // Because move lists are fairly short, I believe
             // a cache-friendly O(n^2) selection sort is fine.
             // I may revisit this assumption later.
@@ -57,11 +58,11 @@ namespace Gearbox
             for (int i=0; i+1 < nmoves; ++i)
             {
                 int bestIndex = i;
-                int bestScore = dir * array[i].score;
+                int bestScore = array[i].score;
                 for (int j=i+1; j < nmoves; ++j)
                 {
-                    int score = dir * array[j].score;
-                    if (score < bestScore)
+                    int score = array[j].score;
+                    if (score > bestScore)
                     {
                         bestIndex = j;
                         bestScore = score;
