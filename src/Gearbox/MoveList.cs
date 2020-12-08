@@ -114,5 +114,14 @@ namespace Gearbox
 
             return false;       // did not find the move in the list
         }
+
+        public bool Contains(Move move)
+        {
+            for (int i=0; i < nmoves; ++i)
+                if (array[i].source == move.source && array[i].dest == move.dest && array[i].prom == move.prom)
+                    return true;
+
+            return false;
+        }
     }
 }

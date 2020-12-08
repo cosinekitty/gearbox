@@ -66,6 +66,55 @@ namespace Gearbox
             return bestMove;
         }
 
+        public BestPath GetBestPath(Board board)
+        {
+            var nodeList = new List<BestPathNode>();
+            var legal = new MoveList();
+            var scratch = new MoveList();
+            bool isCircular = false;
+
+            // Use the transposition table to find the principal variation.
+            // Go as far into the future as possible.
+            // Use the board to calculate hash codes for the lookup,
+            // and keep making the predicted moves into the board.
+            while (!isCircular)
+            {
+                HashValue hash = board.Hash();
+                HashEntry entry = xpos.Read(hash);
+                if (entry.verify != hash.b)
+                    break;
+
+                board.GenMoves(legal);
+                if (!legal.Contains(entry.move))
+                    break;
+
+                foreach (BestPathNode prior in nodeList)
+                {
+                    if (prior.hash.a == hash.a && prior.hash.b == hash.b)
+                    {
+                        isCircular = true;
+                        break;
+                    }
+                }
+
+                string san = board.MoveNotation(entry.move, legal, scratch);
+                string uci = entry.move.ToString();
+
+                board.PushMove(entry.move);
+                nodeList.Add(new BestPathNode { move = entry.move, uci = uci, san = san, hash = hash });
+            }
+
+            // Rewind all the changes we made to the board.
+            for (int i = 0; i < nodeList.Count; ++i)
+                board.PopMove();
+
+            return new BestPath
+            {
+                isCircular = isCircular,
+                nodes = nodeList.ToArray(),
+            };
+        }
+
         private Move SearchRoot(Board board, int limit)
         {
             Stratum stratum = StratumForDepth(0);
@@ -79,8 +128,10 @@ namespace Gearbox
                 if (legal.array[i].score > bestMove.score)
                     bestMove = legal.array[i];
             }
-            if (bestMove.source == 0)
+            if (bestMove.IsNull())
                 throw new Exception("SearchRoot failed to find a move.");
+            HashValue hash = board.Hash();
+            xpos.Update(hash, bestMove, Score.NegInf, Score.PosInf, limit);
             return bestMove;
         }
 

@@ -381,7 +381,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 string score = Score.Format(move.score);
                 string san = board.MoveNotation(move, legal, scratch);
                 string uci = move.ToString();
-                Console.WriteLine("PUZZLE: {0,-7} {1,8} {2,8} {3,12:n0} [{4}]", san, score, elapsed, thinker.EvalCount, puzzle.fen);
+                string bestPathFormat = FormatBestPath(thinker, board);
+                Console.WriteLine("PUZZLE: {0,-7} {1,8} {2,8} {3,12:n0} [{4}] {5}", san, score, elapsed, thinker.EvalCount, puzzle.fen, bestPathFormat);
                 if (puzzle.movetext != san && puzzle.movetext != uci)
                 {
                     Console.WriteLine("FAIL(TestPuzzles): expected {0}, found san={1}, uci={2}", puzzle.movetext, san, uci);
@@ -397,6 +398,15 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             totalTime.Stop();
             Console.WriteLine("PASS: {0} puzzles in {1} seconds", count, totalTime.Elapsed.TotalSeconds.ToString("0.000"));
             return true;
+        }
+
+        private static string FormatBestPath(Thinker thinker, Board board)
+        {
+            BestPath bp = thinker.GetBestPath(board);
+            string text = string.Join(" ", bp.nodes.Select(node => node.san));
+            if (bp.isCircular)
+                text += " .";
+            return "(" + text + ")";
         }
     }
 
