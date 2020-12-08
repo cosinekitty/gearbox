@@ -66,6 +66,11 @@ namespace Gearbox
             return bestMove;
         }
 
+        public void AbortSearch()
+        {
+            // This function can be called by another thread to abort Thinker.Search().
+        }
+
         public BestPath GetBestPath(Board board)
         {
             var nodeList = new List<BestPathNode>();
