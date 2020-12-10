@@ -45,7 +45,7 @@ namespace Gearbox
 
         public const int NegInf      = -2000000000;
         public const int PosInf      = +2000000000;
-        public const int Undefined   = int.MinValue;
+        public const int Undefined   = int.MinValue;    // SUBTLE: -int.MinValue is the same as +int.MinValue, thanks to two's complement math
 
         // Raw piece values... must be adjusted for tradoff bonus/penalty, etc.
         internal const int Pawn   = 1000000;

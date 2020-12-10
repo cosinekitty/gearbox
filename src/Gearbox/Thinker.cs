@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Gearbox
@@ -13,6 +14,10 @@ namespace Gearbox
         private List<Stratum> stratumList = new List<Stratum>(100);
         private HashTable xpos = new HashTable(50000000);
         private int evalCount;
+        private readonly object searchMutex = new object();
+        private bool searchInProgress;
+        private bool abort;
+        private AutoResetEvent abortSignal = new AutoResetEvent(false);
 
         public void SetSearchLimit(int maxSearchLimit)
         {
@@ -26,49 +31,90 @@ namespace Gearbox
 
         public Move Search(Board board)
         {
-            // Iterative deepening search.
-            evalCount = 0;
-            var stratum = StratumForDepth(0);
-            board.GenMoves(stratum.legal);
-            if (stratum.legal.nmoves == 0)
-                throw new Exception("There are no legal moves in this position.");
-
-            if (stratum.legal.nmoves == 1)
-                return stratum.legal.array[0];    // There is only one legal move, so return it.
-
-            // Shuffle the move list to eliminate any bias
-            // introduced by the legal move generator.
-            // This is a way of giving the computer more interesting
-            // play when there are different options judged equal.
-            stratum.legal.Shuffle();
-
-            Move bestMove = SearchRoot(board, 1);
-            for (int limit = 2; limit < maxSearchLimit; ++limit)
+            lock (searchMutex)
             {
-                if (bestMove.score >= Score.WonForFriend)
-                    break;      // we found an optimal forced mate, so there is no reason to keep working
-
-                if (bestMove.score <= Score.WonForEnemy)
-                    break;      // we are going to lose... give up and cry!
-
-                // Sort in descending order by score.
-                stratum.legal.Sort();
-
-                // Even though we sorted, pruning can make unequal moves appear equal.
-                // Therefore, always put the very best move we found previously at
-                // the front of the list. This helps improve pruning for the deeper search
-                // we are about to do.
-                stratum.legal.MoveToFront(bestMove);
-
-                // Search one level deeper.
-                bestMove = SearchRoot(board, limit);
+                abort = false;
+                searchInProgress = true;
             }
-            return bestMove;
+
+            try
+            {
+                // Iterative deepening search.
+                evalCount = 0;
+                var stratum = StratumForDepth(0);
+                board.GenMoves(stratum.legal);
+                if (stratum.legal.nmoves == 0)
+                    throw new Exception("There are no legal moves in this position.");
+
+                if (stratum.legal.nmoves == 1)
+                    return stratum.legal.array[0];    // There is only one legal move, so return it.
+
+                // Shuffle the move list to eliminate any bias
+                // introduced by the legal move generator.
+                // This is a way of giving the computer more interesting
+                // play when there are different options judged equal.
+                stratum.legal.Shuffle();
+
+                Move bestMove = SearchRoot(board, 1);
+                if (bestMove.IsNull())
+                    return stratum.legal.array[0];    // search was aborted. return random legal move.
+
+                for (int limit = 2; limit < maxSearchLimit; ++limit)
+                {
+                    if (bestMove.score >= Score.WonForFriend)
+                        break;      // we found an optimal forced mate, so there is no reason to keep working
+
+                    if (bestMove.score <= Score.WonForEnemy)
+                        break;      // we are going to lose... give up and cry!
+
+                    // Sort in descending order by score.
+                    stratum.legal.Sort();
+
+                    // Even though we sorted, pruning can make unequal moves appear equal.
+                    // Therefore, always put the very best move we found previously at
+                    // the front of the list. This helps improve pruning for the deeper search
+                    // we are about to do.
+                    stratum.legal.MoveToFront(bestMove);
+
+                    // Search one level deeper.
+                    Move tryMove = SearchRoot(board, limit);
+                    if (tryMove.IsNull())
+                        break;  // search was aborted; keep the best move we found from the previous search
+
+                    bestMove = tryMove;
+                }
+                return bestMove;
+            }
+            finally
+            {
+                lock (searchMutex)
+                {
+                    searchInProgress = false;
+                    if (abort)
+                    {
+                        abort = false;
+                        abortSignal.Set();
+                    }
+                }
+            }
         }
 
-        public void AbortSearch()
+        public bool AbortSearch()
         {
-            // This function can be called by another thread to abort Thinker.Search().
+            // If a search is in progress, tell the thinker thread to abort the search.
+            bool initiatedAbort = false;
+            lock (searchMutex)
+            {
+                if (searchInProgress)
+                {
+                    abort = true;
+                    initiatedAbort = true;
+                }
+            }
+
+            // If we initiated the abort, wait for it to complete and return true.
+            // Otherwise do nothing and return false.
+            return initiatedAbort && abortSignal.WaitOne();
         }
 
         public BestPath GetBestPath(Board board)
@@ -130,6 +176,8 @@ namespace Gearbox
                 board.PushMove(legal.array[i]);
                 legal.array[i].score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score, 0);
                 board.PopMove();
+                if (legal.array[i].score == Score.Undefined)
+                    return Move.Null;   // signal aborted search
                 if (legal.array[i].score > bestMove.score)
                     bestMove = legal.array[i];
             }
@@ -142,6 +190,14 @@ namespace Gearbox
 
         private int NegaMax(Board board, int depth, int limit, int alpha, int beta, int checkCount)
         {
+            if (abort)
+            {
+                // The search has been aborted.
+                // Start an upward cascade of undoing moves to the board
+                // and popping out of all levels of recursion.
+                return Score.Undefined;
+            }
+
             // Is the game over? Score immediately if so.
             if (!board.PlayerCanMove())
             {
@@ -218,6 +274,9 @@ namespace Gearbox
                 }
                 move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha, nextCheckCount);
                 board.PopMove();
+
+                if (move.score == Score.Undefined)
+                    return Score.Undefined;     // Continue unwinding from an aborted search.
 
                 if (move.score > bestMove.score)
                     bestMove = move;
