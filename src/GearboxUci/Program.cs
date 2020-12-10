@@ -26,6 +26,11 @@ namespace GearboxUci
             Console.WriteLine(line);
         }
 
+        static void WriteLine(StreamWriter log, string format, params object[] args)
+        {
+            WriteLine(log, string.Format(format, args));
+        }
+
         static int Main(string[] args)
         {
             using (StreamWriter log = File.CreateText("gearbox.log"))
@@ -217,10 +222,32 @@ namespace GearboxUci
 
         static void ThinkerThreadFunc()
         {
-            while (!exit && signal.WaitOne() && !exit)
+            using (StreamWriter log = File.CreateText("thinker.log"))
             {
-                Move move = thinker.Search(board);
-                Console.WriteLine("bestmove {0}", move);
+                while (!exit && signal.WaitOne() && !exit)
+                {
+                    if (searchLimits != null)
+                    {
+                        int remainingMillis;
+                        int incrementMillis;
+                        if (board.IsWhiteTurn)
+                        {
+                            remainingMillis = searchLimits.wtime;
+                            incrementMillis = searchLimits.winc;
+                        }
+                        else
+                        {
+                            remainingMillis = searchLimits.btime;
+                            incrementMillis = searchLimits.binc;
+                        }
+                        log.WriteLine("# remainingMillis={0}, incrementMillis={1}", remainingMillis, incrementMillis);
+                        log.Flush();
+                        thinker.SetSearchTime(remainingMillis / 40);
+                    }
+                    Move move = thinker.Search(board);
+                    WriteLine(log, "bestmove {0}", move);
+                    log.Flush();
+                }
             }
         }
     }

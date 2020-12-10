@@ -4,12 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace Gearbox
 {
     public class Thinker
     {
         private int maxSearchLimit;
+        private int searchTimeMillis;
+        private System.Timers.Timer searchTimer;
         private int quiescentCheckLimit = 3;
         private List<Stratum> stratumList = new List<Stratum>(100);
         private HashTable xpos = new HashTable(50000000);
@@ -19,9 +22,22 @@ namespace Gearbox
         private bool abort;
         private AutoResetEvent abortSignal = new AutoResetEvent(false);
 
+        public Thinker()
+        {
+            searchTimer = new System.Timers.Timer();
+            searchTimer.Elapsed += OnSearchTimeElapsed;
+        }
+
         public void SetSearchLimit(int maxSearchLimit)
         {
             this.maxSearchLimit = maxSearchLimit;
+            this.searchTimeMillis = 0;
+        }
+
+        public void SetSearchTime(int millis)
+        {
+            this.maxSearchLimit = 100;
+            this.searchTimeMillis = Math.Max(1, millis);
         }
 
         public int EvalCount
@@ -35,6 +51,12 @@ namespace Gearbox
             {
                 abort = false;
                 searchInProgress = true;
+            }
+
+            if (searchTimeMillis > 0)
+            {
+                searchTimer.Interval = (double)searchTimeMillis;
+                searchTimer.Enabled = true;
             }
 
             try
@@ -87,6 +109,8 @@ namespace Gearbox
             }
             finally
             {
+                searchTimer.Enabled = false;
+
                 lock (searchMutex)
                 {
                     searchInProgress = false;
@@ -99,13 +123,18 @@ namespace Gearbox
             }
         }
 
+        private void OnSearchTimeElapsed(object source, ElapsedEventArgs e)
+        {
+            AbortSearch();
+        }
+
         public bool AbortSearch()
         {
             // If a search is in progress, tell the thinker thread to abort the search.
             bool initiatedAbort = false;
             lock (searchMutex)
             {
-                if (searchInProgress)
+                if (searchInProgress && !abort)
                 {
                     abort = true;
                     initiatedAbort = true;
