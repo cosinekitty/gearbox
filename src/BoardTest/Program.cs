@@ -357,7 +357,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             new Puzzle(1.9, "a1e1",  3, "8/5pkp/4p1p1/6q1/P1r5/2N1n2P/1P2Q1P1/R5K1 w - - 1 28"),            // https://lichess.org/training/62414
             new Puzzle(3.2, "f2c5",  7, "4k2r/1p3p2/pn2pPp1/4B2p/5P2/P7/1P3QKP/1q6 w k - 0 32"),            // https://lichess.org/training/62417
             new Puzzle(2.1, "Be1",   8, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),        // https://lichess.org/UulmeeB6/white#60
-            new Puzzle(100, "h4h2",  5, "7k/p1pn2p1/bp2p2r/4p2n/2PPNp1q/2PB1P2/P4QPP/R4RK1 b - - 8 20"),    // https://lichess.org/training/62644
+            new Puzzle(100, "h4h2", 10, "7k/p1pn2p1/bp2p2r/4p2n/2PPNp1q/2PB1P2/P4QPP/R4RK1 b - - 8 20"),    // https://lichess.org/training/62644
+            new Puzzle(1.0, "b3f7", 10, "5rk1/2R2ppp/1p3n2/6r1/3Pp2q/1Q2P2B/PN2bPPP/R6K w - - 5 26"),       // https://lichess.org/training/62646
         };
 
         static bool TestPuzzles()

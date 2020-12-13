@@ -12,6 +12,10 @@ def PrintWinningLines(node, path):
         for (move, child) in node.items():
             PrintWinningLines(child, path + ' ' + move)
 
+def BestMove(node):
+    for (move, _) in node.items():
+        return move
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('EXAMPLE: {} 62379'.format(sys.argv[0]))
@@ -51,7 +55,12 @@ if __name__ == '__main__':
     if fen is None:
         print('ERROR: could not find initial FEN.')
         sys.exit(1)
+    print('// ', end='')
     PrintWinningLines(puzzle['lines'], '')
-    print(fen)
-    print(url)
+    #print(fen)
+    #print(url)
+    score = 1.0
+    bestmove = BestMove(puzzle['lines'])
+    depth = 9
+    print('new Puzzle({:0.1f}, "{}",  {}, "{}"),    // {}'.format(score, bestmove, depth, fen, url))
     sys.exit(0)
