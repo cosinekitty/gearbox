@@ -358,7 +358,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             new Puzzle(3.2, "f2c5",  7, "4k2r/1p3p2/pn2pPp1/4B2p/5P2/P7/1P3QKP/1q6 w k - 0 32"),            // https://lichess.org/training/62417
             new Puzzle(2.1, "Be1",   8, "3r3k/p4Bbp/4Qnp1/2p1p3/3qP3/5PP1/Pr1B3P/R2R3K w - - 3 31"),        // https://lichess.org/UulmeeB6/white#60
             new Puzzle(100, "h4h2", 10, "7k/p1pn2p1/bp2p2r/4p2n/2PPNp1q/2PB1P2/P4QPP/R4RK1 b - - 8 20"),    // https://lichess.org/training/62644
-            new Puzzle(1.0, "b3f7", 10, "5rk1/2R2ppp/1p3n2/6r1/3Pp2q/1Q2P2B/PN2bPPP/R6K w - - 5 26"),       // https://lichess.org/training/62646
+            new Puzzle(100, "b3f7", 10, "5rk1/2R2ppp/1p3n2/6r1/3Pp2q/1Q2P2B/PN2bPPP/R6K w - - 5 26"),       // https://lichess.org/training/62646
         };
 
         static bool TestPuzzles()
@@ -368,6 +368,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             var legal = new MoveList();
             var scratch = new MoveList();
             int count = 0;
+            int totalEvalCount = 0;
             var puzzleTime = new Stopwatch();
             var totalTime = Stopwatch.StartNew();
             Console.WriteLine("        move       score     time    evaluated [starting position]");
@@ -385,6 +386,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 string uci = move.ToString();
                 string bestPathFormat = FormatBestPath(thinker, board);
                 Console.WriteLine("PUZZLE: {0,-7} {1,8} {2,8} {3,12:n0} [{4}] {5}", san, score, elapsed, thinker.EvalCount, puzzle.fen, bestPathFormat);
+                totalEvalCount += thinker.EvalCount;
                 if (puzzle.movetext != san && puzzle.movetext != uci)
                 {
                     Console.WriteLine("FAIL(TestPuzzles): expected {0}, found san={1}, uci={2}", puzzle.movetext, san, uci);
@@ -398,7 +400,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 ++count;
             }
             totalTime.Stop();
-            Console.WriteLine("PASS: {0} puzzles in {1} seconds", count, totalTime.Elapsed.TotalSeconds.ToString("0.000"));
+            Console.WriteLine("        -------          -------- ------------");
+            Console.WriteLine("PASS:   {0,7}          {1,8} {2,12:n0}", count, totalTime.Elapsed.TotalSeconds.ToString("0.000"), totalEvalCount);
             return true;
         }
 
