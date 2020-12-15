@@ -279,8 +279,15 @@ namespace Gearbox
             }
 
             board.GenMoves(legal, opt);
-            OrderMoves(board, legal);
+            if (OrderMoves(board, legal))
+            {
+                // There is at least one move in the list that causes checkmate.
+                // I'm assuming there is not much benefit to storing this in the hash table.
+                // [Will come back and test this some day to see if it does help.]
+                return Score.CheckmateWin(depth + 1);
+            }
 
+            // We did not find a move that causes an immediate checkmate.
             // See if we can improve move ordering using previous work saved in the hash table.
             if (entry.verify == hash.b)
                 legal.MoveToFront(entry.move);
@@ -321,7 +328,7 @@ namespace Gearbox
             return bestMove.score;
         }
 
-        private static void OrderMoves(Board board, MoveList legal)
+        private static bool OrderMoves(Board board, MoveList legal)
         {
             // Preliminary sort: assume captures cause more pruning than non-captures.
             // Try more valuable captures/promotions before less valuable ones.
@@ -329,35 +336,66 @@ namespace Gearbox
             {
                 Move move = legal.array[i];
                 int score = 0;
+
+                if (0 != (move.flags & MoveFlags.Check))
+                {
+                    if (0 != (move.flags & MoveFlags.Immobile))
+                    {
+                        // Immediate checkmate! There is no better possible move.
+                        // There is no need to look at any other moves, or to sort the list.
+                        // Just return true to indicate that we found a checkmate.
+                        return true;
+                    }
+                    score += Score.CheckBonus;      // small bonus for checking moves
+                }
+                else if (0 != (move.flags & MoveFlags.Immobile))
+                {
+                    // Immediate stalemate. No other factors matter (material, etc.)
+                    legal.array[i].score = Score.Draw;
+                    continue;
+                }
+
+                // Give a material bonus for pawn promotions.
                 switch (move.prom)
                 {
-                    case 'q': score += Score.Queen; break;
-                    case 'r': score += Score.Rook; break;
+                    case 'q': score += Score.Queen;  break;
+                    case 'r': score += Score.Rook;   break;
                     case 'b': score += Score.Bishop; break;
                     case 'n': score += Score.Knight; break;
                 }
+
+                // Give a material bonus for captures.
                 switch (board.square[move.dest] & Square.PieceMask)
                 {
-                    case Square.Queen: score += Score.Queen; break;
-                    case Square.Rook: score += Score.Rook; break;
+                    case Square.Queen:  score += Score.Queen;  break;
+                    case Square.Rook:   score += Score.Rook;   break;
                     case Square.Bishop: score += Score.Bishop; break;
                     case Square.Knight: score += Score.Knight; break;
-                    case Square.Pawn: score += Score.Pawn; break;
+                    case Square.Pawn:   score += Score.Pawn;   break;
                     case Square.Empty:
                         if ((move.prom == '\0') && 0 != (move.flags & MoveFlags.Capture))
                             score += Score.Pawn;    // en passant capture
                         break;
                 }
-                if (0 != (move.flags & MoveFlags.Check))
+
+                // Give a reduced material penalty for capturing with larger pieces.
+                if (0 != (move.flags & MoveFlags.Capture))
                 {
-                    if (0 != (move.flags & MoveFlags.Immobile))
-                        score += Score.WonForWhite;     // immediate checkmate!
-                    else
-                        score += Score.CheckBonus;      // small bonus for checking moves
+                    const int denom = 100;
+                    switch (board.square[move.source] & Square.PieceMask)
+                    {
+                        case Square.Queen:  score -= Score.Queen / denom;  break;
+                        case Square.Rook:   score -= Score.Rook / denom;   break;
+                        case Square.Bishop: score -= Score.Bishop / denom; break;
+                        case Square.Knight: score -= Score.Knight / denom; break;
+                        case Square.Pawn:   score -= Score.Pawn / denom;   break;
+                    }
                 }
+
                 legal.array[i].score = score;
             }
             legal.Sort();
+            return false;       // did not find checkmate
         }
 
         private int Eval(Board board, int depth)
