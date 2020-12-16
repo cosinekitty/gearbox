@@ -279,11 +279,15 @@ namespace Gearbox
             }
 
             board.GenMoves(legal, opt);
-            if (OrderMoves(board, legal))
+            int mateMoveIndex = OrderMoves(board, legal);
+            if (mateMoveIndex >= 0)
             {
                 // There is at least one move in the list that causes checkmate.
-                // I'm assuming there is not much benefit to storing this in the hash table.
-                // [Will come back and test this some day to see if it does help.]
+                // Store the move in the hash table, just so it shows up in the best path.
+                // Set the alpha, beta, and height to be as inclusive as possible, because
+                // this score is absolutely reliable in all cases.
+                legal.array[mateMoveIndex].score = Score.EnemyMated;
+                xpos.Update(hash, legal.array[mateMoveIndex], Score.NegInf, Score.PosInf, 1000);
                 return Score.CheckmateWin(depth + 1);
             }
 
@@ -328,7 +332,7 @@ namespace Gearbox
             return bestMove.score;
         }
 
-        private static bool OrderMoves(Board board, MoveList legal)
+        private static int OrderMoves(Board board, MoveList legal)
         {
             // Preliminary sort: assume captures cause more pruning than non-captures.
             // Try more valuable captures/promotions before less valuable ones.
@@ -343,8 +347,8 @@ namespace Gearbox
                     {
                         // Immediate checkmate! There is no better possible move.
                         // There is no need to look at any other moves, or to sort the list.
-                        // Just return true to indicate that we found a checkmate.
-                        return true;
+                        // Tell the caller the index of the move that causes checkmate.
+                        return i;
                     }
                     score += Score.CheckBonus;      // small bonus for checking moves
                 }
@@ -395,7 +399,7 @@ namespace Gearbox
                 legal.array[i].score = score;
             }
             legal.Sort();
-            return false;       // did not find checkmate
+            return -1;       // did not find checkmate
         }
 
         private int Eval(Board board, int depth)
