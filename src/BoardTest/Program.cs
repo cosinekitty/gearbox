@@ -426,7 +426,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
 
         public Puzzle(double minScore, string movetext, int searchLimit, string fen)
         {
-            this.minScore = (int)Math.Round(minScore * 1.0e6);
+            this.minScore = (int)Math.Round(minScore * 1.0e6) - 20;     // allow up to depth 20 delay penalty
             this.movetext = movetext;
             this.searchLimit = searchLimit;
             this.fen = fen;

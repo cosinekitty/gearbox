@@ -431,7 +431,16 @@ namespace Gearbox
                 }
             }
 
-            // Then, if it is actually Black's turn, negate the score for NegaMax.
+            // Motivate prompt action by penalizing the delay of good positions
+            // and rewarding the delay of bad positions.
+            // But avoid adjusting any score extremely close to being a draw,
+            // so that we always choose a draw (or avoid it) when beneficial.
+            if (score > +100)
+                score -= depth;
+            else if (score < -100)
+                score += depth;
+
+            // If it is actually Black's turn, negate the score for NegaMax.
             if (board.IsBlackTurn)
                 score = -score;
 
