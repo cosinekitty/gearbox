@@ -585,6 +585,31 @@ namespace Gearbox
             return pgn;
         }
 
+        internal int RepCount()
+        {
+            int repCount = 0;
+            if (halfMoveClock >= 2)
+            {
+                // Count how many times the current position has appeared in the past.
+                // For efficiency, we never search backward in time beyond
+                // the most recent capture or pawn move. Either kind of move
+                // is irreversible. Such a move forms a barrier beyond which
+                // a repeated position is impossible.
+                int limitPly = Math.Max(0, unmoveStack.height - halfMoveClock);
+
+                // Look back every other move in the move stack for duplicate hash values.
+                HashValue currentHash = FastHash();
+                for (int i = unmoveStack.height - 2; i >= limitPly; i -= 2)
+                {
+                    HashValue pastHash = unmoveStack.array[i].fastHash;
+                    if (pastHash.a == currentHash.a && pastHash.b == currentHash.b)
+                        if (++repCount == 2)
+                            break;  // the game just ended in a draw by repetition; no need to search further
+                }
+            }
+            return repCount;
+        }
+
         public GameResult GetGameResult()
         {
             if (!PlayerCanMove())
@@ -598,30 +623,18 @@ namespace Gearbox
                 return GameResult.Draw;     // stalemate
             }
 
+            if (halfMoveClock > 100)
+            {
+                // Draw by the 50-move rule.
+                return GameResult.Draw;
+            }
+
             // It takes at least 4 full moves without captures or pawn movement
             // before it is possible to have a draw by repetition.
-            if (halfMoveClock >= 8)
+            if (halfMoveClock >= 8 && RepCount() == 2)
             {
-                // Check for draw by repetition. If the current position
-                // has occurred twice before with the same side to move,
-                // it is a draw. Look back every other move in the move stack
-                // for duplicate hash values.
-                int repCount = 0;
-
-                // For efficiency, we never search backward in time beyond
-                // the most recent capture or pawn move. Either kind of move
-                // is irreversible. Such a move forms a barrier beyond which
-                // a repeated position is impossible.
-                int limitPly = Math.Max(0, unmoveStack.height - halfMoveClock);
-
-                HashValue currentHash = FastHash();
-                for (int i = unmoveStack.height - 2; i >= limitPly; i -= 2)
-                {
-                    HashValue pastHash = unmoveStack.array[i].fastHash;
-                    if (pastHash.a == currentHash.a && pastHash.b == currentHash.b)
-                        if (++repCount == 2)
-                            return GameResult.Draw;
-                }
+                // Draw by threefold repetition.
+                return GameResult.Draw;
             }
 
             // ISSUE #6 - This needs more work for other ways a game can end:
@@ -629,7 +642,7 @@ namespace Gearbox
             // 2. Loss on time?
             // 3. Draw by agreement?
             // [OK] 4. Draw by repetition of the same position 3 times
-            // 5. Draw by the 50 Move rule
+            // [OK] 5. Draw by the 50 Move rule
             // 6. Draw by insufficient mating material on both sides
 
             return GameResult.InProgress;
