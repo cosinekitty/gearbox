@@ -40,6 +40,7 @@ namespace BoardTest
 
             return (
                 TestStandardSetup() &&
+                TestDraws() &&
                 TestGameTags() &&
                 TestPuzzles() &&
                 TestGameListing() &&
@@ -414,6 +415,19 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             if (bp.isCircular)
                 text += " .";
             return "(" + text + ")";
+        }
+
+        static bool TestDraws()
+        {
+            var board = Board.FromPgnText("1. Nf3 Nc6 2. Ng1 Nb8 3. Nf3 Nc6 4. Ng1 Nb8 5. Nf3");
+            GameResult result = board.GetGameResult();
+            if (result != GameResult.Draw)
+            {
+                Console.WriteLine("FAIL(TestDraws): Expected draw by repetition but found {0}", result);
+                return false;
+            }
+            Console.WriteLine("PASS: Draws");
+            return true;
         }
     }
 

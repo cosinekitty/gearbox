@@ -228,12 +228,14 @@ namespace Gearbox
             }
 
             // Is the game over? Score immediately if so.
-            if (!board.PlayerCanMove())
+            switch (board.GetGameResult())
             {
-                if (board.IsPlayerInCheck())
+                case GameResult.BlackWon:
+                case GameResult.WhiteWon:
                     return Score.CheckmateLoss(depth);
 
-                return Score.Draw;
+                case GameResult.Draw:
+                    return Score.Draw;
             }
 
             // If we have seen this position before,

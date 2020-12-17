@@ -95,12 +95,10 @@ namespace Gearbox
         public bool IsWhiteTurn { get { return isWhiteTurn; } }
         public bool IsBlackTurn { get { return !isWhiteTurn; } }
 
-        public HashValue Hash()
+        private HashValue FastHash()
         {
-            // The hash value must identify the unique tactical situation.
-            // All factors that affect the tree of possible future game states
-            // must be represented in the returned pair of hash values.
-            // Start with the always-current hash of the piece configuration.
+            // Start with the hash of the configuration of pieces on the board.
+            // The pieceHash is always kept up to date by PushMove() and PopMove().
             HashValue hash = pieceHash;
 
             // Adjust for whether it is White's turn or Black's turn.
@@ -114,6 +112,15 @@ namespace Gearbox
             int c = (int)castling;
             hash.a ^= HashSalt.Castling[c, 0];
             hash.b ^= HashSalt.Castling[c, 1];
+            return hash;
+        }
+
+        public HashValue Hash()
+        {
+            // The hash value must identify the unique tactical situation.
+            // All factors that affect the tree of possible future game states
+            // must be represented in the returned pair of hash values.
+            HashValue hash = FastHash();
 
             // Adjust for the ability to make an en passant capture, but only when it is actually possible.
             // Just because epTargetOffset is set, doesn't mean there is a pawn that can capture there.
@@ -591,11 +598,37 @@ namespace Gearbox
                 return GameResult.Draw;     // stalemate
             }
 
+            // It takes at least 4 full moves without captures or pawn movement
+            // before it is possible to have a draw by repetition.
+            if (halfMoveClock >= 8)
+            {
+                // Check for draw by repetition. If the current position
+                // has occurred twice before with the same side to move,
+                // it is a draw. Look back every other move in the move stack
+                // for duplicate hash values.
+                int repCount = 0;
+
+                // For efficiency, we never search backward in time beyond
+                // the most recent capture or pawn move. Either kind of move
+                // is irreversible. Such a move forms a barrier beyond which
+                // a repeated position is impossible.
+                int limitPly = Math.Max(0, unmoveStack.height - halfMoveClock);
+
+                HashValue currentHash = FastHash();
+                for (int i = unmoveStack.height - 2; i >= limitPly; i -= 2)
+                {
+                    HashValue pastHash = unmoveStack.array[i].fastHash;
+                    if (pastHash.a == currentHash.a && pastHash.b == currentHash.b)
+                        if (++repCount == 2)
+                            return GameResult.Draw;
+                }
+            }
+
             // ISSUE #6 - This needs more work for other ways a game can end:
             // 1. Resignation?
             // 2. Loss on time?
             // 3. Draw by agreement?
-            // 4. Draw by repetition of the same position 3 times
+            // [OK] 4. Draw by repetition of the same position 3 times
             // 5. Draw by the 50 Move rule
             // 6. Draw by insufficient mating material on both sides
 
@@ -674,6 +707,7 @@ namespace Gearbox
             unmove.playerCanMove = playerCanMove;
             unmove.castling = castling;
             unmove.pieceHash = pieceHash;
+            unmove.fastHash = FastHash();       // avoids crazy recursive cases for en passant (doesn't matter for draw by repetition)
             unmoveStack.Push(unmove);
 
             // Capturing an unmoved rook destroys castling on that side.

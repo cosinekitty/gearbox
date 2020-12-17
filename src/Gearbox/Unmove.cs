@@ -42,5 +42,6 @@ namespace Gearbox
         public Ternary playerCanMove;
         public CastlingFlags castling;
         public HashValue pieceHash;         // used for sanity checking, not restoring, after each PopMove()
+        public HashValue fastHash;          // used for detecting draw by repetition (excludes en passant state)
     }
 }
