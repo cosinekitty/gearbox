@@ -56,15 +56,21 @@ namespace Gearbox
 
         internal const int CheckBonus = 100000;
 
-        // Helper functions.
-        public static int CheckmateLoss(int depth)
+        public static int OnePlyDelay(int score)
         {
-            return FriendMated + depth;
-        }
-
-        public static int CheckmateWin(int depth)
-        {
-            return EnemyMated - depth;
+            // For each ply we send a score up the search,
+            // we need to slightly penalize delay of beneficial positions
+            // and slightly reward delay of adverse positions.
+            // But avoid adjusting any score extremely close to being a draw,
+            // so that we always choose a draw (or avoid it) when beneficial.
+            if (score != Undefined)     // never change an undefined score; it is a signal of a null move.
+            {
+                if (score > +100)
+                    return score - 1;
+                if (score < -100)
+                    return score + 1;
+            }
+            return score;
         }
 
         public static string Format(int score)

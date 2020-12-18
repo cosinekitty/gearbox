@@ -203,7 +203,7 @@ namespace Gearbox
             for (int i=0; i < legal.nmoves; ++i)
             {
                 board.PushMove(legal.array[i]);
-                legal.array[i].score = -NegaMax(board, 1, limit, Score.NegInf, -bestMove.score, 0);
+                legal.array[i].score = Score.OnePlyDelay(-NegaMax(board, 1, limit, Score.NegInf, -bestMove.score, 0));
                 board.PopMove();
                 if (legal.array[i].score == Score.Undefined)
                     return Move.Null;   // signal aborted search
@@ -232,7 +232,7 @@ namespace Gearbox
             {
                 case GameResult.BlackWon:
                 case GameResult.WhiteWon:
-                    return Score.CheckmateLoss(depth);
+                    return Score.FriendMated;
 
                 case GameResult.Draw:
                     return Score.Draw;
@@ -288,9 +288,9 @@ namespace Gearbox
                 // Store the move in the hash table, just so it shows up in the best path.
                 // Set the alpha, beta, and height to be as inclusive as possible, because
                 // this score is absolutely reliable in all cases.
-                legal.array[mateMoveIndex].score = Score.EnemyMated;
+                legal.array[mateMoveIndex].score = Score.OnePlyDelay(Score.EnemyMated);
                 xpos.Update(hash, legal.array[mateMoveIndex], Score.NegInf, Score.PosInf, 1000);
-                return Score.CheckmateWin(depth + 1);
+                return legal.array[mateMoveIndex].score;
             }
 
             // We did not find a move that causes an immediate checkmate.
@@ -314,7 +314,7 @@ namespace Gearbox
                     if (0 == (move.flags & MoveFlags.Capture))
                         ++nextCheckCount;
                 }
-                move.score = -NegaMax(board, 1 + depth, limit, -beta, -alpha, nextCheckCount);
+                move.score = Score.OnePlyDelay(-NegaMax(board, 1 + depth, limit, -beta, -alpha, nextCheckCount));
                 board.PopMove();
 
                 if (move.score == Score.Undefined)
@@ -432,15 +432,6 @@ namespace Gearbox
                     }
                 }
             }
-
-            // Motivate prompt action by penalizing the delay of good positions
-            // and rewarding the delay of bad positions.
-            // But avoid adjusting any score extremely close to being a draw,
-            // so that we always choose a draw (or avoid it) when beneficial.
-            if (score > +100)
-                score -= depth;
-            else if (score < -100)
-                score += depth;
 
             // If it is actually Black's turn, negate the score for NegaMax.
             if (board.IsBlackTurn)
