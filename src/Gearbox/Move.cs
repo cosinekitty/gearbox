@@ -87,7 +87,15 @@ namespace Gearbox
             else
                 text = "+";
 
-            text += string.Format("{0}.{1}", score / 1000000, ((score % 1000000 + 500) / 1000).ToString("000"));
+            int whole = score / 1000000;
+            int frac = ((score % 1000000 + 500) / 1000);
+            if (frac >= 1000)
+            {
+                ++whole;
+                frac -= 1000;
+            }
+
+            text += string.Format("{0}.{1}", whole, frac.ToString("000"));
             return text;
         }
     }
