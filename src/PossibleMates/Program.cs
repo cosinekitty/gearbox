@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Gearbox;
 
 namespace PossibleMates
@@ -87,7 +88,7 @@ With the --terse option, only the number of checkmates is printed.
                         throw new ArgumentException("Invalid non-king piece character: " + config[i]);
                 }
             }
-            return pieces;
+            return pieces.OrderBy(p => p).ToArray();        // sort to collect duplicates together
         }
 
         static int KingDistance(int ofs1, int ofs2)
@@ -120,14 +121,14 @@ With the --terse option, only the number of checkmates is printed.
                     if (KingDistance(wkofs, bkofs) > 1)
                     {
                         board.PlaceBlackKing(bkofs);
-                        count += Search(board, nonKingPieces, 0);
+                        count += Search(board, nonKingPieces, 0, -1);
                     }
                 }
             }
             return count;
         }
 
-        static int Search(Board board, Square[] nonKingPieces, int depth)
+        static int Search(Board board, Square[] nonKingPieces, int depth, int prevTableIndex)
         {
             if (depth < nonKingPieces.Length)
             {
@@ -135,12 +136,16 @@ With the --terse option, only the number of checkmates is printed.
                 int[] offsetTable = (piece == Square.WP || piece == Square.BP) ? PawnOffsetTable : OffsetTable;
                 int count = 0;
                 Square[] square = board.GetSquaresArray();
-                foreach (int ofs in offsetTable)
+                int startIndex = 0;
+                if (depth > 0 && nonKingPieces[depth-1] == piece)
+                    startIndex = prevTableIndex + 1;    // avoid duplicate positions for duplicate pieces
+                for (int i = startIndex; i < offsetTable.Length; ++i)
                 {
+                    int ofs = offsetTable[i];
                     if (square[ofs] == Square.Empty)
                     {
                         square[ofs] = piece;
-                        count += Search(board, nonKingPieces, 1+depth);
+                        count += Search(board, nonKingPieces, 1+depth, i);
                         square[ofs] = Square.Empty;
                     }
                 }
