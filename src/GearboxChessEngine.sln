@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BoardTest", "BoardTest\Boar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GearboxUci", "GearboxUci\GearboxUci.csproj", "{AECDE206-DCD3-453F-9EC6-FA6D5AA7E780}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PossibleMates", "PossibleMates\PossibleMates.csproj", "{007A398A-1E17-4920-A083-55F419D3313E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{AECDE206-DCD3-453F-9EC6-FA6D5AA7E780}.Release|x64.Build.0 = Release|Any CPU
 		{AECDE206-DCD3-453F-9EC6-FA6D5AA7E780}.Release|x86.ActiveCfg = Release|Any CPU
 		{AECDE206-DCD3-453F-9EC6-FA6D5AA7E780}.Release|x86.Build.0 = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|x64.Build.0 = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Debug|x86.Build.0 = Debug|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|x64.ActiveCfg = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|x64.Build.0 = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|x86.ActiveCfg = Release|Any CPU
+		{007A398A-1E17-4920-A083-55F419D3313E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

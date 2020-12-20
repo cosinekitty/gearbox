@@ -284,14 +284,17 @@ namespace Gearbox
         private static bool TryGetOffset(string algebraic, out int offset)
         {
             if (algebraic != null && algebraic.Length == 2)
+                return TryGetOffset(algebraic[0], algebraic[1], out offset);
+            offset = 0;
+            return false;
+        }
+
+        private static bool TryGetOffset(char file, char rank, out int offset)
+        {
+            if (file >= 'a' && file <= 'h' && rank >= '1' && rank <= '8')
             {
-                char file = algebraic[0];
-                char rank = algebraic[1];
-                if (file >= 'a' && file <= 'h' && rank >= '1' && rank <= '8')
-                {
-                    offset = (file - 'a') + 10*(rank - '1') + 21;
-                    return true;
-                }
+                offset = (file - 'a') + 10*(rank - '1') + 21;
+                return true;
             }
             offset = 0;
             return false;
@@ -393,8 +396,10 @@ namespace Gearbox
             if (total != 64)
                 throw new ArgumentException("FEN layout did not contain exactly 64 squares.");
 
-            if (wkofs == 0 || bkofs == 0)
-                throw new ArgumentException("FEN does not include both kings.");
+            int bk_count = inventory[(int)Square.BK];
+            int wk_count = inventory[(int)Square.WK];
+            if (bk_count != 1 || wk_count != 1)
+                throw new ArgumentException(string.Format("FEN contains {0} white kings and {1} black kings.", wk_count, bk_count));
 
             // token[1] = turn to move
             switch (token[1])
@@ -646,6 +651,42 @@ namespace Gearbox
             // FIDE rule 9.6:
             // "The game is a draw when a position is reached from which
             //  a checkmate cannot occur by any possible series of legal moves."
+            int possibleMaters =
+                inventory[(int)Square.WQ] + inventory[(int)Square.BQ] +
+                inventory[(int)Square.WR] + inventory[(int)Square.BR] +
+                inventory[(int)Square.WP] + inventory[(int)Square.BP];
+
+            if (possibleMaters == 0)
+            {
+                int wb = inventory[(int)Square.WB];
+                int wn = inventory[(int)Square.WN];
+                int bb = inventory[(int)Square.BB];
+                int bn = inventory[(int)Square.BN];
+
+                // Oddly, mate is possible (but not forcible) in K+B vs K+B.
+                // But mate is not possible in K+B vs K.
+                // So this isn't as obvious as one might think.
+                if (wb + wn < 2 && bb + bn < 2)
+                {
+                    // wb wn bb bn   symmetry       draw?
+                    //  0  0  0  0                  true
+                    //  0  0  0  1   0  1  0  0     true
+                    //  0  0  1  0   1  0  0  0     true
+                    //  0  0  1  1   1  1  0  0     X
+                    //  0  1  0  0   0  0  0  1     true
+                    //  0  1  0  1                  false
+                    //  0  1  1  0   1  0  0  1
+                    //  0  1  1  1   1  1  0  1     X
+                    //  1  0  0  0   0  0  1  0
+                    //  1  0  0  1   0  1  1  0
+                    //  1  0  1  0
+                    //  1  0  1  1   1  1  1  0     X
+                    //  1  1  0  0   0  0  1  1     X
+                    //  1  1  0  1   0  1  1  1     X
+                    //  1  1  1  0   1  0  1  1     X
+                    //  1  1  1  1                  X
+                }
+            }
 
             return GameResult.InProgress;
         }
@@ -1464,5 +1505,110 @@ namespace Gearbox
                 }
             }
         }
+
+        #region Dangerous functions for brute-force endgame solvers, etc.
+
+        public void Clear()
+        {
+            // Remove all pieces from the board.
+            // This creates an illegal position with no kings!
+
+            pieceHash.a = pieceHash.b = 0;
+            wkofs = bkofs = 0;
+
+            for (int i = 0; i < inventory.Length; ++i)
+                inventory[i] = 0;
+
+            for (int y = 21; y <= 91; y += 10)
+                for (int x = 0; x < 8; ++x)
+                    square[y+x] = Square.Empty;
+
+            castling = CastlingFlags.None;
+            initialFen = null;
+            unmoveStack.Reset();
+            fullMoveNumber = 1;
+            halfMoveClock = 0;
+            epTargetOffset = 0;
+            epCaptureIsLegal = Ternary.Unknown;
+            playerInCheck = Ternary.Unknown;
+            playerCanMove = Ternary.Unknown;
+        }
+
+        public void SetTurn(bool whiteToMove)
+        {
+            this.isWhiteTurn = whiteToMove;
+        }
+
+        public Square Contents(char file, char rank)
+        {
+            return square[Offset(file, rank)];
+        }
+
+        public void Drop(Square piece, char file, char rank)
+        {
+            if (0 == (piece & Square.SideMask))
+                throw new ArgumentException(string.Format("Invalid piece to drop: {0}", piece));
+
+            int offset = Offset(file, rank);
+            if (square[offset] != Square.Empty)
+                throw new ArgumentException(string.Format("Square {0}{1} already contains {2}.", file, rank, square[offset]));
+
+            Drop(offset, piece);
+
+            switch (piece)
+            {
+                case Square.WK:
+                    wkofs = offset;
+                    break;
+
+                case Square.BK:
+                    bkofs = offset;
+                    break;
+            }
+            playerInCheck = playerCanMove = Ternary.Unknown;
+        }
+
+        public Square Lift(char file, char rank)
+        {
+            int offset = Offset(file, rank);
+            Square piece = Lift(offset);
+            switch (piece)
+            {
+                case Square.WK:
+                    wkofs = 0;
+                    break;
+
+                case Square.BK:
+                    bkofs = 0;
+                    break;
+
+                case Square.Empty:
+                    throw new ArgumentException("Not allowed to lift empty square.");
+            }
+            playerInCheck = playerCanMove = Ternary.Unknown;
+            return piece;
+        }
+
+        public bool IsValidPosition()
+        {
+            return
+                inventory[(int)Square.WK] == 1 &&
+                inventory[(int)Square.BK] == 1 &&
+                !IsIllegalPosition();
+        }
+
+        public bool UncachedPlayerInCheck()
+        {
+            return isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+        }
+
+        public bool UncachedPlayerCanMove()
+        {
+            return isWhiteTurn
+                ? PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7)
+                : PlayerCanMove(Square.Black, Square.White, Direction.S, 7, 2);
+        }
+
+        #endregion
     }
 }
