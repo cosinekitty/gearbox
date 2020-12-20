@@ -179,12 +179,21 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
         static bool TestStandardSetup()
         {
             var board = new Board();
-            Console.WriteLine(board.Hash());
+            HashValue hash1 = board.Hash();
+            Console.WriteLine(hash1);
             string fen = board.ForsythEdwardsNotation();
             Console.WriteLine(fen);
             if (fen != Board.StandardSetup)
             {
                 Console.WriteLine("FAIL: does not match standard setup.");
+                return false;
+            }
+            board.SetPosition(Board.StandardSetup);
+            HashValue hash2 = board.Hash();
+            Console.WriteLine(hash2);
+            if (hash1.a != hash2.a || hash1.b != hash2.b)
+            {
+                Console.WriteLine("FAIL: inconsistent hash values for standard setup.");
                 return false;
             }
             Console.WriteLine("PASS: Standard Setup");

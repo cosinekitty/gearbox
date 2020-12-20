@@ -34,6 +34,7 @@ namespace Gearbox
         // https://docs.google.com/spreadsheets/d/12mNHhBPNH66jUZ6dGeRYKiSsRXGTedCG1qHCAgAaifk/edit?usp=sharing
 
         internal readonly Square[] square = MakeEmptyBoard();
+        internal readonly int[] inventory = new int[1 + (int)Square.BK];
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
         private int wkofs;              // location of the White King
         private int bkofs;              // location of the Black King
@@ -326,6 +327,10 @@ namespace Gearbox
             char file = 'a';
             char rank = '8';
             bkofs = wkofs = 0;    // detect missing king(s)
+
+            pieceHash.a = pieceHash.b = 0;
+            for (int i = 0; i < inventory.Length; ++i)
+                inventory[i] = 0;
 
             foreach (char c in token[0])
             {
@@ -637,13 +642,10 @@ namespace Gearbox
                 return GameResult.Draw;
             }
 
-            // ISSUE #6 - This needs more work for other ways a game can end:
-            // 1. Resignation?
-            // 2. Loss on time?
-            // 3. Draw by agreement?
-            // [OK] 4. Draw by repetition of the same position 3 times
-            // [OK] 5. Draw by the 50 Move rule
-            // 6. Draw by insufficient mating material on both sides
+            // Look for insufficient mating material on both sides.
+            // FIDE rule 9.6:
+            // "The game is a draw when a position is reached from which
+            //  a checkmate cannot occur by any possible series of legal moves."
 
             return GameResult.InProgress;
         }
@@ -1008,6 +1010,7 @@ namespace Gearbox
                 PieceHashValues(piece, ofs, out a, out b);
                 pieceHash.a -= a;
                 pieceHash.b -= b;
+                --inventory[(int)piece];
             }
             return piece;
         }
@@ -1025,6 +1028,7 @@ namespace Gearbox
                 PieceHashValues(piece, ofs, out a, out b);
                 pieceHash.a += a;
                 pieceHash.b += b;
+                ++inventory[(int)piece];
             }
         }
 

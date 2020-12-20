@@ -413,29 +413,13 @@ namespace Gearbox
             ++evalCount;
 
             // Evaluate the board with scores relative to White.
-            int score = 0;
 
-            // Super simple material evaluation.
-            for (int y = 21; y <= 91; y += 10)
-            {
-                for (int x = 0; x < 8; ++x)
-                {
-                    int ofs = x + y;
-                    switch (board.square[ofs])
-                    {
-                        case Square.WP: score += Score.Pawn;    break;
-                        case Square.BP: score -= Score.Pawn;    break;
-                        case Square.WN: score += Score.Knight;  break;
-                        case Square.BN: score -= Score.Knight;  break;
-                        case Square.WB: score += Score.Bishop;  break;
-                        case Square.BB: score -= Score.Bishop;  break;
-                        case Square.WR: score += Score.Rook;    break;
-                        case Square.BR: score -= Score.Rook;    break;
-                        case Square.WQ: score += Score.Queen;   break;
-                        case Square.BQ: score -= Score.Queen;   break;
-                    }
-                }
-            }
+            int score =
+                Score.Pawn   * (board.inventory[(int)Square.WP] - board.inventory[(int)Square.BP]) +
+                Score.Knight * (board.inventory[(int)Square.WN] - board.inventory[(int)Square.BN]) +
+                Score.Bishop * (board.inventory[(int)Square.WB] - board.inventory[(int)Square.BB]) +
+                Score.Rook   * (board.inventory[(int)Square.WR] - board.inventory[(int)Square.BR]) +
+                Score.Queen  * (board.inventory[(int)Square.WQ] - board.inventory[(int)Square.BQ]);
 
             // If it is actually Black's turn, negate the score for NegaMax.
             if (board.IsBlackTurn)
