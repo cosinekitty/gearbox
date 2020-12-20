@@ -5,13 +5,14 @@ namespace PossibleMates
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             // Find all legal board positions with combinations
             // of two kings, zero or one white bishop/knight,
             // and zero or one black bishop/knight.
             int count = FindCheckmatePositions(Square.WQ);
             Console.WriteLine("Found {0} checkmates.", count);
+            return 0;
         }
 
         static int FindCheckmatePositions(params Square[] nonKingPieces)

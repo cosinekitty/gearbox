@@ -8,6 +8,8 @@ Fail()
 
 cd BoardTest || Fail "Could not change to BoardTest directory."
 dotnet run || Fail "BoardTest"
-cd ..
+cd ../PossibleMates || Fail "Could not change to PossibleMates directory."
+dotnet run || Fail "PossibleMates"
+cd .. || Fail "Could not change back to src directory."
 cat pass.txt
 exit 0

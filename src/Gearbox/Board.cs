@@ -313,6 +313,8 @@ namespace Gearbox
 
         public void SetPosition(string fen)
         {
+            Clear();
+
             if (fen == null)
                 fen = StandardSetup;
 
@@ -329,11 +331,6 @@ namespace Gearbox
             int total = 0;      // total number of squares filled (must end up 64)
             char file = 'a';
             char rank = '8';
-            bkofs = wkofs = 0;    // detect missing king(s)
-
-            pieceHash.a = pieceHash.b = 0;
-            for (int i = 0; i < inventory.Length; ++i)
-                inventory[i] = 0;
 
             foreach (char c in token[0])
             {
@@ -411,7 +408,6 @@ namespace Gearbox
             }
 
             // token[2] = castling availability
-            castling = CastlingFlags.None;
             if (token[2] != "-")
             {
                 foreach (char c in token[2])
@@ -429,9 +425,7 @@ namespace Gearbox
             }
 
             // token[3] = en passant target
-            if (token[3] == "-")
-                epTargetOffset = 0;
-            else if (!TryGetOffset(token[3], out epTargetOffset))
+            if (token[3] != "-" && !TryGetOffset(token[3], out epTargetOffset))
                 throw new ArgumentException("FEN invalid en passant target.");
 
             if (!int.TryParse(token[4], out halfMoveClock) || halfMoveClock < 0)
@@ -440,11 +434,6 @@ namespace Gearbox
             if (!int.TryParse(token[5], out fullMoveNumber) || fullMoveNumber < 1)
                 throw new ArgumentException("FEN invalid fullmove number.");
 
-            playerInCheck = Ternary.Unknown;
-            playerCanMove = Ternary.Unknown;
-            epCaptureIsLegal = Ternary.Unknown;
-
-            unmoveStack.Reset();
             initialFen = string.Join(" ", token);   // normalize the whitespace in the FEN string
         }
 
@@ -1058,8 +1047,8 @@ namespace Gearbox
 
         private void Drop(int ofs, Square piece)
         {
-            if (square[ofs] == Square.Offboard)
-                throw new ArgumentException("Attempt to drop to offboard offset " + ofs);
+            if (square[ofs] != Square.Empty)
+                throw new ArgumentException("Attempt to drop to non-empty offset " + ofs);
 
             square[ofs] = piece;
 
@@ -1510,33 +1499,33 @@ namespace Gearbox
 
         public void Clear()
         {
-            // Remove all pieces from the board.
+            // Remove all pieces from the board and completely reset the inner state.
             // This creates an illegal position with no kings!
-
-            pieceHash.a = pieceHash.b = 0;
-            wkofs = bkofs = 0;
-
-            for (int i = 0; i < inventory.Length; ++i)
-                inventory[i] = 0;
 
             for (int y = 21; y <= 91; y += 10)
                 for (int x = 0; x < 8; ++x)
                     square[y+x] = Square.Empty;
 
-            castling = CastlingFlags.None;
-            initialFen = null;
+            for (int i = 0; i < inventory.Length; ++i)
+                inventory[i] = 0;
+
             unmoveStack.Reset();
+            wkofs = bkofs = 0;
+            isWhiteTurn = true;
             fullMoveNumber = 1;
             halfMoveClock = 0;
+            castling = CastlingFlags.None;
             epTargetOffset = 0;
             epCaptureIsLegal = Ternary.Unknown;
+            initialFen = null;
             playerInCheck = Ternary.Unknown;
             playerCanMove = Ternary.Unknown;
+            pieceHash.a = pieceHash.b = 0;
         }
 
         public void SetTurn(bool whiteToMove)
         {
-            this.isWhiteTurn = whiteToMove;
+            isWhiteTurn = whiteToMove;
         }
 
         public Square Contents(char file, char rank)
@@ -1550,9 +1539,6 @@ namespace Gearbox
                 throw new ArgumentException(string.Format("Invalid piece to drop: {0}", piece));
 
             int offset = Offset(file, rank);
-            if (square[offset] != Square.Empty)
-                throw new ArgumentException(string.Format("Square {0}{1} already contains {2}.", file, rank, square[offset]));
-
             Drop(offset, piece);
 
             switch (piece)
@@ -1565,7 +1551,6 @@ namespace Gearbox
                     bkofs = offset;
                     break;
             }
-            playerInCheck = playerCanMove = Ternary.Unknown;
         }
 
         public Square Lift(char file, char rank)
@@ -1585,7 +1570,6 @@ namespace Gearbox
                 case Square.Empty:
                     throw new ArgumentException("Not allowed to lift empty square.");
             }
-            playerInCheck = playerCanMove = Ternary.Unknown;
             return piece;
         }
 
