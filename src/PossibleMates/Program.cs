@@ -18,9 +18,7 @@ namespace PossibleMates
         static int FindCheckmatePositions(params Square[] nonKingPieces)
         {
             int count = 0;
-            var board = new Board();
-            board.Clear();
-            board.SetTurn(false);
+            var board = new Board(false);   // make an empty board where it is Black's turn
             for (char wk_file = 'a'; wk_file <= 'h'; ++wk_file)
             {
                 for (char wk_rank = '1'; wk_rank <= '8'; ++wk_rank)
@@ -66,13 +64,10 @@ namespace PossibleMates
                 return count;
             }
 
-            if (board.IsValidPosition())
+            if (board.IsValidPosition() && board.IsCheckmate())
             {
-                if (!board.UncachedPlayerCanMove() && board.UncachedPlayerInCheck())
-                {
-                    Console.WriteLine(board.ForsythEdwardsNotation());
-                    return 1;
-                }
+                Console.WriteLine(board.ForsythEdwardsNotation());
+                return 1;
             }
 
             return 0;

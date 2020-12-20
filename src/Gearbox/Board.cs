@@ -33,7 +33,7 @@ namespace Gearbox
         // See this document for board layout:
         // https://docs.google.com/spreadsheets/d/12mNHhBPNH66jUZ6dGeRYKiSsRXGTedCG1qHCAgAaifk/edit?usp=sharing
 
-        internal readonly Square[] square = MakeEmptyBoard();
+        internal readonly Square[] square = InitSquaresArray();
         internal readonly int[] inventory = new int[1 + (int)Square.BK];
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
         private int wkofs;              // location of the White King
@@ -51,7 +51,7 @@ namespace Gearbox
 
         public const string StandardSetup = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-        private static Square[] MakeEmptyBoard()
+        private static Square[] InitSquaresArray()
         {
             var square = new Square[120];
 
@@ -64,9 +64,14 @@ namespace Gearbox
             return square;
         }
 
-        public Board(string fen = null)
+        public Board(string fen = StandardSetup)
         {
             SetPosition(fen);
+        }
+
+        public Board(bool whiteToMove)     // makes an empty (and invalid!) board state
+        {
+            Clear(whiteToMove);
         }
 
         public static Board FromGame(Game game)
@@ -313,7 +318,7 @@ namespace Gearbox
 
         public void SetPosition(string fen)
         {
-            Clear();
+            Clear(true);
 
             if (fen == null)
                 fen = StandardSetup;
@@ -325,15 +330,15 @@ namespace Gearbox
             if (token.Length != 6)
                 throw new ArgumentException("FEN record must contain 6 space-delimited fields.");
 
-            // token[0] = layout
-            Square piece;
-            int count;
             int total = 0;      // total number of squares filled (must end up 64)
             char file = 'a';
             char rank = '8';
 
+            // token[0] = layout
             foreach (char c in token[0])
             {
+                int count;
+                Square piece;
                 if (c == '/')
                 {
                     if (file != 'i')
@@ -709,31 +714,26 @@ namespace Gearbox
             return isWhiteTurn ? IsAttackedBy(bkofs, Square.White) : IsAttackedBy(wkofs, Square.Black);
         }
 
+        private static bool Predicate(out Ternary cache, bool value)
+        {
+            cache = value ? Ternary.Yes : Ternary.No;
+            return value;
+        }
+
         public bool IsPlayerInCheck()
         {
             if (playerInCheck != Ternary.Unknown)
                 return playerInCheck == Ternary.Yes;
 
-            bool check = isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
-            playerInCheck = check ? Ternary.Yes : Ternary.No;
-            return check;
+            return Predicate(out playerInCheck, UncachedPlayerInCheck());
         }
 
         public bool PlayerCanMove()
         {
-            // If we have already figured out whether the player can move, recycle that information.
             if (playerCanMove != Ternary.Unknown)
                 return playerCanMove == Ternary.Yes;
 
-            // Return true if the current player has at least one legal move.
-            // This is faster than generating all legal moves.
-            bool canMove = isWhiteTurn
-                ? PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7)
-                : PlayerCanMove(Square.Black, Square.White, Direction.S, 7, 2);
-
-            // Cache the work so we don't have to do it again for this position.
-            playerCanMove = canMove ? Ternary.Yes : Ternary.No;
-            return canMove;
+            return Predicate(out playerCanMove, UncachedPlayerCanMove());
         }
 
         public void PushMove(Move move)
@@ -1497,7 +1497,7 @@ namespace Gearbox
 
         #region Dangerous functions for brute-force endgame solvers, etc.
 
-        public void Clear()
+        public void Clear(bool whiteToMove)
         {
             // Remove all pieces from the board and completely reset the inner state.
             // This creates an illegal position with no kings!
@@ -1511,7 +1511,7 @@ namespace Gearbox
 
             unmoveStack.Reset();
             wkofs = bkofs = 0;
-            isWhiteTurn = true;
+            isWhiteTurn = whiteToMove;
             fullMoveNumber = 1;
             halfMoveClock = 0;
             castling = CastlingFlags.None;
@@ -1581,12 +1581,17 @@ namespace Gearbox
                 !IsIllegalPosition();
         }
 
-        public bool UncachedPlayerInCheck()
+        public bool IsCheckmate()
+        {
+            return UncachedPlayerInCheck() && !UncachedPlayerCanMove();
+        }
+
+        private bool UncachedPlayerInCheck()
         {
             return isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
         }
 
-        public bool UncachedPlayerCanMove()
+        private bool UncachedPlayerCanMove()
         {
             return isWhiteTurn
                 ? PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7)
