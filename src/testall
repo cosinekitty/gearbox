@@ -6,10 +6,25 @@ Fail()
     exit 1
 }
 
+MateCheck()
+{
+    local COUNT=$( bin/Debug/net5.0/PossibleMates --terse $2 ) || Fail "PossibleMates($2)"
+    [[ $1 == ${COUNT} ]] || Fail "PossibleMates $2: expected $1, found ${COUNT}"
+    echo "PASS: PossibleMates(Kk$2) = $1"
+    return 0
+}
+
 cd BoardTest || Fail "Could not change to BoardTest directory."
 dotnet run || Fail "BoardTest"
+
 cd ../PossibleMates || Fail "Could not change to PossibleMates directory."
-dotnet run || Fail "PossibleMates"
+dotnet build || Fail "Build PossibleMates"
+MateCheck 364 Q
+MateCheck 216 R
+MateCheck 3104 BB
+MateCheck 112 Bb
+MateCheck 144784 RR
+
 cd .. || Fail "Could not change back to src directory."
 cat pass.txt
 exit 0
