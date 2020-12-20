@@ -1,0 +1,26 @@
+#!/bin/bash
+
+Fail()
+{
+    echo "FAIL($0): $1"
+    exit 1
+}
+
+MateCheck()
+{
+    local COUNT=$( bin/Debug/net5.0/PossibleMates --terse $2 ) || Fail "PossibleMates($2)"
+    [[ $1 == ${COUNT} ]] || Fail "PossibleMates $2: expected $1, found ${COUNT}"
+    echo "PASS: PossibleMates(Kk$2) = $1"
+    return 0
+}
+
+dotnet build || Fail "Build PossibleMates"
+MateCheck 0 N
+MateCheck 0 B
+MateCheck 0 P
+MateCheck 364 Q
+MateCheck 216 R
+MateCheck 3104 BB
+MateCheck 112 Bb
+MateCheck 144784 RR
+exit 0
