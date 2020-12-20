@@ -8,7 +8,7 @@ namespace PossibleMates
     class Program
     {
         const string Usage = @"
-USAGE:  PossibleMates [--terse] config
+USAGE:  PossibleMates [--terse | --exist] config
 
 Where config is one or more of the following characters:
 
@@ -33,23 +33,31 @@ the number of checkmates.
 
 With the --terse option, only the number of checkmates is printed.
 
+With the --exist option, only the FEN of the first checkmate found is printed.
+If no checkmates are found, prints ""X"" and exits.
+
 ";
 
         static readonly int[] OffsetTable = MakeOffsetTable('1', '8');
         static readonly int[] PawnOffsetTable = MakeOffsetTable('2', '7');
         static bool TerseMode;
+        static bool ExistenceCheck;
 
         static int Main(string[] args)
         {
             string config;
             if (args.Length == 1)
             {
-                TerseMode = false;
                 config = args[0];
             }
             else if (args.Length == 2 && args[0] == "--terse")
             {
                 TerseMode = true;
+                config = args[1];
+            }
+            else if (args.Length == 2 && args[0] == "--exist")
+            {
+                ExistenceCheck = true;
                 config = args[1];
             }
             else
@@ -61,9 +69,18 @@ With the --terse option, only the number of checkmates is printed.
             Square[] nonKingPieces = ParseNonKingPieces(config);
             int count = FindCheckmatePositions(nonKingPieces);
             if (TerseMode)
+            {
                 Console.WriteLine("{0}", count);
+            }
+            else if (ExistenceCheck)
+            {
+                if (count == 0)
+                    Console.WriteLine("X");
+            }
             else
+            {
                 Console.WriteLine("Found {0} checkmates for Kk{1}.", count, config);
+            }
             return 0;
         }
 
@@ -122,6 +139,8 @@ With the --terse option, only the number of checkmates is printed.
                     {
                         board.PlaceBlackKing(bkofs);
                         count += Search(board, nonKingPieces, 0, -1);
+                        if (ExistenceCheck && count > 0)
+                            return count;
                     }
                 }
             }
@@ -147,6 +166,8 @@ With the --terse option, only the number of checkmates is printed.
                         square[ofs] = piece;
                         count += Search(board, nonKingPieces, 1+depth, i);
                         square[ofs] = Square.Empty;
+                        if (count > 0 && ExistenceCheck)
+                            break;
                     }
                 }
                 return count;

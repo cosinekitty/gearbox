@@ -15,12 +15,16 @@ MateCheck()
 }
 
 dotnet build || Fail "Build PossibleMates"
-MateCheck 0 N
-MateCheck 0 B
 MateCheck 0 P
 MateCheck 364 Q
 MateCheck 216 R
-MateCheck 1552 BB
-MateCheck 112 Bb
 MateCheck 72392 RR
+MateCheck 1552 BB
+
+MateCheck 0 N
+MateCheck 0 B
+MateCheck 112 Bb
+MateCheck 8 Bn
+MateCheck 8 Nb
+
 exit 0

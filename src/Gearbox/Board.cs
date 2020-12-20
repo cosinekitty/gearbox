@@ -652,33 +652,43 @@ namespace Gearbox
 
             if (possibleMaters == 0)
             {
-                int wb = inventory[(int)Square.WB];
-                int wn = inventory[(int)Square.WN];
-                int bb = inventory[(int)Square.BB];
-                int bn = inventory[(int)Square.BN];
-
                 // Oddly, mate is possible (but not forcible) in K+B vs K+B.
                 // But mate is not possible in K+B vs K.
                 // So this isn't as obvious as one might think.
-                if (wb + wn < 2 && bb + bn < 2)
+
+                int knightsAndBishops =
+                    inventory[(int)Square.WB] + inventory[(int)Square.WN] +
+                    inventory[(int)Square.BB] + inventory[(int)Square.BN];
+
+                if (knightsAndBishops <= 1)
                 {
-                    // wb wn bb bn   symmetry       draw?
-                    //  0  0  0  0                  true
-                    //  0  0  0  1   0  1  0  0     true
-                    //  0  0  1  0   1  0  0  0     true
-                    //  0  0  1  1   1  1  0  0     X
-                    //  0  1  0  0   0  0  0  1     true
-                    //  0  1  0  1                  false
-                    //  0  1  1  0   1  0  0  1
-                    //  0  1  1  1   1  1  0  1     X
-                    //  1  0  0  0   0  0  1  0
-                    //  1  0  0  1   0  1  1  0
-                    //  1  0  1  0
-                    //  1  0  1  1   1  1  1  0     X
-                    //  1  1  0  0   0  0  1  1     X
-                    //  1  1  0  1   0  1  1  1     X
-                    //  1  1  1  0   1  0  1  1     X
-                    //  1  1  1  1                  X
+                    // If either White or Black has BB, NB, or NN,
+                    // White can possibly checkmate Black.
+                    // The same goes for Black having bb, nb, or nn, against White.
+                    // So we can't have a draw whenever either side has sum(bishop, knight) > 1.
+                    // This leaves us to consider all possible cases where
+                    // B+N <= 1 and b+n <= 1.
+                    // The PossibleMates program confirms only the cases marked
+                    // by X below represent situations where there do not exist
+                    // any checkmates of Black by White.
+                    //
+                    //      wb  BNbn  checkmate?
+                    //      00  0000  X
+                    //      01  0001  X
+                    //      01  0010  X
+                    //      10  0100  X
+                    //      10  1000  X
+                    //      11  0101  8/8/8/8/8/1K6/2N5/kn6 b - - 0 1
+                    //      11  0110  8/8/8/8/8/KN6/8/kb6 b - - 0 1
+                    //      11  1001  8/8/8/8/8/1K6/1B6/kn6 b - - 0 1
+                    //      11  1010  8/8/8/8/8/K7/1B6/kb6 b - - 0 1
+                    //
+                    // This boils down to a simple rule:
+                    // A position with more than one bishop and/or knight
+                    // of either color can lead to a checkmate by some legal series of moves.
+                    // So we can only terminate a game as a draw when the total
+                    // count of bishops and knights is 0 or 1.
+                    return GameResult.Draw;
                 }
             }
 
