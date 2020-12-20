@@ -914,10 +914,10 @@ namespace Gearbox
             }
 
             if (square[wkofs] != Square.WK)
-                throw new Exception("White King is misplaced");
+                throw new Exception(string.Format("White King is not at {0} after {1} in {2}", Algebraic(wkofs), move, ForsythEdwardsNotation()));
 
             if (square[bkofs] != Square.BK)
-                throw new Exception("Black King is misplaced");
+                throw new Exception(string.Format("Black King is not at {0} after {1} in {2}", Algebraic(bkofs), move, ForsythEdwardsNotation()));
         }
 
         public void PopMove()
@@ -1497,6 +1497,11 @@ namespace Gearbox
 
         #region Dangerous functions for brute-force endgame solvers, etc.
 
+        public Square[] GetSquaresArray()
+        {
+            return square;
+        }
+
         public void Clear(bool whiteToMove)
         {
             // Remove all pieces from the board and completely reset the inner state.
@@ -1510,7 +1515,7 @@ namespace Gearbox
                 inventory[i] = 0;
 
             unmoveStack.Reset();
-            wkofs = bkofs = 0;
+            wkofs = bkofs = -1;     // will cause array bounds exception if used
             isWhiteTurn = whiteToMove;
             fullMoveNumber = 1;
             halfMoveClock = 0;
@@ -1528,57 +1533,25 @@ namespace Gearbox
             isWhiteTurn = whiteToMove;
         }
 
-        public Square Contents(char file, char rank)
+        public void PlaceWhiteKing(int ofs)
         {
-            return square[Offset(file, rank)];
+            if (wkofs > 0)
+                square[wkofs] = Square.Empty;
+
+            square[wkofs = ofs] = Square.WK;
         }
 
-        public void Drop(Square piece, char file, char rank)
+        public void PlaceBlackKing(int ofs)
         {
-            if (0 == (piece & Square.SideMask))
-                throw new ArgumentException(string.Format("Invalid piece to drop: {0}", piece));
+            if (bkofs > 0)
+                square[bkofs] = Square.Empty;
 
-            int offset = Offset(file, rank);
-            Drop(offset, piece);
-
-            switch (piece)
-            {
-                case Square.WK:
-                    wkofs = offset;
-                    break;
-
-                case Square.BK:
-                    bkofs = offset;
-                    break;
-            }
-        }
-
-        public Square Lift(char file, char rank)
-        {
-            int offset = Offset(file, rank);
-            Square piece = Lift(offset);
-            switch (piece)
-            {
-                case Square.WK:
-                    wkofs = 0;
-                    break;
-
-                case Square.BK:
-                    bkofs = 0;
-                    break;
-
-                case Square.Empty:
-                    throw new ArgumentException("Not allowed to lift empty square.");
-            }
-            return piece;
+            square[bkofs = ofs] = Square.BK;
         }
 
         public bool IsValidPosition()
         {
-            return
-                inventory[(int)Square.WK] == 1 &&
-                inventory[(int)Square.BK] == 1 &&
-                !IsIllegalPosition();
+            return (wkofs > 0) && (bkofs > 0) && !IsIllegalPosition();
         }
 
         public bool IsCheckmate()

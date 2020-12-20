@@ -5,6 +5,8 @@ namespace PossibleMates
 {
     class Program
     {
+        static readonly int[] OffsetTable = MakeOffsetTable();
+
         static int Main(string[] args)
         {
             // Find all legal board positions with combinations
@@ -15,30 +17,38 @@ namespace PossibleMates
             return 0;
         }
 
+        static int KingDistance(int ofs1, int ofs2)
+        {
+            int dx = Math.Abs((ofs1 % 10) - (ofs2 % 10));
+            int dy = Math.Abs((ofs1 / 10) - (ofs2 / 10));
+            return Math.Max(dx, dy);
+        }
+
+        static int[] MakeOffsetTable()
+        {
+            var table = new int[64];
+            int index = 0;
+            for (char file = 'a'; file <= 'h'; ++file)
+                for (char rank = '1'; rank <= '8'; ++rank)
+                    table[index++] = Board.Offset(file, rank);
+            return table;
+        }
+
         static int FindCheckmatePositions(params Square[] nonKingPieces)
         {
             int count = 0;
             var board = new Board(false);   // make an empty board where it is Black's turn
-            for (char wk_file = 'a'; wk_file <= 'h'; ++wk_file)
+
+            foreach (int wkofs in OffsetTable)
             {
-                for (char wk_rank = '1'; wk_rank <= '8'; ++wk_rank)
+                board.PlaceWhiteKing(wkofs);
+                foreach (int bkofs in OffsetTable)
                 {
-                    board.Drop(Square.WK, wk_file, wk_rank);
-                    for (char bk_file = 'a'; bk_file <= 'h'; ++bk_file)
+                    if (KingDistance(wkofs, bkofs) > 1)
                     {
-                        int dx = Math.Abs(bk_file - wk_file);
-                        for (char bk_rank = '1'; bk_rank <= '8'; ++bk_rank)
-                        {
-                            int dy = Math.Abs(bk_rank - wk_rank);
-                            if (Math.Max(dx, dy) > 1)
-                            {
-                                board.Drop(Square.BK, bk_file, bk_rank);
-                                count += Search(board, nonKingPieces, 0);
-                                board.Lift(bk_file, bk_rank);
-                            }
-                        }
+                        board.PlaceBlackKing(bkofs);
+                        count += Search(board, nonKingPieces, 0);
                     }
-                    board.Lift(wk_file, wk_rank);
                 }
             }
             return count;
@@ -49,16 +59,14 @@ namespace PossibleMates
             if (depth < nonKingPieces.Length)
             {
                 int count = 0;
-                for (char file = 'a'; file <= 'h'; ++file)
+                Square[] square = board.GetSquaresArray();
+                foreach (int ofs in OffsetTable)
                 {
-                    for (char rank = '1'; rank <= '8'; ++rank)
+                    if (square[ofs] == Square.Empty)
                     {
-                        if (Square.Empty == board.Contents(file, rank))
-                        {
-                            board.Drop(nonKingPieces[depth], file, rank);
-                            count += Search(board, nonKingPieces, 1+depth);
-                            board.Lift(file, rank);
-                        }
+                        square[ofs] = nonKingPieces[depth];
+                        count += Search(board, nonKingPieces, 1+depth);
+                        square[ofs] = Square.Empty;
                     }
                 }
                 return count;
