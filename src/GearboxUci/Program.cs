@@ -24,6 +24,7 @@ namespace GearboxUci
         {
             log.WriteLine("  {0}", line);
             Console.WriteLine(line);
+            Console.Out.Flush();
         }
 
         static void WriteLine(StreamWriter log, string format, params object[] args)
@@ -35,6 +36,8 @@ namespace GearboxUci
         {
             using (StreamWriter log = File.CreateText("gearbox.log"))
             {
+                var sink = new UciSearchInfoSink();
+                thinker.SetInfoSink(sink);
                 var thinkerThread = new Thread(ThinkerThreadFunc)
                 {
                     IsBackground = true,

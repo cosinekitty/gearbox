@@ -21,11 +21,17 @@ namespace Gearbox
         private bool searchInProgress;
         private bool abort;
         private AutoResetEvent abortSignal = new AutoResetEvent(false);
+        private ISearchInfoSink sink;       // Supports sending notifications about the search to a user interface or debug log
 
         public Thinker()
         {
             searchTimer = new System.Timers.Timer();
             searchTimer.Elapsed += OnSearchTimeElapsed;
+        }
+
+        public void SetInfoSink(ISearchInfoSink sink)
+        {
+            this.sink = sink;
         }
 
         public void SetSearchLimit(int maxSearchLimit)
@@ -197,23 +203,32 @@ namespace Gearbox
 
         private Move SearchRoot(Board board, int limit)
         {
+            HashValue hash = board.Hash();
             Stratum stratum = StratumForDepth(0);
             MoveList legal = stratum.legal;
             Move bestMove = Move.Null;
             for (int i=0; i < legal.nmoves; ++i)
             {
+                if (sink != null)
+                    sink.OnBeginSearchMove(board, legal.array[i], limit);
                 board.PushMove(legal.array[i]);
                 legal.array[i].score = Score.OnePlyDelay(-NegaMax(board, 1, limit, Score.NegInf, -bestMove.score, 0));
                 board.PopMove();
                 if (legal.array[i].score == Score.Undefined)
                     return Move.Null;   // signal aborted search
                 if (legal.array[i].score > bestMove.score)
+                {
                     bestMove = legal.array[i];
+                    xpos.Update(hash, bestMove, Score.NegInf, Score.PosInf, limit);
+                    if (sink != null)
+                    {
+                        BestPath path = GetBestPath(board);
+                        sink.OnBestPath(board, path);
+                    }
+                }
             }
             if (bestMove.IsNull())
                 throw new Exception("SearchRoot failed to find a move.");
-            HashValue hash = board.Hash();
-            xpos.Update(hash, bestMove, Score.NegInf, Score.PosInf, limit);
             return bestMove;
         }
 
