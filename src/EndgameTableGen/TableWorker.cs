@@ -42,34 +42,65 @@ namespace EndgameTableGen
 
         protected long TableSize(int[,] config)
         {
-            long size;
-            int p = config[WHITE,P_INDEX] + config[BLACK,P_INDEX];
+            long size = 1;
+            int wp = config[WHITE,P_INDEX];
+            int bp = config[BLACK,P_INDEX];
+            int p = wp + bp;
 
+            // Are there any pawns on the board?
             if (p > 0)
             {
-                // If there are any pawns, we use left/right symmetry
-                // to force one of them to the left side of the board.
-                // Therefore, that one pawn can be in any of 6*4 = 24 squares.
-                --p;    // consume one of the pawns
-                size = 24 * 64 * 64;     // consumed pawn, White King, Black King
+                // Consume one of the pawns.
+                --p;
+
+                // Use left/right symmetry to force the consumed pawn
+                // to the left side of the board.
+
+                if (wp > 0 && bp > 0)
+                {
+                    // En passant captures are possible.
+                    // We treat a pawn that has just moved 2 squares forward
+                    // as if it rests on an imaginary square hovering above
+                    // the actual square it landed on.
+                    // There can be at most one such pawn on the board at any time.
+                    // Therefore, if any pawn just moved two squares, it becomes
+                    // the "primary" pawn. Otherwise, the primary pawn is the pawn
+                    // (White or Black) having the alphabetically lowest algebraic coordinates.
+                    // Accounting for left/right symmetry, the primary pawn can be in
+                    // one of 6*4 + 4 = 28 states.
+                    size *= 28;
+                }
+                else
+                {
+                    // No en passant captures are possible.
+                    // So there is no difference between a pawn that has just
+                    // moved two squares forward and one that hasn't just done so.
+                    size *= 24;
+                }
+
+                // The White King can be anywhere on the board (no symmetry exploits for it).
+                size *= 64;
             }
             else
             {
-                // The White King can go in any of 10 unique squares.
-                // The Black King can go in any of the 64 squares.
-                size = 10 * 64;
+                // The White King can go in any of 10 unique squares,
+                // thanks to eight-fold symmetry.
+                size *= 10;
             }
+
+            // The Black King can go in any of 64 squares.
+            size *= 64;
 
             // Any remaining pawns may appear in 48 different squares.
             while (p-- > 0)
                 size *= 48;
 
-            // All other movers can appear in any of the 64 different squares.
-            // Add them all up.
+            // Add up the total count of all movers that are neither king nor pawn.
             int m = 0;
             for (int i=0; i < P_INDEX; ++i)
                 m += config[WHITE,i] + config[BLACK,i];
 
+            // Each of these remaining movers can be in any of the 64 squares.
             while (m-- > 0)
                 size *= 64;
 
