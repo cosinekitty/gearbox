@@ -27,8 +27,8 @@ namespace EndgameTableGen
             // Fail if any piece count is greater than 9.
             // (Possible only when all pawns promoted to knights/bishops... LOL.)
             var sb = new StringBuilder();
-            for (int side=0; side < 2; ++side)
-                for (int mover=0; mover < 5; ++mover)
+            for (int mover=0; mover < 5; ++mover)
+                for (int side=0; side < 2; ++side)
                     if (0 <= config[side,mover] && config[side,mover] <= 9)
                         sb.Append(config[side,mover]);
                     else
@@ -59,28 +59,18 @@ namespace EndgameTableGen
 
                 // Use left/right symmetry to force the consumed pawn
                 // to the left side of the board.
-
-                if (wp > 0 && bp > 0)
-                {
-                    // En passant captures are possible.
-                    // We treat a pawn that has just moved 2 squares forward
-                    // as if it rests on an imaginary square hovering above
-                    // the actual square it landed on.
-                    // There can be at most one such pawn on the board at any time.
-                    // Therefore, if any pawn just moved two squares, it becomes
-                    // the "primary" pawn. Otherwise, the primary pawn is the pawn
-                    // (White or Black) having the alphabetically lowest algebraic coordinates.
-                    // Accounting for left/right symmetry, the primary pawn can be in
-                    // one of 6*4 + 4 = 28 states.
-                    size *= 28;
-                }
-                else
-                {
-                    // No en passant captures are possible.
-                    // So there is no difference between a pawn that has just
-                    // moved two squares forward and one that hasn't just done so.
-                    size *= 24;
-                }
+                // For simplicity, assume en passant captures are possible,
+                // even when only one side has pawn(s).
+                // We treat a pawn that has just moved 2 squares forward
+                // as if it rests on an imaginary square hovering above
+                // the actual square it landed on.
+                // There can be at most one such pawn on the board at any time.
+                // Therefore, if any pawn just moved two squares, it becomes
+                // the "primary" pawn. Otherwise, the primary pawn is the pawn
+                // (White or Black) having the alphabetically lowest algebraic coordinates.
+                // Accounting for left/right symmetry, the primary pawn can be in
+                // one of 6*4 + 4 = 28 states.
+                size *= 28;
 
                 // The White King can be anywhere on the board (no symmetry exploits for it).
                 size *= 64;
@@ -96,8 +86,10 @@ namespace EndgameTableGen
             size *= 64;
 
             // Any remaining pawns may appear in 48 different squares.
+            // But en passant captures are possible when the pawn has just
+            // moved two squares forward, yielding 48 + 8 = 56 possible states.
             while (p-- > 0)
-                size *= 48;
+                size *= 56;
 
             // Add up the total count of all movers that are neither king nor pawn.
             int m = 0;

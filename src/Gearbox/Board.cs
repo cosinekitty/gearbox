@@ -1544,6 +1544,11 @@ namespace Gearbox
             isWhiteTurn = whiteToMove;
         }
 
+        public void SetEpTarget(int ep)
+        {
+            epTargetOffset = ep;
+        }
+
         public void PlaceWhiteKing(int ofs)
         {
             if (wkofs > 0)
@@ -1572,7 +1577,9 @@ namespace Gearbox
 
         private bool UncachedPlayerInCheck()
         {
-            return isWhiteTurn ? IsAttackedBy(wkofs, Square.Black) : IsAttackedBy(bkofs, Square.White);
+            return isWhiteTurn
+                ? IsAttackedBy(wkofs, Square.Black)
+                : IsAttackedBy(bkofs, Square.White);
         }
 
         private bool UncachedPlayerCanMove()

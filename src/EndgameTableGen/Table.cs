@@ -42,5 +42,36 @@ namespace EndgameTableGen
                 outfile.Write(data, 0, data.Length);
             }
         }
+
+        public void SetWhiteScore(int tindex, int score)
+        {
+            // The score must fit in a 12-bit signed integer.
+            // This is because we have to pack two of them into 3 bytes of memory.
+
+            if (score < -2048 || score > +2047)
+                throw new ArgumentException("Score is out of range: " + score);
+
+            int k = 3 * tindex;
+
+            // Save the upper 8 bits of the score in the first byte.
+            data[k] = (byte)(score >> 4);
+
+            // Save the lower 4 bits of the score in the upper half of the second byte.
+            data[k+1] = (byte) ((data[k+1] & 0x0f) | (score & 0x00f));
+        }
+
+        public void SetBlackScore(int tindex, int score)
+        {
+            if (score < -2048 || score > +2047)
+                throw new ArgumentException("Score is out of range: " + score);
+
+            int k = 3 * tindex;
+
+            // Save the upper 4 bits of the score in the lower half of the second byte.
+            data[k+1] = (byte) ((data[k+1] & 0xf0) | ((score >> 8) & 0x0f));
+
+            // Save the lower 8 bits of the score in the third byte.
+            data[k+2] = (byte) (score & 0x0ff);
+        }
     }
 }

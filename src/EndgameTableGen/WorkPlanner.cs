@@ -4,17 +4,19 @@ namespace EndgameTableGen
 {
     internal class WorkPlanner
     {
-        public const int NumNonKings = 5;    // 0=Q, 1=R, 2=B, 3=N, 4=P
+        public const int NumSides = 2;
+        public const int WHITE = 0;
+        public const int BLACK = 1;
+
+        public const int NumNonKings = 5;
         public const int Q_INDEX = 0;
         public const int R_INDEX = 1;
         public const int B_INDEX = 2;
         public const int N_INDEX = 3;
         public const int P_INDEX = 4;
-        public const int WHITE = 0;
-        public const int BLACK = 1;
 
         private readonly ITableWorker worker;
-        private readonly int[,] config = new int [2, 5];
+        private readonly int[,] config = new int [NumSides, NumNonKings];
 
         public WorkPlanner(ITableWorker worker)
         {
