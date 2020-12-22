@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Numerics;
 using System.Text;
 
 namespace EndgameTableGen
@@ -37,12 +39,14 @@ namespace EndgameTableGen
 
         protected string ConfigFileName(int[,] config)
         {
-            return ConfigSymbol(config) + ".endgame";
+            string dir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ?? Environment.CurrentDirectory;
+            string fn = ConfigSymbol(config) + ".endgame";
+            return Path.Combine(dir, fn);
         }
 
-        protected long TableSize(int[,] config)
+        protected BigInteger TableSize(int[,] config)
         {
-            long size = 1;
+            BigInteger size = 1;
             int wp = config[WHITE,P_INDEX];
             int bp = config[BLACK,P_INDEX];
             int p = wp + bp;

@@ -1,11 +1,12 @@
 using System;
+using System.Numerics;
 
 namespace EndgameTableGen
 {
     internal class TablePrinter : TableWorker
     {
         private int tableCount;
-        private long totalSize;
+        private BigInteger totalSize;
 
         public override void Start()
         {
@@ -21,7 +22,7 @@ namespace EndgameTableGen
             for (int m=0; m < WorkPlanner.NumNonKings; ++m)
                 Console.Write(" {0}{1}", config[0,m], config[1,m]);
 
-            long size = TableSize(config);
+            BigInteger size = TableSize(config);
             Console.WriteLine(" {0,20:n0}", size);
 
             totalSize += size;
