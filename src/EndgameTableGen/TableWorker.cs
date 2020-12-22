@@ -110,5 +110,15 @@ namespace EndgameTableGen
 
             return size;
         }
+
+        internal static void Log(string format, params object[] args)
+        {
+            string now = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            now = now.Substring(0, now.Length-6) + "Z";     // convert "...:29.2321173Z" to "...:29.23Z"
+            Console.Write(now);
+            Console.Write(" ");
+            Console.WriteLine(format, args);
+            Console.Out.Flush();    // in case being redirected to a file, so 'tail -f' or 'tee' works.
+        }
     }
 }
