@@ -55,7 +55,10 @@ EndgameTableGen plan N
             // A pawn or a piece can be captured, so each [N, M] depends on [N-1, M] and [N, M-1] also.
 
             Console.WriteLine(" Qq Rr Bb Nn Pp");
-            PlanDistribute(new int[2,5], nonkings, 0, true);
+
+            var config = new int[2, 5];
+            for (int n=0; n <= nonkings; ++n)
+                PlanDistribute(config, n, 0, true);
 
             return 0;
         }
@@ -102,10 +105,16 @@ EndgameTableGen plan N
             else
             {
                 // Leaf node of the recursive search tree.
-                for (int m=0; m < NumNonKings; ++m)
-                    Console.Write(" {0}{1}", config[0,m], config[1,m]);
-                Console.WriteLine();
+                PrintConfig(config);
             }
+        }
+
+        static void PrintConfig(int[,] config)
+        {
+            for (int m=0; m < NumNonKings; ++m)
+                Console.Write(" {0}{1}", config[0,m], config[1,m]);
+
+            Console.WriteLine();
         }
     }
 }
