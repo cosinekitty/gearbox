@@ -13,14 +13,20 @@ namespace EndgameTableGen
         public const int WHITE = 0;
         public const int BLACK = 1;
 
-        private int[,] config = new int [2, 5];
-        private int tableCount;
+        private readonly ITableWorker worker;
+        private readonly int[,] config = new int [2, 5];
+
+        public WorkPlanner(ITableWorker worker)
+        {
+            this.worker = worker;
+        }
 
         public void Plan(int nonkings)
         {
-            tableCount = 0;
+            worker.Start();
             for (int n=0; n <= nonkings; ++n)
                 PlanDistribute(n, 0, true);
+            worker.Finish();
         }
 
         private void PlanDistribute(int remaining, int mover, bool equal)
@@ -64,19 +70,10 @@ namespace EndgameTableGen
             {
                 // Leaf node of the recursive search tree.
                 if (IsCheckmatePossible())
-                    PrintConfig();
+                    worker.GenerateTable(config);
             }
         }
 
-        private void PrintConfig()
-        {
-            Console.Write("{0,9}  ", ++tableCount);
-
-            for (int m=0; m < NumNonKings; ++m)
-                Console.Write(" {0}{1}", config[0,m], config[1,m]);
-
-            Console.WriteLine();
-        }
 
         private bool IsCheckmatePossible()
         {

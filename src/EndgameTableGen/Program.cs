@@ -54,9 +54,8 @@ EndgameTableGen plan N
             // (N-1) pawns and (M+1) pieces.
             // A pawn or a piece can be captured, so each [N, M] depends on [N-1, M] and [N, M-1] also.
 
-            Console.WriteLine("    table   Qq Rr Bb Nn Pp");
-
-            var planner = new WorkPlanner();
+            var printer = new TablePrinter();
+            var planner = new WorkPlanner(printer);
             planner.Plan(nonkings);
             return 0;
         }
