@@ -1,5 +1,9 @@
 #!/bin/bash
-CONFIG=Debug
+if [[ -z "$1" ]]; then
+    CONFIG=Debug
+else
+    CONFIG=$1
+fi
 rm -f ../../tables/*.endgame
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen gen 2 | tee tablegen.log || exit $?
