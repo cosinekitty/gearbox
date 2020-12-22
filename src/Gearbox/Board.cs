@@ -630,6 +630,7 @@ namespace Gearbox
             if (halfMoveClock > 100)
             {
                 // Draw by the 50-move rule.
+                // FIXFIXFIX: allow disabling this logic for endgame table analysis.
                 return GameResult.Draw;
             }
 

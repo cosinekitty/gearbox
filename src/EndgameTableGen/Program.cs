@@ -64,6 +64,14 @@ EndgameTableGen plan N
         }
 
         const int NumNonKings = 5;    // 0=Q, 1=R, 2=B, 3=N, 4=P
+        const int Q_INDEX = 0;
+        const int R_INDEX = 1;
+        const int B_INDEX = 2;
+        const int N_INDEX = 3;
+        const int P_INDEX = 4;
+
+        const int WHITE = 0;
+        const int BLACK = 1;
 
         static void PlanDistribute(int[,] config, int remaining, int mover, bool equal)
         {
@@ -71,7 +79,7 @@ EndgameTableGen plan N
             {
                 for (int w = remaining; w >= 0; --w)
                 {
-                    config[0, mover] = w;    // allocate w of these nonkings to White
+                    config[WHITE, mover] = w;    // allocate w of these nonkings to White
 
                     // Enforce the integer [WQ, WR, WB, WN, WP] >= [BQ, BR, BB, BN, BP].
                     // For example, if there are 3 White Queens, 1 Black Knight, and 2 Black Bishops,
@@ -87,16 +95,16 @@ EndgameTableGen plan N
                     {
                         if (limit == remaining - w)
                         {
-                            config[1, mover] = limit;
+                            config[BLACK, mover] = limit;
                             PlanDistribute(config, 0, 1 + mover, equal);
-                            config[1, mover] = 0;
+                            config[BLACK, mover] = 0;
                         }
                     }
                     else
                     {
                         for (int b = limit; b >= 0; --b)
                         {
-                            config[1, mover] = b;       // allocate b of these nonkings to Black
+                            config[BLACK, mover] = b;       // allocate b of these nonkings to Black
                             PlanDistribute(config, remaining-(w+b), 1 + mover, equal && w==b);
                         }
                     }
@@ -105,7 +113,8 @@ EndgameTableGen plan N
             else
             {
                 // Leaf node of the recursive search tree.
-                PrintConfig(config);
+                if (IsCheckmatePossible(config))
+                    PrintConfig(config);
             }
         }
 
@@ -115,6 +124,17 @@ EndgameTableGen plan N
                 Console.Write(" {0}{1}", config[0,m], config[1,m]);
 
             Console.WriteLine();
+        }
+
+        static bool IsCheckmatePossible(int[,] config)
+        {
+            // This is based on the corresponding logic in Board.GetGameResult().
+            int q = config[WHITE, Q_INDEX] + config[BLACK, Q_INDEX];
+            int r = config[WHITE, R_INDEX] + config[BLACK, R_INDEX];
+            int b = config[WHITE, B_INDEX] + config[BLACK, B_INDEX];
+            int n = config[WHITE, N_INDEX] + config[BLACK, N_INDEX];
+            int p = config[WHITE, P_INDEX] + config[BLACK, P_INDEX];
+            return (q+r+p > 0) || (n+b > 1);
         }
     }
 }
