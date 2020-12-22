@@ -23,6 +23,9 @@ namespace EndgameTableGen
 
         public void Plan(int nonkings)
         {
+            if (nonkings < 0 || nonkings > 9)
+                throw new ArgumentException("Invalid number of nonking pieces: " + nonkings);
+
             worker.Start();
             for (int n=0; n <= nonkings; ++n)
                 PlanDistribute(n, 0, true);
@@ -73,7 +76,6 @@ namespace EndgameTableGen
                     worker.GenerateTable(config);
             }
         }
-
 
         private bool IsCheckmatePossible()
         {
