@@ -35,8 +35,6 @@ EndgameTableGen plan N
             return 1;
         }
 
-        static int TableCount;
-
         static int Plan(int nonkings)
         {
             // Terminology: there are three kinds of objects on the chess board.
@@ -58,88 +56,9 @@ EndgameTableGen plan N
 
             Console.WriteLine("    table   Qq Rr Bb Nn Pp");
 
-            TableCount = 0;
-            var config = new int[2, 5];
-            for (int n=0; n <= nonkings; ++n)
-                PlanDistribute(config, n, 0, true);
-
+            var planner = new WorkPlanner();
+            planner.Plan(nonkings);
             return 0;
-        }
-
-        const int NumNonKings = 5;    // 0=Q, 1=R, 2=B, 3=N, 4=P
-        const int Q_INDEX = 0;
-        const int R_INDEX = 1;
-        const int B_INDEX = 2;
-        const int N_INDEX = 3;
-        const int P_INDEX = 4;
-
-        const int WHITE = 0;
-        const int BLACK = 1;
-
-        static void PlanDistribute(int[,] config, int remaining, int mover, bool equal)
-        {
-            if (mover < NumNonKings)
-            {
-                for (int w = remaining; w >= 0; --w)
-                {
-                    config[WHITE, mover] = w;    // allocate w of these nonkings to White
-
-                    // Enforce the integer [WQ, WR, WB, WN, WP] >= [BQ, BR, BB, BN, BP].
-                    // For example, if there are 3 White Queens, 1 Black Knight, and 2 Black Bishops,
-                    // 30000 > 00210, so we are OK.
-                    int limit = remaining - w;
-                    if (equal && limit > w)
-                        limit = w;
-
-                    // But if this is the last slot (Black Pawns)
-                    // we must spend all of the remaining count if possible.
-
-                    if (mover+1 == NumNonKings)
-                    {
-                        if (limit == remaining - w)
-                        {
-                            config[BLACK, mover] = limit;
-                            PlanDistribute(config, 0, 1 + mover, equal);
-                            config[BLACK, mover] = 0;
-                        }
-                    }
-                    else
-                    {
-                        for (int b = limit; b >= 0; --b)
-                        {
-                            config[BLACK, mover] = b;       // allocate b of these nonkings to Black
-                            PlanDistribute(config, remaining-(w+b), 1 + mover, equal && w==b);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                // Leaf node of the recursive search tree.
-                if (IsCheckmatePossible(config))
-                    PrintConfig(config);
-            }
-        }
-
-        static void PrintConfig(int[,] config)
-        {
-            Console.Write("{0,9}  ", ++TableCount);
-
-            for (int m=0; m < NumNonKings; ++m)
-                Console.Write(" {0}{1}", config[0,m], config[1,m]);
-
-            Console.WriteLine();
-        }
-
-        static bool IsCheckmatePossible(int[,] config)
-        {
-            // This is based on the corresponding logic in Board.GetGameResult().
-            int q = config[WHITE, Q_INDEX] + config[BLACK, Q_INDEX];
-            int r = config[WHITE, R_INDEX] + config[BLACK, R_INDEX];
-            int b = config[WHITE, B_INDEX] + config[BLACK, B_INDEX];
-            int n = config[WHITE, N_INDEX] + config[BLACK, N_INDEX];
-            int p = config[WHITE, P_INDEX] + config[BLACK, P_INDEX];
-            return (q+r+p > 0) || (n+b > 1);
         }
     }
 }
