@@ -35,6 +35,8 @@ EndgameTableGen plan N
             return 1;
         }
 
+        static int TableCount;
+
         static int Plan(int nonkings)
         {
             // Terminology: there are three kinds of objects on the chess board.
@@ -54,8 +56,9 @@ EndgameTableGen plan N
             // (N-1) pawns and (M+1) pieces.
             // A pawn or a piece can be captured, so each [N, M] depends on [N-1, M] and [N, M-1] also.
 
-            Console.WriteLine(" Qq Rr Bb Nn Pp");
+            Console.WriteLine("    table   Qq Rr Bb Nn Pp");
 
+            TableCount = 0;
             var config = new int[2, 5];
             for (int n=0; n <= nonkings; ++n)
                 PlanDistribute(config, n, 0, true);
@@ -120,6 +123,8 @@ EndgameTableGen plan N
 
         static void PrintConfig(int[,] config)
         {
+            Console.Write("{0,9}  ", ++TableCount);
+
             for (int m=0; m < NumNonKings; ++m)
                 Console.Write(" {0}{1}", config[0,m], config[1,m]);
 
