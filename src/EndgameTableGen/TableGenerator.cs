@@ -6,7 +6,7 @@ using Gearbox;
 
 namespace EndgameTableGen
 {
-    internal delegate int PositionVisitorFunc(Table table, int[,] config, Board board, int tindex);
+    internal delegate int PositionVisitorFunc(Table table, Board board, int tindex);
 
     internal class TableGenerator : TableWorker
     {
@@ -65,7 +65,7 @@ namespace EndgameTableGen
                 table = new Table(size);
 
                 int sum = ForEachPosition(table, config, FindCheckmate);
-                Log("Found {0} checkmates.", sum);
+                Log("Found {0} checkmates. match={1}, mismatch={2}", sum, IndexMatchCount, IndexMismatchCount);
 
                 // Save the table to disk.
                 table.Save(filename);
@@ -299,17 +299,19 @@ namespace EndgameTableGen
                 else
                 {
                     // We have placed all the pieces on the board!
+                    board.RefreshAfterDangerousChanges();
+
                     // Visit the resulting position from both points of view: White's and Black's.
 
                     // What if it is White's turn to move?
                     board.SetTurn(true);
                     if (board.IsValidPosition())
-                        sum += func(table, config, board, tableIndex);
+                        sum += func(table, board, tableIndex);
 
                     // What if it is Black's turn to move?
                     board.SetTurn(false);
                     if (board.IsValidPosition())
-                        sum += func(table, config, board, tableIndex);
+                        sum += func(table, board, tableIndex);
                 }
             }
 
@@ -363,8 +365,18 @@ namespace EndgameTableGen
             return s;
         }
 
-        private int FindCheckmate(Table table, int[,] config, Board board, int tindex)
+        private long IndexMatchCount;
+        private long IndexMismatchCount;
+
+        private int FindCheckmate(Table table, Board board, int tindex)
         {
+            // Verify we are calculating all the table indexes correctly.
+            int check = board.GetEndgameTableIndex();
+            if (check == tindex)
+                ++IndexMatchCount;
+            else
+                ++IndexMismatchCount;
+
             if (board.IsCheckmate())
             {
                 if (board.IsWhiteTurn)
