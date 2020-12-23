@@ -90,7 +90,8 @@ namespace EndgameTableGen
             var board = new Board(false);       // start with a completely empty chess board
 
             int[] wkOffsetTable;
-            if (config[WHITE, P_INDEX] + config[BLACK, P_INDEX] > 0)
+            int pawns = config[WHITE, P_INDEX] + config[BLACK, P_INDEX];
+            if (pawns > 0)
             {
                 // If there is at least one pawn on the board, we will use left/right symmetry
                 // for placing the "primary" pawn, deeper down in recursion.
@@ -109,11 +110,20 @@ namespace EndgameTableGen
                 board.PlaceWhiteKing(wkofs);
                 for (int bkindex = 0; bkindex < OffsetTable.Length; ++bkindex)
                 {
+                    if (pawns == 0 && (wkindex % 8 == wkindex / 8) && bkindex > Board.TranslateIndex(bkindex, Board.SYMMETRY_DIAGONAL))
+                        continue;   // eliminate redundant board positions when using 8-fold symmetry and white king is on the diagonal
+
                     int bkofs = OffsetTable[bkindex];
                     if (KingDistance(wkofs, bkofs) > 1)
                     {
                         board.PlaceBlackKing(bkofs);
-                        sum += PositionSearch(func, table, config, board, 64*wkindex + bkindex, Q_INDEX, config[WHITE,Q_INDEX], config[BLACK,Q_INDEX]);
+
+                        sum += PositionSearch(
+                            func, table, config, board,
+                            64*wkindex + bkindex,
+                            Q_INDEX,
+                            config[WHITE,Q_INDEX],
+                            config[BLACK,Q_INDEX]);
                     }
                 }
             }

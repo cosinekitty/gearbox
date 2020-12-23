@@ -1732,12 +1732,12 @@ namespace Gearbox
             return lookup;
         }
 
-        private const int SYMMETRY_IDENTITY = 0;
-        private const int SYMMETRY_LEFT_RIGHT = 1;
-        private const int SYMMETRY_WHITE_BLACK = 2;
-        private const int SYMMETRY_DIAGONAL = 4;
+        public const int SYMMETRY_IDENTITY = 0;
+        public const int SYMMETRY_LEFT_RIGHT = 1;
+        public const int SYMMETRY_WHITE_BLACK = 2;
+        public const int SYMMETRY_DIAGONAL = 4;
 
-        private static int IndexFromOffset(int offset)
+        public static int IndexFromOffset(int offset)
         {
             // Convert square[] index 21..98 to tablebase index 0..63.
             int x = (offset % 10) - 1;
@@ -1745,7 +1745,7 @@ namespace Gearbox
             return 8*y + x;
         }
 
-        private static int OffsetFromIndex(int index)
+        public static int OffsetFromIndex(int index)
         {
             // Convert tablebase index 0..63 to square[] index 21..98.
             int x = index % 8;
@@ -1753,7 +1753,7 @@ namespace Gearbox
             return 21 + 10*y + x;
         }
 
-        private static int TranslateIndex(int index, int symmetry)
+        public static int TranslateIndex(int index, int symmetry)
         {
             // Given a board offset (index into square[]), apply
             // the specified symmetry and return a 0..63 index value.
@@ -1784,7 +1784,7 @@ namespace Gearbox
             return 8*y + x;
         }
 
-        private static int TranslateOffset(int offset, int symmetry)
+        public static int TranslateOffset(int offset, int symmetry)
         {
             int index = IndexFromOffset(offset);
             int xlat_index = TranslateIndex(index, symmetry);
