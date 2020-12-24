@@ -20,6 +20,11 @@ namespace EndgameTableGen
             data = new byte[BytesPerPosition * size];
         }
 
+        public void Clear()
+        {
+            Array.Clear(data, 0, data.Length);
+        }
+
         public static Table Load(string filename, int size)
         {
             var table = new Table(size);

@@ -64,6 +64,11 @@ namespace EndgameTableGen
                 // Generate the table.
                 table = new Table(size);
 
+                WhiteCount = BlackCount = 0;
+                ForEachPosition(table, config, SelfTest);
+                Log("SelfTest: {0:n0} White positions, {1:n0} Black positions.", WhiteCount, BlackCount);
+                table.Clear();
+
                 int sum = ForEachPosition(table, config, FindCheckmate);
                 Log("Found {0} checkmates.", sum);
 
@@ -425,48 +430,51 @@ namespace EndgameTableGen
             return s;
         }
 
-        private long CallCount = 0;
+        private long CallCount;
+        private long WhiteCount;
+        private long BlackCount;
 
-        private int FindCheckmate(Table table, Board board, int tindex)
+        private int SelfTest(Table table, Board board, int tindex)
         {
-            if (++CallCount == 0)
-                Console.Write("");
-
-            if (board.IsWhiteTurn)
-            {
-                int already = table.GetWhiteScore(tindex);
-                if (already != 0)
-                    throw new Exception(string.Format("Duplicate position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
-            }
+            ++CallCount;
 
             // Verify we are calculating all the table indexes correctly.
             int check = board.GetEndgameTableIndex();
             if (check != tindex)
                 throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check, tindex, board.ForsythEdwardsNotation()));
 
-#if true
-            table.SetWhiteScore(tindex, -57);
-            if (table.GetWhiteScore(tindex) != -57)
-                throw new Exception("Could not read back White score at tindex=" + tindex);
-            table.SetBlackScore(tindex, -987);
-            if (table.GetBlackScore(tindex) != -987)
-                throw new Exception("Could not read back Black score at tindex=" + tindex);
-#else
+            if (board.IsWhiteTurn)
+            {
+                ++WhiteCount;
+                if (table.GetWhiteScore(tindex) != 0)
+                    throw new Exception(string.Format("Duplicate White position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
+                table.SetWhiteScore(tindex, -57);
+                if (table.GetWhiteScore(tindex) != -57)
+                    throw new Exception("Could not read back White score at tindex=" + tindex);
+            }
+            else
+            {
+                ++BlackCount;
+                if (table.GetBlackScore(tindex) != 0)
+                    throw new Exception(string.Format("Duplicate Black position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
+                table.SetBlackScore(tindex, -987);
+                if (table.GetBlackScore(tindex) != -987)
+                    throw new Exception("Could not read back Black score at tindex=" + tindex);
+            }
+
+            return 1;
+        }
+
+        private int FindCheckmate(Table table, Board board, int tindex)
+        {
             if (board.IsCheckmate())
             {
                 if (board.IsWhiteTurn)
-                {
-                    already = table.GetWhiteScore(tindex);
                     table.SetWhiteScore(tindex, -1000);
-                }
                 else
-                {
-                    already = table.GetBlackScore(tindex);
                     table.SetBlackScore(tindex, -1000);
-                }
                 return 1;
             }
-#endif
             return 0;
         }
     }
