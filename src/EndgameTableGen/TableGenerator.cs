@@ -135,7 +135,8 @@ namespace EndgameTableGen
                             Q_INDEX,
                             config[WHITE,Q_INDEX],
                             config[BLACK,Q_INDEX],
-                            need_diag_filter);
+                            need_diag_filter,
+                            0);
                     }
                 }
             }
@@ -157,7 +158,8 @@ namespace EndgameTableGen
             int pieceIndex,
             int whiteRemaining,
             int blackRemaining,
-            bool need_diag_filter)
+            bool need_diag_filter,
+            int startIndex)
         {
             int sum = 0;
             Square[] square = board.GetSquaresArray();
@@ -167,11 +169,11 @@ namespace EndgameTableGen
                 // A White, non-pawn, non-king piece can be placed in any of the 64 squares, so long as that square is empty.
                 if (whiteRemaining > 0)
                 {
-                    for (int wi = 0; wi < WholeBoardOffsetTable.Length; ++wi)
+                    for (int wi = startIndex; wi < WholeBoardOffsetTable.Length; ++wi)
                     {
                         int diag = Board.DiagonalHeight(wi);
                         if (need_diag_filter && (diag > 0))
-                            continue;   // this is a redundant position
+                            continue;   // this is a redundant position, compared to a diagonal mirror image
 
                         int wofs = WholeBoardOffsetTable[wi];
                         if (square[wofs] == Square.Empty)
@@ -184,7 +186,8 @@ namespace EndgameTableGen
                                 pieceIndex,
                                 whiteRemaining-1,
                                 blackRemaining,
-                                need_diag_filter && (diag == 0));
+                                need_diag_filter && (diag == 0),
+                                (whiteRemaining > 1) ? (wi + 1) : 0);
 
                             square[wofs] = Square.Empty;
                         }
@@ -193,11 +196,11 @@ namespace EndgameTableGen
                 else if (blackRemaining > 0)
                 {
                     // A Black, non-pawn, non-king piece can be placed in any of the 64 squares, so long as that square is empty.
-                    for (int bi = 0; bi < WholeBoardOffsetTable.Length; ++bi)
+                    for (int bi = startIndex; bi < WholeBoardOffsetTable.Length; ++bi)
                     {
                         int diag = Board.DiagonalHeight(bi);
                         if (need_diag_filter && (diag > 0))
-                            continue;   // this is a redundant position
+                            continue;   // this is a redundant position, compared to a diagonal mirror image
 
                         int bofs = WholeBoardOffsetTable[bi];
                         if (square[bofs] == Square.Empty)
@@ -210,7 +213,8 @@ namespace EndgameTableGen
                                 pieceIndex,
                                 whiteRemaining,
                                 blackRemaining-1,
-                                need_diag_filter && (diag == 0));
+                                need_diag_filter && (diag == 0),
+                                (blackRemaining > 1) ? (bi + 1) : 0);
 
                             square[bofs] = Square.Empty;
                         }
@@ -226,7 +230,8 @@ namespace EndgameTableGen
                         pieceIndex + 1,
                         config[WHITE, pieceIndex + 1],
                         config[BLACK, pieceIndex + 1],
-                        need_diag_filter);
+                        need_diag_filter,
+                        0);
                 }
             }
             else // pieceIndex == P_INDEX
@@ -240,7 +245,7 @@ namespace EndgameTableGen
                 if (whiteRemaining > 0)
                 {
                     // Try putting the next White pawn everywhere it can go.
-                    for (int i = 0; i < PawnOffsetTable.Length; ++i)
+                    for (int i = startIndex; i < PawnOffsetTable.Length; ++i)
                     {
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
@@ -253,7 +258,8 @@ namespace EndgameTableGen
                                 pieceIndex,
                                 whiteRemaining - 1,
                                 blackRemaining,
-                                false);     // we don't need diag filter when there are pawns
+                                false,     // we don't need diag filter when there are pawns
+                                (whiteRemaining > 1) ? (i + 1) : 0);
 
                             if (RankNumber(ofs) == 4)
                             {
@@ -269,7 +275,8 @@ namespace EndgameTableGen
                                         pieceIndex,
                                         whiteRemaining - 1,
                                         blackRemaining,
-                                        false);     // we don't need diag filter when there are pawns
+                                        false,     // we don't need diag filter when there are pawns
+                                        (whiteRemaining > 1) ? (i + 1) : 0);
 
                                     board.SetEpTarget(0);
                                 }
@@ -295,7 +302,8 @@ namespace EndgameTableGen
                                 pieceIndex,
                                 whiteRemaining,
                                 blackRemaining - 1,
-                                false);     // we don't need diag filter when there are pawns
+                                false,     // we don't need diag filter when there are pawns
+                                (blackRemaining > 1) ? (i + 1) : 0);
 
                             if (RankNumber(ofs) == 5)
                             {
@@ -311,7 +319,8 @@ namespace EndgameTableGen
                                         pieceIndex,
                                         whiteRemaining,
                                         blackRemaining - 1,
-                                        false);     // we don't need diag filter when there are pawns
+                                        false,     // we don't need diag filter when there are pawns
+                                        (blackRemaining > 1) ? (i + 1) : 0);
 
                                     board.SetEpTarget(0);
                                 }
@@ -394,26 +403,28 @@ namespace EndgameTableGen
 
         private int FindCheckmate(Table table, Board board, int tindex)
         {
-            if (++CallCount == 277298)
-                Console.WriteLine("HIT BREAKPOINT");
+            if (++CallCount == 0)
+                Console.Write("");
+
+            if (board.IsWhiteTurn)
+            {
+                int already = table.GetWhiteScore(tindex);
+                if (already != 0)
+                    throw new Exception(string.Format("Duplicate position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
+            }
 
             // Verify we are calculating all the table indexes correctly.
             int check = board.GetEndgameTableIndex();
             if (check != tindex)
-                throw new Exception("Table index disagreement!");
+                throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check, tindex, board.ForsythEdwardsNotation()));
 
 #if true
-            int already = table.GetWhiteScore(tindex);
-            if (already == 0)
-            {
-                table.SetWhiteScore(tindex, -57);
-                if (table.GetWhiteScore(tindex) != -57)
-                    throw new Exception("Could not read back White score at tindex=" + tindex);
-                table.SetWhiteScore(tindex, -987);
-                if (table.GetWhiteScore(tindex) != -987)
-                    throw new Exception("Could not read back Black score at tindex=" + tindex);
-            }
-
+            table.SetWhiteScore(tindex, -57);
+            if (table.GetWhiteScore(tindex) != -57)
+                throw new Exception("Could not read back White score at tindex=" + tindex);
+            table.SetBlackScore(tindex, -987);
+            if (table.GetBlackScore(tindex) != -987)
+                throw new Exception("Could not read back Black score at tindex=" + tindex);
 #else
             if (board.IsCheckmate())
             {
