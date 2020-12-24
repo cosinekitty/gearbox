@@ -12,6 +12,9 @@ dotnet run || Fail "BoardTest"
 cd ../PossibleMates || Fail "Could not change to PossibleMates directory."
 ./testmates || exit $?
 
+cd ../EndgameTableGen || Fail "Could not change to EndgameTableGen directory."
+./selftest || exit $?
+
 cd .. || Fail "Could not change back to src directory."
 cat pass.txt
 exit 0

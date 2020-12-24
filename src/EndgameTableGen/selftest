@@ -1,0 +1,3 @@
+#!/bin/bash
+dotnet run -- test 2 || exit $?
+exit 0
