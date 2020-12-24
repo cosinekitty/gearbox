@@ -23,6 +23,11 @@ EndgameTableGen gen N
     If the program is interrupted and resumed, will
     load all the tables that were completed and resume
     at the first unwritten table.
+
+EndgameTableGen test N
+    Perform a self-test on generating distinct positions
+    without duplicates, consistent table indexes, etc.
+    Does not write any tables to disk.
 ";
 
         static int Main(string[] args)
@@ -53,7 +58,10 @@ EndgameTableGen gen N
                     return new TablePrinter();
 
                 case "gen":
-                    return new TableGenerator();
+                    return new TableGenerator { EnableTableGeneration = true, EnableSelfCheck = true };
+
+                case "test":
+                    return new TableGenerator { EnableTableGeneration = false, EnableSelfCheck = true };
 
                 default:
                     return null;

@@ -23,6 +23,8 @@ namespace EndgameTableGen
 
         private readonly Stopwatch chrono = new Stopwatch();
         private readonly Dictionary<string, Table> finished = new Dictionary<string, Table>();
+        public bool EnableSelfCheck = true;
+        public bool EnableTableGeneration = true;
 
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
         {
@@ -51,7 +53,7 @@ namespace EndgameTableGen
 
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
-            if (File.Exists(filename))
+            if (EnableTableGeneration && File.Exists(filename))
             {
                 // We have already calculated this endgame table. Load it from disk.
                 table = Table.Load(filename, size);
@@ -64,17 +66,23 @@ namespace EndgameTableGen
                 // Generate the table.
                 table = new Table(size);
 
-                WhiteCount = BlackCount = 0;
-                ForEachPosition(table, config, SelfTest);
-                Log("SelfTest: {0:n0} White positions, {1:n0} Black positions.", WhiteCount, BlackCount);
-                table.Clear();
+                if (EnableSelfCheck)
+                {
+                    WhiteCount = BlackCount = 0;
+                    ForEachPosition(table, config, SelfTest);
+                    Log("SelfTest: {0:n0} White positions, {1:n0} Black positions.", WhiteCount, BlackCount);
+                    table.Clear();
+                }
 
-                int sum = ForEachPosition(table, config, FindCheckmate);
-                Log("Found {0} checkmates.", sum);
+                if (EnableTableGeneration)
+                {
+                    int sum = ForEachPosition(table, config, FindCheckmate);
+                    Log("Found {0} checkmates.", sum);
 
-                // Save the table to disk.
-                table.Save(filename);
-                Log("Saved: {0}", filename);
+                    // Save the table to disk.
+                    table.Save(filename);
+                    Log("Saved: {0}", filename);
+                }
             }
 
             // Store the finished table in memory.
