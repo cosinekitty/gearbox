@@ -57,7 +57,7 @@ namespace EndgameTableGen
             data[k] = (byte)(score >> 4);
 
             // Save the lower 4 bits of the score in the upper half of the second byte.
-            data[k+1] = (byte) ((data[k+1] & 0x0f) | (score & 0x00f));
+            data[k+1] = (byte) ((data[k+1] & 0x0f) | ((score & 0x00f) << 4));
         }
 
         public void SetBlackScore(int tindex, int score)
@@ -72,6 +72,26 @@ namespace EndgameTableGen
 
             // Save the lower 8 bits of the score in the third byte.
             data[k+2] = (byte) (score & 0x0ff);
+        }
+
+        public int GetWhiteScore(int tindex)
+        {
+            int k = 3 * tindex;
+            int s = ((int)data[k] << 4) | ((int)data[k+1] >> 4);
+            // Sign-extend to restore negative scores.
+            if (0 != (s & 0x800))
+                s |= ~0xfff;
+            return s;
+        }
+
+        public int GetBlackScore(int tindex)
+        {
+            int k = 3 * tindex;
+            int s = (((int)data[k+1] & 0x0f) << 8) | (int)data[k+2];
+            // Sign-extend to restore negative scores.
+            if (0 != (s & 0x800))
+                s |= ~0xfff;
+            return s;
         }
     }
 }
