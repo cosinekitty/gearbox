@@ -250,6 +250,19 @@ namespace EndgameTableGen
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
                         {
+                            int ep = board.GetEpTarget();
+                            if (ofs == ep || ofs == ep + Direction.N || ofs == ep + Direction.S)
+                            {
+                                // We can't put anything in the empty space behind a pawn that
+                                // has just moved two squares. The square behind that pawn
+                                // is called the "en passant target", where an enemy pawn could land
+                                // after an en passant capture.
+                                // Tricky: the above logic works whether the target pawn is white or black.
+                                // One of (ep+N), (ep+S) will be the empty square the pawn just double-moved from,
+                                // and the other will be where the pawn landed.
+                                continue;
+                            }
+
                             square[ofs] = Square.WP;
 
                             sum += PositionSearch(
@@ -261,7 +274,7 @@ namespace EndgameTableGen
                                 false,     // we don't need diag filter when there are pawns
                                 (whiteRemaining > 1) ? (i + 1) : 0);
 
-                            if (RankNumber(ofs) == 4)
+                            if (RankNumber(ofs) == 4 && ep == 0)
                             {
                                 // A White pawn on the fourth rank could have just moved two squares to get there,
                                 // but only if the two squares behind it are empty!
@@ -294,6 +307,19 @@ namespace EndgameTableGen
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
                         {
+                            int ep = board.GetEpTarget();
+                            if (ofs == ep || ofs == ep + Direction.N || ofs == ep + Direction.S)
+                            {
+                                // We can't put anything in the empty space behind a pawn that
+                                // has just moved two squares. The square behind that pawn
+                                // is called the "en passant target", where an enemy pawn could land
+                                // after an en passant capture.
+                                // Tricky: the above logic works whether the target pawn is white or black.
+                                // One of (ep+N), (ep+S) will be the empty square the pawn just double-moved from,
+                                // and the other will be where the pawn landed.
+                                continue;
+                            }
+
                             square[ofs] = Square.BP;
 
                             sum += PositionSearch(
@@ -305,7 +331,7 @@ namespace EndgameTableGen
                                 false,     // we don't need diag filter when there are pawns
                                 (blackRemaining > 1) ? (i + 1) : 0);
 
-                            if (RankNumber(ofs) == 5)
+                            if (RankNumber(ofs) == 5 && board.GetEpTarget() == 0)
                             {
                                 // A White pawn on the fifth rank could have just moved two squares to get there,
                                 // but only if the two squares behind it are empty!

@@ -1829,6 +1829,11 @@ namespace Gearbox
             epTargetOffset = ep;
         }
 
+        public int GetEpTarget()
+        {
+            return epTargetOffset;
+        }
+
         public void PlaceWhiteKing(int ofs)
         {
             if (wkofs > 0 && wkofs != ofs && square[wkofs] == Square.WK)
