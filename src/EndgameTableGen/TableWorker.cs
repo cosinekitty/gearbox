@@ -54,26 +54,8 @@ namespace EndgameTableGen
             // Are there any pawns on the board?
             if (p > 0)
             {
-                // Consume one of the pawns.
-                --p;
-
-                // Use left/right symmetry to force the consumed pawn
-                // to the left side of the board.
-                // For simplicity, assume en passant captures are possible,
-                // even when only one side has pawn(s).
-                // We treat a pawn that has just moved 2 squares forward
-                // as if it rests on an imaginary square hovering above
-                // the actual square it landed on.
-                // There can be at most one such pawn on the board at any time.
-                // Therefore, if any pawn just moved two squares, it becomes
-                // the "primary" pawn. Otherwise, the primary pawn is the pawn
-                // (White or Black) having the alphabetically lowest algebraic coordinates.
-                // Accounting for left/right symmetry, the primary pawn can be in
-                // one of 6*4 + 4 = 28 states.
-                size *= 28;
-
-                // The White King can be anywhere on the board (no symmetry exploits for it).
-                size *= 64;
+                // Use left/right symmetry to force the White King to the left side of the board.
+                size *= 32;
             }
             else
             {
@@ -85,9 +67,9 @@ namespace EndgameTableGen
             // The Black King can go in any of 64 squares.
             size *= 64;
 
-            // Any remaining pawns may appear in 48 different squares.
+            // Pawns may appear in 48 different squares.
             // But en passant captures are possible when the pawn has just
-            // moved two squares forward, yielding 48 + 8 = 56 possible states.
+            // moved two squares forward, yielding 48 + 8 = 56 possible states for each pawn.
             while (p-- > 0)
                 size *= 56;
 
@@ -108,7 +90,7 @@ namespace EndgameTableGen
             string now = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             now = now.Substring(0, now.Length-6) + "Z";     // convert "...:29.2321173Z" to "...:29.23Z"
             Console.Write(now);
-            Console.Write(" ");
+            Console.Write("  ");
             Console.WriteLine(format, args);
             Console.Out.Flush();    // in case being redirected to a file, so 'tail -f' or 'tee' works.
         }
