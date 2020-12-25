@@ -127,12 +127,12 @@ namespace EndgameTableGen
                 // A mirror image across that diagonal can yield two different but equivalent positions.
                 // We break the tie by working the position that leaves the first off-diagonal piece
                 // below the diagonal. If *all* pieces are on the diagonal, there is no redundancy to resolve.
-                int diag = Board.DiagonalHeight(Board.IndexFromOffset(wkofs));
+                int diag = Position.DiagonalHeight(Position.IndexFromOffset(wkofs));
                 bool need_diag_filter = (pawns == 0) && (diag == 0);
 
                 for (int bkindex = 0; bkindex < WholeBoardOffsetTable.Length; ++bkindex)
                 {
-                    if (need_diag_filter && Board.DiagonalHeight(bkindex) > 0)
+                    if (need_diag_filter && Position.DiagonalHeight(bkindex) > 0)
                         continue;   // eliminate redundant board positions when using 8-fold symmetry and white king is on the diagonal
 
                     int bkofs = WholeBoardOffsetTable[bkindex];
@@ -184,7 +184,7 @@ namespace EndgameTableGen
                 {
                     for (int wi = startIndex; wi < WholeBoardOffsetTable.Length; ++wi)
                     {
-                        int diag = Board.DiagonalHeight(wi);
+                        int diag = Position.DiagonalHeight(wi);
                         if (need_diag_filter && (diag > 0))
                             continue;   // this is a redundant position, compared to a diagonal mirror image
 
@@ -211,7 +211,7 @@ namespace EndgameTableGen
                     // A Black, non-pawn, non-king piece can be placed in any of the 64 squares, so long as that square is empty.
                     for (int bi = startIndex; bi < WholeBoardOffsetTable.Length; ++bi)
                     {
-                        int diag = Board.DiagonalHeight(bi);
+                        int diag = Position.DiagonalHeight(bi);
                         if (need_diag_filter && (diag > 0))
                             continue;   // this is a redundant position, compared to a diagonal mirror image
 
@@ -447,7 +447,7 @@ namespace EndgameTableGen
             ++CallCount;
 
             // Verify we are calculating all the table indexes correctly.
-            int check = board.GetEndgameTableIndex();
+            int check = board.GetEndgameTableIndex(false);
             if (check != tindex)
                 throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check, tindex, board.ForsythEdwardsNotation()));
 

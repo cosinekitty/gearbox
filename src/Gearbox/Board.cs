@@ -1511,7 +1511,7 @@ namespace Gearbox
 
         public const int MaxEndgamePieces = 5;
 
-        public long GetEndgameConfig()
+        public long GetEndgameConfig(bool reverseSides)
         {
             if (castling != CastlingFlags.None)
                 return -1;  // castling and endgame tables don't mix!
@@ -1531,236 +1531,71 @@ namespace Gearbox
             // Calculate the decimal integer QqRrBbNnPp.
             // This identifies the lookup table to use.
             long config = 0;
-            int w = (int)Square.White;
-            int b = (int)Square.Black;
+            int w = (int)(reverseSides ? Square.Black : Square.White);
+            int b = (int)(reverseSides ? Square.White : Square.Black);
             for (int p = (int)Square.Queen; p >= (int)Square.Pawn; --p)
                 config = 100*config + 10*inventory[p|w] + inventory[p|b];
 
             return config;
         }
 
+        private static int ReverseSideOffset(int ofs)
+        {
+            // Swap offsets from the point of view of White
+            // with equivalents from the point of view of Black.
+            int x = ofs % 10;
+            int y = ofs / 10;
+            return 10*(11 - y) + x;
+        }
+
         private readonly Position PositionCache = new Position();
 
-        public void GetPosition(Position pos)
+        public void GetPosition(Position pos, bool reverseSides)
         {
             pos.Clear();
 
-            for (int y = 21; y <= 91; y += 10)
+            if (reverseSides)
             {
-                for (int x = 0; x < 8; ++x)
+                // Flip the board and toggle White and Black.
+                pos.EpTargetOffset = (epTargetOffset == 0) ? 0 : ReverseSideOffset(epTargetOffset);
+
+                for (int y = 21; y <= 91; y += 10)
                 {
-                    int ofs = x + y;
-                    Square piece = square[ofs];
-                    if (piece != Square.Empty)
-                        pos.Append(piece, ofs);
-                }
-            }
-        }
-
-        public static int DiagonalHeight(int index)
-        {
-            // Returns how far above or below the a1..h8 diagonal the given index is.
-            // If the return value is 0, the index is on that diagonal.
-            // If it is positive, the index is northwest of the diagonal.
-            // If it is negative, the index is southeast of the diagonal.
-            if (index < 0 || index > 63)
-                throw new ArgumentException(string.Format("Invalid index {0}", index));
-            int y = index / 8;
-            int x = index % 8;
-            return y - x;
-        }
-
-        public int GetEndgameTableIndex()
-        {
-            return GetEndgameTableIndex(PositionCache);
-        }
-
-        public int GetEndgameTableIndex(Position pos)
-        {
-            GetPosition(pos);
-
-            Debug.Assert(pos.PieceList[Position.WK].Count == 1);
-            Debug.Assert(pos.PieceList[Position.WK].Array[0].Offset == wkofs);
-            Debug.Assert(pos.PieceList[Position.BK].Count == 1);
-            Debug.Assert(pos.PieceList[Position.BK].Array[0].Offset == bkofs);
-
-            int wp = pos.PieceList[Position.WP].Count;
-            int bp = pos.PieceList[Position.BP].Count;
-            int pawns = wp + bp;
-
-            int wkindex = IndexFromOffset(wkofs);
-            int bkindex = IndexFromOffset(bkofs);
-            int wkflip = -1;
-            int bkflip = -1;
-            Transform best_transform = Transform.Undefined;
-            int tindex;
-            if (pawns == 0)
-            {
-                // When there are no pawns, we get the most symmetry benefit
-                // from forcing the white king from a realm of 64 squares
-                // int a realm of 10 squares.
-                for (int t = 0; t < 8; ++t)
-                {
-                    Transform transform = (Transform)t;
-                    int try_wkflip = Symmetry.ForwardTransform(wkindex, transform);
-                    int try_bkflip = Symmetry.ForwardTransform(bkindex, transform);
-                    if (EightfoldSymmetryLookup[try_wkflip] >= 0)
+                    for (int x = 0; x < 8; ++x)
                     {
-                        // Depending on the position, there are either 1 or 2 distinct
-                        // transforms that flip the white king onto one of the magic group of 10 squares.
-                        // The double case is when the white king is on the diagonal a1..h8.
-                        // In that case, look for the first piece that is off the diagonal.
-                        // If such a piece exists, pick the transform
-                        // that keeps it on or below the diagonal. If no such piece exists
-                        // (everything is on the diagonal), then there is no ambiguity.
-
-                        int wk_diag = DiagonalHeight(try_wkflip);
-                        Debug.Assert(wk_diag <= 0);
-                        if (wk_diag == 0)
+                        int ofs = x + y;
+                        Square piece = square[ofs];
+                        if (piece != Square.Empty)
                         {
-                            int p_diag = pos.FirstOffDiagonalHeight(transform);
-                            if (p_diag > 0)
-                                continue;   // Eliminate this redundant transform... try the next one.
+                            Square oppositeSidePiece = piece ^ (Square.White | Square.Black);
+                            int flipOffset = ReverseSideOffset(ofs);
+                            pos.Append(oppositeSidePiece, flipOffset);
                         }
-
-                        // We have found the best transform.
-                        wkflip = try_wkflip;
-                        bkflip = try_bkflip;
-                        best_transform = transform;
                     }
                 }
-
-                if (wkflip == -1)
-                    throw new Exception("Did not find a solution.");
-
-                tindex = 64*EightfoldSymmetryLookup[wkflip] + bkflip;
             }
             else
             {
-                // When there are pawns on the board, we can only use left/right symmetry.
-                // If the White King is on the right side of the board (files e..h),
-                // flip the board so that it moves to the left side (files a..d).
-                if (LeftRightSymmetryLookup[wkindex] >= 0)
-                    best_transform = Transform.Identity;
-                else
-                    best_transform = Transform.LeftRight;
+                // Reflect the board as-is into 'pos'.
+                pos.EpTargetOffset = epTargetOffset;
 
-                wkflip = Symmetry.ForwardTransform(wkindex, best_transform);
-                bkflip = Symmetry.ForwardTransform(bkindex, best_transform);
-                tindex = 64*LeftRightSymmetryLookup[wkflip] + bkflip;
-            }
-
-            // Apply the best transform to all the pieces in the position.
-            pos.ForwardTransform(best_transform);
-
-            // The pieces that are not kings and not pawns are all the same.
-            // They all contribute a base-64 digit to the table index.
-            for (int p = Position.WQ; p < Position.WP; ++p)
-            {
-                PieceLocationList list = pos.PieceList[p];
-                for (int i = 0; i < list.Count; ++i)
-                    tindex = 64*tindex + list.Array[i].Index;
-            }
-
-            // Pawns are different for two reasons:
-            // 1. They exist in only one of 48 squares, not one of 64.
-            // 2. But they can be in an en passant target state, in which case
-            //    we treat them as existing in an additional 8 possible states,
-            //    for a total of 56 quasi-squares.
-            // So we save some table space by using a base-56 digit rather
-            // than a base-64 digit for each pawn.
-            // I considered adding an extra base-9 digit to encode the
-            // en passant target file (none, or a..h), but even if there
-            // were 8 pawns on the board, this would add more to the table size:
-            // (56/48)^8 = 3.432213672648988 < 9.
-            // This puzzled me at first, but then I realized that the
-            // former approach benefits from the fact that only pawns
-            // on their player's fourth rank can be in the en passant state.
-
-            // Encode the white pawns.
-            PieceLocationList wp_list = pos.PieceList[Position.WP];
-            for (int i=0; i < wp_list.Count; ++i)
-            {
-                PieceLocation loc = wp_list.Array[i];
-                int digit = loc.Index - 8;     // pawns can't be on first rank
-                if (loc.Offset + Direction.S == epTargetOffset)
+                for (int y = 21; y <= 91; y += 10)
                 {
-                    // Any white pawn that has just moved two squares forward
-                    // (whether or not Black can capture it en passant)
-                    // must have its digit adjusted from White's fourth rank
-                    // to a virtual eighth rank.
-                    digit += 32;    // adjust to the range 48..55.
+                    for (int x = 0; x < 8; ++x)
+                    {
+                        int ofs = x + y;
+                        Square piece = square[ofs];
+                        if (piece != Square.Empty)
+                            pos.Append(piece, ofs);
+                    }
                 }
-                tindex = 56*tindex + digit;
             }
-
-            // Encode the black pawns.
-            PieceLocationList bp_list = pos.PieceList[Position.BP];
-            for (int i=0; i < bp_list.Count; ++i)
-            {
-                PieceLocation loc = bp_list.Array[i];
-                int digit = loc.Index - 8;    // pawns can't be on first rank
-                if (loc.Offset + Direction.N == epTargetOffset)
-                {
-                    // Any black pawn that has just moved two squares forward
-                    // (whether or not White can capture it en passant)
-                    // must have its digit adjusted from Black's fourth rank
-                    // to a virtual eighth rank.
-                    // Tricky: Black's fourth rank is White's fifth rank,
-                    // so the adjustment is a little different!
-                    digit += 24;    // adjust to the range 48..55.
-                }
-                tindex = 56*tindex + digit;
-            }
-
-            return tindex;
         }
 
-        private static readonly int[] EightfoldSymmetryLookup = MakeKingSymmetryLookup();
-        private static int[] MakeKingSymmetryLookup()
+        public int GetEndgameTableIndex(bool reverseSides)
         {
-            var lookup = new int[64];
-
-            for (int i=0; i < lookup.Length; ++i)
-                lookup[i] = -1;
-
-            int count = 0;
-            for (int y = 0; y < 4; ++y)
-                for (int x = y; x < 4; ++x)
-                    lookup[x + 8*y] = count++;
-
-            return lookup;
-        }
-
-        private static readonly int[] LeftRightSymmetryLookup = MakeLeftRightSymmetryLookup();
-        private static int[] MakeLeftRightSymmetryLookup()
-        {
-            var lookup = new int[64];
-            for (int i=0; i < lookup.Length; ++i)
-                lookup[i] = -1;
-
-            int count = 0;
-            for (int y=0; y < 8; ++y)
-                for (int x=0; x < 4; ++x)
-                    lookup[x + 8*y] = count++;
-
-            return lookup;
-        }
-
-        public static int IndexFromOffset(int offset)
-        {
-            // Convert square[] index 21..98 to tablebase index 0..63.
-            int x = (offset % 10) - 1;
-            int y = (offset / 10) - 2;
-            return 8*y + x;
-        }
-
-        public static int OffsetFromIndex(int index)
-        {
-            // Convert tablebase index 0..63 to square[] index 21..98.
-            int x = index % 8;
-            int y = index / 8;
-            return 21 + 10*y + x;
+            GetPosition(PositionCache, reverseSides);
+            return PositionCache.GetEndgameTableIndex();
         }
 
         #endregion
