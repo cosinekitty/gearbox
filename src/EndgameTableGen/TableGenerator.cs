@@ -507,17 +507,31 @@ namespace EndgameTableGen
             return 1;
         }
 
+        private int GetScore(Table table, bool isWhiteTurn, int tindex)
+        {
+            return isWhiteTurn ? table.GetWhiteScore(tindex) : table.GetBlackScore(tindex);
+        }
+
+        private void SetScore(Table table, bool isWhiteTurn, int tindex, int score)
+        {
+            if (isWhiteTurn)
+                table.SetWhiteScore(tindex, score);
+            else
+                table.SetBlackScore(tindex, score);
+        }
+
         private int FindForcedMates(Table table, Board board, int tindex)
         {
+            // If we have already scored a position, don't try to work it again.
+            if (0 != GetScore(table, board.IsWhiteTurn, tindex))
+                return 0;
+
             if (PlyLevel == 0)
             {
                 // Look for immediate checkmates only.
                 if (board.IsCheckmate())
                 {
-                    if (board.IsWhiteTurn)
-                        table.SetWhiteScore(tindex, FriendMatedScore);
-                    else
-                        table.SetBlackScore(tindex, FriendMatedScore);
+                    SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
                     return 1;
                 }
             }
@@ -533,6 +547,7 @@ namespace EndgameTableGen
                 {
                     Move move = LegalMoveList.array[i];
                     board.PushMove(move);
+
                     int next_tindex = board.GetEndgameTableIndex(false);
                     long next_wconfig = board.GetEndgameConfig(false);
                     int score;
@@ -540,10 +555,7 @@ namespace EndgameTableGen
                     {
                         // We are still in the same endgame table (move is not a capture/promotion).
                         Debug.Assert(!move.IsCaptureOrPromotion());
-                        if (board.IsWhiteTurn)
-                            score = table.GetWhiteScore(next_tindex);
-                        else
-                            score = table.GetBlackScore(next_tindex);
+                        score = GetScore(table, board.IsWhiteTurn, next_tindex);
                     }
                     else
                     {
@@ -556,19 +568,13 @@ namespace EndgameTableGen
                         Table next_table;
                         if (finished.TryGetValue(next_wconfig, out next_table))
                         {
-                            if (board.IsWhiteTurn)
-                                score = next_table.GetWhiteScore(next_tindex);
-                            else
-                                score = next_table.GetBlackScore(next_tindex);
+                            score = GetScore(next_table, board.IsWhiteTurn, next_tindex);
                         }
                         else if (finished.TryGetValue(board.GetEndgameConfig(true), out next_table))
                         {
                             // We flipped into a mirror image of a previously computed configuration.
-                            int other_tindex = board.GetEndgameTableIndex(true);
-                            if (board.IsWhiteTurn)
-                                score = next_table.GetBlackScore(other_tindex);
-                            else
-                                score = next_table.GetWhiteScore(other_tindex);
+                            int reverse_tindex = board.GetEndgameTableIndex(true);
+                            score = GetScore(next_table, board.IsBlackTurn, reverse_tindex);
                         }
                         else if (board.IsDrawByInsufficientMaterial())
                         {
@@ -597,11 +603,7 @@ namespace EndgameTableGen
                 Debug.Assert(bestscore != Score.NegInf);
                 if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
                 {
-                    if (board.IsWhiteTurn)
-                        table.SetWhiteScore(tindex, bestscore);
-                    else
-                        table.SetBlackScore(tindex, bestscore);
-
+                    SetScore(table, board.IsWhiteTurn, tindex, bestscore);
                     return 1;
                 }
             }
