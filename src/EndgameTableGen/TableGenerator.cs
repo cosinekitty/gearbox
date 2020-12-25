@@ -81,8 +81,12 @@ namespace EndgameTableGen
                 if (EnableSelfCheck)
                 {
                     WhiteCount = BlackCount = 0;
-                    ForEachPosition(table, config, SelfTest);
-                    Log("SelfTest: {0:n0} White positions, {1:n0} Black positions.", WhiteCount, BlackCount);
+                    int total = ForEachPosition(table, config, SelfTest);
+                    double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
+                    Log("SelfTest: {0:n0} White positions, {1:n0} Black positions, {2:n0} total; ratio = {3}.",
+                        WhiteCount, BlackCount, total, ratio.ToString("F6"));
+                    Debug.Assert(total == WhiteCount + BlackCount);
+                    Debug.Assert(total < 2*size);
                     table.Clear();
                 }
 
@@ -99,8 +103,15 @@ namespace EndgameTableGen
                     {
                         prev_sum = sum;
                         total += sum = ForEachPosition(table, config, FindForcedMates);
-                        double ratio = (double)total / (double)size;
-                        Log("PlyLevel {0}: Added {1} positions for a total of {2}/{3} = {4}.", PlyLevel, sum, total, size, ratio.ToString("F4"));
+
+                        // There are up to 2 scores per position (one for White, one for Black).
+                        double ratio = (double)total / (2.0 * size);
+                        Log("PlyLevel {0}: Added {1} scores for a total of {2}/{3} = {4}.", PlyLevel, sum, total, 2*size, ratio.ToString("F4"));
+
+                        // It should never be possible to even reach table saturation,
+                        // because the table index scheme accomodates putting more than one piece in the same square,
+                        // which never happens in an actual position.
+                        Debug.Assert(total < 2*size);
                     }
 
                     // Save the table to disk.
