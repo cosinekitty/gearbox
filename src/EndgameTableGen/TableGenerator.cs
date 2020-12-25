@@ -86,10 +86,16 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
-                    long sum = -1;
+                    long prev_sum = 1;
+                    long sum = 1;
                     long total = 0;
-                    for (PlyLevel = 0; sum != 0; ++PlyLevel)
+                    // For the KP vs K table, we don't find immediate checkmates.
+                    // So we can't stop as soon as sum == 0.
+                    // In general, we allow 2 levels to go by without any progress before stopping,
+                    // because we want both Black and White to get another turn.
+                    for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
                     {
+                        prev_sum = sum;
                         total += sum = ForEachPosition(table, config, FindForcedMates);
                         double ratio = (double)total / (double)size;
                         Log("PlyLevel {0}: Added {1} positions for a total of {2}/{3} = {4}.", PlyLevel, sum, total, size, ratio.ToString("F4"));
@@ -544,8 +550,8 @@ namespace EndgameTableGen
                         // Capture or promotion has moved us to a different table.
                         Debug.Assert(move.IsCaptureOrPromotion());
 
-                        // I don't think it's possible for us to toggle to the mirror image configuration.
-                        Debug.Assert(board.GetEndgameConfig(true) != BlackEndgameConfig);
+                        // I don't think it's possible for us to toggle to the mirror image of the current configuration.
+                        Debug.Assert(next_wconfig != BlackEndgameConfig);
 
                         Table next_table;
                         if (finished.TryGetValue(next_wconfig, out next_table))
@@ -555,6 +561,15 @@ namespace EndgameTableGen
                             else
                                 score = next_table.GetBlackScore(next_tindex);
                         }
+                        else if (finished.TryGetValue(board.GetEndgameConfig(true), out next_table))
+                        {
+                            // We flipped into a mirror image of a previously computed configuration.
+                            int other_tindex = board.GetEndgameTableIndex(true);
+                            if (board.IsWhiteTurn)
+                                score = next_table.GetBlackScore(other_tindex);
+                            else
+                                score = next_table.GetWhiteScore(other_tindex);
+                        }
                         else if (board.IsDrawByInsufficientMaterial())
                         {
                             // We have wandered into a draw by insufficient material.
@@ -562,7 +577,9 @@ namespace EndgameTableGen
                             score = 0;
                         }
                         else
+                        {
                             throw new Exception(string.Format("Don't know how to handle endgame position: {0}", board.ForsythEdwardsNotation()));
+                        }
                     }
 
                     // Adjust for negamax and ply delay.
