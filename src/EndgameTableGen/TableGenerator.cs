@@ -30,8 +30,8 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
-        public long WhiteEndgameConfig;
-        public long BlackEndgameConfig;
+        public long WhiteConfigId;
+        public long BlackConfigId;
 
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
         {
@@ -52,6 +52,7 @@ namespace EndgameTableGen
         public override void Start()
         {
             chrono.Restart();
+            Debug.Assert(ReverseSideConfigId(1234567851) == 2143658715);
         }
 
         public override void GenerateTable(int[,] config)
@@ -59,9 +60,10 @@ namespace EndgameTableGen
             Table table;
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
-            WhiteEndgameConfig = GetEndgameConfig(config, false);
-            BlackEndgameConfig = GetEndgameConfig(config, true);
-            Log("WhiteEndgameConfig = {0}, BlackEndgameConfig = {1}", WhiteEndgameConfig, BlackEndgameConfig);
+            WhiteConfigId = GetConfigId(config, false);
+            BlackConfigId = GetConfigId(config, true);
+            Log("WhiteConfigId = {0}, BlackConfigId = {1}", WhiteConfigId.ToString("D10"), BlackConfigId.ToString("D10"));
+            Debug.Assert(ReverseSideConfigId(WhiteConfigId) == BlackConfigId);
 
             if (EnableTableGeneration && File.Exists(filename))
             {
@@ -108,7 +110,7 @@ namespace EndgameTableGen
             }
 
             // Store the finished table in memory.
-            finished.Add(WhiteEndgameConfig, table);
+            finished.Add(WhiteConfigId, table);
         }
 
         public override void Finish()
@@ -481,9 +483,9 @@ namespace EndgameTableGen
                 throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check_tindex, tindex, board.ForsythEdwardsNotation()));
 
             // Verify we are calculating config identifiers consistently.
-            long check_config = board.GetEndgameConfig(false);
-            if (check_config != WhiteEndgameConfig)
-                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_config, WhiteEndgameConfig, board.ForsythEdwardsNotation()));
+            long check_id = board.GetEndgameConfigId(false);
+            if (check_id != WhiteConfigId)
+                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_id, WhiteConfigId, board.ForsythEdwardsNotation()));
 
             if (board.IsWhiteTurn)
             {
@@ -549,9 +551,12 @@ namespace EndgameTableGen
                     board.PushMove(move);
 
                     int next_tindex = board.GetEndgameTableIndex(false);
-                    long next_wconfig = board.GetEndgameConfig(false);
+                    long w_next_id = board.GetEndgameConfigId(false);
+                    long b_next_id = ReverseSideConfigId(w_next_id);
+                    Debug.Assert(b_next_id == board.GetEndgameConfigId(true));
+
                     int score;
-                    if (next_wconfig == WhiteEndgameConfig)
+                    if (w_next_id == WhiteConfigId)
                     {
                         // We are still in the same endgame table (move is not a capture/promotion).
                         Debug.Assert(!move.IsCaptureOrPromotion());
@@ -563,14 +568,14 @@ namespace EndgameTableGen
                         Debug.Assert(move.IsCaptureOrPromotion());
 
                         // I don't think it's possible for us to toggle to the mirror image of the current configuration.
-                        Debug.Assert(next_wconfig != BlackEndgameConfig);
+                        Debug.Assert(w_next_id != BlackConfigId);
 
                         Table next_table;
-                        if (finished.TryGetValue(next_wconfig, out next_table))
+                        if (finished.TryGetValue(w_next_id, out next_table))
                         {
                             score = GetScore(next_table, board.IsWhiteTurn, next_tindex);
                         }
-                        else if (finished.TryGetValue(board.GetEndgameConfig(true), out next_table))
+                        else if (finished.TryGetValue(b_next_id, out next_table))
                         {
                             // We flipped into a mirror image of a previously computed configuration.
                             int reverse_tindex = board.GetEndgameTableIndex(true);
@@ -604,10 +609,40 @@ namespace EndgameTableGen
                 if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
                 {
                     SetScore(table, board.IsWhiteTurn, tindex, bestscore);
+
+                    if (WhiteConfigId == BlackConfigId)
+                    {
+                        // This configuration has symmetrical White/Black material.
+                        // Therefore we can score two positions at the same time!
+                        int reverse_tindex = board.GetEndgameTableIndex(true);
+                        Debug.Assert(reverse_tindex != tindex);
+                        SetScore(table, board.IsBlackTurn, reverse_tindex, bestscore);
+                        return 2;
+                    }
+
                     return 1;
                 }
             }
             return 0;
+        }
+
+        private static long ReverseSideConfigId(long id)
+        {
+            if (id < 0 || id > 9999999999)
+                throw new ArgumentException(string.Format("Invalid config id: {0}", id));
+
+            // Swap the even/odd decimal digits to swap the White/Black material.
+            long rev = 0;
+            long pow = 1;
+            for (int i=0; i < 5; ++i)
+            {
+                long shift = id / pow;
+                long b = shift % 10;
+                long w = (shift / 10) % 10;
+                rev += pow * (10*b + w);
+                pow *= 100;
+            }
+            return rev;
         }
     }
 }

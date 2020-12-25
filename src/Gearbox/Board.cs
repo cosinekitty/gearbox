@@ -1519,7 +1519,7 @@ namespace Gearbox
 
         public const int MaxEndgamePieces = 5;
 
-        public long GetEndgameConfig(bool reverseSides)
+        public long GetEndgameConfigId(bool reverseSides)
         {
             if (castling != CastlingFlags.None)
                 return -1;  // castling and endgame tables don't mix!
@@ -1535,13 +1535,13 @@ namespace Gearbox
 
             // Calculate the decimal integer QqRrBbNnPp.
             // This identifies the lookup table to use.
-            long config = 0;
+            long id = 0;
             int w = (int)(reverseSides ? Square.Black : Square.White);
             int b = (int)(reverseSides ? Square.White : Square.Black);
             for (int p = (int)Square.Queen; p >= (int)Square.Pawn; --p)
-                config = 100*config + 10*inventory[p|w] + inventory[p|b];
+                id = 100*id + 10*inventory[p|w] + inventory[p|b];
 
-            return config;
+            return id;
         }
 
         private static int ReverseSideOffset(int ofs)

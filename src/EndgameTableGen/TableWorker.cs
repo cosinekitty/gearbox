@@ -23,24 +23,7 @@ namespace EndgameTableGen
         public abstract void GenerateTable(int[,] config);
         public abstract void Finish();
 
-        protected string ConfigSymbol(int[,] config)
-        {
-            // Return a string in the form "QqRrBbNnPp",
-            // where each is a decimal digit.
-            // Fail if any piece count is greater than 9.
-            // (Possible only when all pawns promoted to knights/bishops... LOL.)
-            var sb = new StringBuilder();
-            for (int mover=0; mover < NumNonKings; ++mover)
-                for (int side=0; side < NumSides; ++side)
-                    if (0 <= config[side,mover] && config[side,mover] <= 9)
-                        sb.Append(config[side,mover]);
-                    else
-                        throw new ArgumentException("Invalid mover count in config[]");
-
-            return sb.ToString();
-        }
-
-        protected long GetEndgameConfig(int[,] config, bool reverseSides)      // same idea as board.GetEndgameConfig
+        protected long GetConfigId(int[,] config, bool reverseSides)      // same idea as board.GetConfigId
         {
             // Calculate the decimal integer QqRrBbNnPp.
             // This identifies the lookup table to use.
@@ -55,8 +38,11 @@ namespace EndgameTableGen
 
         protected string ConfigFileName(int[,] config)
         {
+            long id = GetConfigId(config, false);
+            if (id <= 0)
+                throw new ArgumentException("Invalid endgame configuration.");
             string dir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ?? Environment.CurrentDirectory;
-            string fn = ConfigSymbol(config) + ".endgame";
+            string fn = id.ToString("D10") + ".endgame";
             return Path.Combine(dir, fn);
         }
 
