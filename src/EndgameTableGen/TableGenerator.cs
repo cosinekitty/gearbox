@@ -247,13 +247,17 @@ namespace EndgameTableGen
                         0);
                 }
             }
-            else // pieceIndex == P_INDEX
+            else if (whiteRemaining + blackRemaining > 0)   // pieceIndex == P_INDEX
             {
                 // If both White and Black have at least one pawn, en passant captures are possible.
                 // In this case, the side that just moved could have moved a pawn two squares forward,
                 // creating an en passant capture opportunity.
-                // To keep table index calculations as simple as possible, always assume en passant captures are possible,
-                // even when only one side has pawn(s).
+                // Then pawns can be in one of 48 + 8 = 56 different states.
+                // Otherwise, pawns can only be in one of 48 states.
+                int wp = config[WHITE, P_INDEX];
+                int bp = config[BLACK, P_INDEX];
+                bool isEnPassantPossible = (wp > 0 && bp > 0);
+                int pawnFactor = isEnPassantPossible ? 56 : 48;
 
                 if (whiteRemaining > 0)
                 {
@@ -263,6 +267,8 @@ namespace EndgameTableGen
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
                         {
+                            // Tricky: board.GetEpTarget() will always return 0 when isEnPassantPossible is false.
+                            // That's because we will never call board.SetEpTarget().
                             int ep = board.GetEpTarget();
                             if (ofs == ep || ofs == ep + Direction.N || ofs == ep + Direction.S)
                             {
@@ -280,14 +286,14 @@ namespace EndgameTableGen
 
                             sum += PositionSearch(
                                 func, table, config, board,
-                                (56 * tableIndex) + i,
+                                (pawnFactor * tableIndex) + i,
                                 pieceIndex,
                                 whiteRemaining - 1,
                                 blackRemaining,
                                 false,     // we don't need diag filter when there are pawns
                                 (whiteRemaining > 1) ? (i + 1) : 0);
 
-                            if (RankNumber(ofs) == 4 && ep == 0)
+                            if (isEnPassantPossible && RankNumber(ofs) == 4 && ep == 0)
                             {
                                 // A White pawn on the fourth rank could have just moved two squares to get there,
                                 // but only if the two squares behind it are empty!
@@ -297,7 +303,7 @@ namespace EndgameTableGen
 
                                     sum += PositionSearch(
                                         func, table, config, board,
-                                        (56 * tableIndex) + (i + 32),
+                                        (pawnFactor * tableIndex) + (i + 32),
                                         pieceIndex,
                                         whiteRemaining - 1,
                                         blackRemaining,
@@ -312,7 +318,7 @@ namespace EndgameTableGen
                         }
                     }
                 }
-                else if (blackRemaining > 0)
+                else // blackRemaining > 0
                 {
                     // Try putting the next Black pawn everywhere it can go.
                     for (int i=0; i < PawnOffsetTable.Length; ++i)
@@ -320,6 +326,8 @@ namespace EndgameTableGen
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
                         {
+                            // Tricky: board.GetEpTarget() will always return 0 when isEnPassantPossible is false.
+                            // That's because we will never call board.SetEpTarget().
                             int ep = board.GetEpTarget();
                             if (ofs == ep || ofs == ep + Direction.N || ofs == ep + Direction.S)
                             {
@@ -337,14 +345,14 @@ namespace EndgameTableGen
 
                             sum += PositionSearch(
                                 func, table, config, board,
-                                (56 * tableIndex) + i,
+                                (pawnFactor * tableIndex) + i,
                                 pieceIndex,
                                 whiteRemaining,
                                 blackRemaining - 1,
                                 false,     // we don't need diag filter when there are pawns
                                 (blackRemaining > 1) ? (i + 1) : 0);
 
-                            if (RankNumber(ofs) == 5 && board.GetEpTarget() == 0)
+                            if (isEnPassantPossible && RankNumber(ofs) == 5 && ep == 0)
                             {
                                 // A White pawn on the fifth rank could have just moved two squares to get there,
                                 // but only if the two squares behind it are empty!
@@ -354,7 +362,7 @@ namespace EndgameTableGen
 
                                     sum += PositionSearch(
                                         func, table, config, board,
-                                        (56 * tableIndex) + (i + 24),   // note we use a different adjustment than for White Pawns, because Black Pawns on on a different rank
+                                        (pawnFactor * tableIndex) + (i + 24),   // note we use a different adjustment than for White Pawns, because Black Pawns on on a different rank
                                         pieceIndex,
                                         whiteRemaining,
                                         blackRemaining - 1,
@@ -369,23 +377,23 @@ namespace EndgameTableGen
                         }
                     }
                 }
-                else
-                {
-                    // We have placed all the pieces on the board!
-                    board.RefreshAfterDangerousChanges();
+            }
+            else
+            {
+                // We have placed all the pieces on the board!
+                board.RefreshAfterDangerousChanges();
 
-                    // Visit the resulting position from both points of view: White's and Black's.
+                // Visit the resulting position from both points of view: White's and Black's.
 
-                    // What if it is White's turn to move?
-                    board.SetTurn(true);
-                    if (board.IsValidPosition())
-                        sum += func(table, board, tableIndex);
+                // What if it is White's turn to move?
+                board.SetTurn(true);
+                if (board.IsValidPosition())
+                    sum += func(table, board, tableIndex);
 
-                    // What if it is Black's turn to move?
-                    board.SetTurn(false);
-                    if (board.IsValidPosition())
-                        sum += func(table, board, tableIndex);
-                }
+                // What if it is Black's turn to move?
+                board.SetTurn(false);
+                if (board.IsValidPosition())
+                    sum += func(table, board, tableIndex);
             }
 
             return sum;

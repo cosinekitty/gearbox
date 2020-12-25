@@ -68,10 +68,11 @@ namespace EndgameTableGen
             size *= 64;
 
             // Pawns may appear in 48 different squares.
-            // But en passant captures are possible when the pawn has just
-            // moved two squares forward, yielding 48 + 8 = 56 possible states for each pawn.
+            // But when both sides have at least one pawn, en passant captures are possible.
+            // In that case, there are 48 + 8 = 56 possible states for each pawn.
+            int pawn_factor = (wp > 0 && bp > 0) ? 56 : 48;
             while (p-- > 0)
-                size *= 56;
+                size *= pawn_factor;
 
             // Add up the total count of all movers that are neither king nor pawn.
             int m = 0;

@@ -258,13 +258,17 @@ namespace Gearbox
             // former approach benefits from the fact that only pawns
             // on their player's fourth rank can be in the en passant state.
 
+            // Optimization: en passant is NOT possible unless both sides have at least one pawn.
+            bool isEnPassantPossible = (wp > 0 && bp > 0);
+            int pawnFactor = isEnPassantPossible ? 56 : 48;
+
             // Encode the white pawns.
             PieceLocationList wp_list = PieceList[Position.WP];
             for (int i=0; i < wp_list.Count; ++i)
             {
                 PieceLocation loc = wp_list.Array[i];
                 int digit = loc.Index - 8;     // pawns can't be on first rank
-                if (loc.Offset + Direction.S == EpTargetOffset)
+                if (isEnPassantPossible && (loc.Offset + Direction.S == EpTargetOffset))
                 {
                     // Any white pawn that has just moved two squares forward
                     // (whether or not Black can capture it en passant)
@@ -272,7 +276,7 @@ namespace Gearbox
                     // to a virtual eighth rank.
                     digit += 32;    // adjust to the range 48..55.
                 }
-                tindex = 56*tindex + digit;
+                tindex = (pawnFactor * tindex) + digit;
             }
 
             // Encode the black pawns.
@@ -281,7 +285,7 @@ namespace Gearbox
             {
                 PieceLocation loc = bp_list.Array[i];
                 int digit = loc.Index - 8;    // pawns can't be on first rank
-                if (loc.Offset + Direction.N == EpTargetOffset)
+                if (isEnPassantPossible && (loc.Offset + Direction.N == EpTargetOffset))
                 {
                     // Any black pawn that has just moved two squares forward
                     // (whether or not White can capture it en passant)
@@ -291,7 +295,7 @@ namespace Gearbox
                     // so the adjustment is a little different!
                     digit += 24;    // adjust to the range 48..55.
                 }
-                tindex = 56*tindex + digit;
+                tindex = (pawnFactor * tindex) + digit;
             }
 
             return tindex;
