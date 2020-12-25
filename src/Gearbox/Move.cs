@@ -155,5 +155,16 @@ namespace Gearbox
         {
             return source == 0;
         }
+
+        public bool IsCaptureOrPromotion()
+        {
+            if (source == 0)
+                throw new Exception("Attempt to check a null move for capture/promotion.");
+
+            if (0 == (flags & MoveFlags.Valid))
+                throw new Exception("Cannot determine whether move is a capture/promotion or not.");
+
+            return ('\0' != prom) || (0 != (flags & MoveFlags.Capture));
+        }
     }
 }

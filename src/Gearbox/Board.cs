@@ -643,6 +643,14 @@ namespace Gearbox
                 return GameResult.Draw;
             }
 
+            if (IsDrawByInsufficientMaterial())
+                return GameResult.Draw;
+
+            return GameResult.InProgress;
+        }
+
+        public bool IsDrawByInsufficientMaterial()
+        {
             // Look for insufficient mating material on both sides.
             // FIDE rule 9.6:
             // "The game is a draw when a position is reached from which
@@ -690,11 +698,11 @@ namespace Gearbox
                     // of either color can lead to a checkmate by some legal series of moves.
                     // So we can only terminate a game as a draw when the total
                     // count of bishops and knights is 0 or 1.
-                    return GameResult.Draw;
+                    return true;
                 }
             }
 
-            return GameResult.InProgress;
+            return false;
         }
 
         private static char SanPieceSymbol(Square piece)
@@ -1522,9 +1530,6 @@ namespace Gearbox
             for (int i=0; i < inventory.Length; ++i)
                 npieces += inventory[i];
 
-            if (npieces < 3)
-                return -1;  // just two kings on the board... no endgame analysis needed.
-
             if (npieces > MaxEndgamePieces)
                 return -1;   // too many pieces to fit the endgame table in memory
 
@@ -1640,9 +1645,11 @@ namespace Gearbox
             for (int i=0; i < inventory.Length; ++i)
                 inventory[i] = 0;
 
+            int p;
             for (int y = 21; y <= 91; y += 10)
                 for (int x = 0; x < 8; ++x)
-                    ++inventory[(int)square[y+x]];
+                    if (0 != (p = (int)square[x+y]))
+                        ++inventory[p];
         }
 
         public void SetTurn(bool whiteToMove)

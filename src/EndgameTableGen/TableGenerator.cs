@@ -10,6 +10,9 @@ namespace EndgameTableGen
 
     internal class TableGenerator : TableWorker
     {
+        private const int EnemyMatedScore  = +2000;
+        private const int FriendMatedScore = -2000;
+
         private static readonly int[] EightfoldSymmetryTable = new int[]
         {
             21, 22, 23, 24,
@@ -21,10 +24,14 @@ namespace EndgameTableGen
         private static readonly int[] LeftHalfOffsetTable = MakeOffsetTable('a', 'd', '1', '8');
         private static readonly int[] PawnOffsetTable = MakeOffsetTable('a', 'h', '2', '7');
 
+        private readonly MoveList LegalMoveList = new MoveList();
+        private int PlyLevel;   // how many plies in the future are we finding mates for?
         private readonly Stopwatch chrono = new Stopwatch();
-        private readonly Dictionary<string, Table> finished = new Dictionary<string, Table>();
+        private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
+        public long WhiteEndgameConfig;
+        public long BlackEndgameConfig;
 
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
         {
@@ -50,9 +57,12 @@ namespace EndgameTableGen
         public override void GenerateTable(int[,] config)
         {
             Table table;
-
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
+            WhiteEndgameConfig = GetEndgameConfig(config, false);
+            BlackEndgameConfig = GetEndgameConfig(config, true);
+            Log("WhiteEndgameConfig = {0}, BlackEndgameConfig = {1}", WhiteEndgameConfig, BlackEndgameConfig);
+
             if (EnableTableGeneration && File.Exists(filename))
             {
                 // We have already calculated this endgame table. Load it from disk.
@@ -76,8 +86,14 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
-                    int sum = ForEachPosition(table, config, FindCheckmate);
-                    Log("Found {0} checkmates.", sum);
+                    long sum = -1;
+                    long total = 0;
+                    for (PlyLevel = 0; sum != 0; ++PlyLevel)
+                    {
+                        total += sum = ForEachPosition(table, config, FindForcedMates);
+                        double ratio = (double)total / (double)size;
+                        Log("PlyLevel {0}: Added {1} positions for a total of {2}/{3} = {4}.", PlyLevel, sum, total, size, ratio.ToString("F4"));
+                    }
 
                     // Save the table to disk.
                     table.Save(filename);
@@ -86,8 +102,7 @@ namespace EndgameTableGen
             }
 
             // Store the finished table in memory.
-            string symbol = ConfigSymbol(config);
-            finished.Add(symbol, table);
+            finished.Add(WhiteEndgameConfig, table);
         }
 
         public override void Finish()
@@ -455,9 +470,14 @@ namespace EndgameTableGen
             ++CallCount;
 
             // Verify we are calculating all the table indexes correctly.
-            int check = board.GetEndgameTableIndex(false);
-            if (check != tindex)
-                throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check, tindex, board.ForsythEdwardsNotation()));
+            int check_tindex = board.GetEndgameTableIndex(false);
+            if (check_tindex != tindex)
+                throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check_tindex, tindex, board.ForsythEdwardsNotation()));
+
+            // Verify we are calculating config identifiers consistently.
+            long check_config = board.GetEndgameConfig(false);
+            if (check_config != WhiteEndgameConfig)
+                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_config, WhiteEndgameConfig, board.ForsythEdwardsNotation()));
 
             if (board.IsWhiteTurn)
             {
@@ -481,15 +501,92 @@ namespace EndgameTableGen
             return 1;
         }
 
-        private int FindCheckmate(Table table, Board board, int tindex)
+        private int FindForcedMates(Table table, Board board, int tindex)
         {
-            if (board.IsCheckmate())
+            if (PlyLevel == 0)
             {
-                if (board.IsWhiteTurn)
-                    table.SetWhiteScore(tindex, -1000);
-                else
-                    table.SetBlackScore(tindex, -1000);
-                return 1;
+                // Look for immediate checkmates only.
+                if (board.IsCheckmate())
+                {
+                    if (board.IsWhiteTurn)
+                        table.SetWhiteScore(tindex, FriendMatedScore);
+                    else
+                        table.SetBlackScore(tindex, FriendMatedScore);
+                    return 1;
+                }
+            }
+            else
+            {
+                // Negamax search for moves that lead to forced mates in exactly PlyLevel plies.
+                int bestscore = Score.NegInf;
+                board.GenMoves(LegalMoveList);
+                if (LegalMoveList.nmoves == 0)
+                    return 0;   // ignore all checkmates and stalemates as this level of the search
+
+                for (int i = 0; i < LegalMoveList.nmoves; ++i)
+                {
+                    Move move = LegalMoveList.array[i];
+                    board.PushMove(move);
+                    int next_tindex = board.GetEndgameTableIndex(false);
+                    long next_wconfig = board.GetEndgameConfig(false);
+                    int score;
+                    if (next_wconfig == WhiteEndgameConfig)
+                    {
+                        // We are still in the same endgame table (move is not a capture/promotion).
+                        Debug.Assert(!move.IsCaptureOrPromotion());
+                        if (board.IsWhiteTurn)
+                            score = table.GetWhiteScore(next_tindex);
+                        else
+                            score = table.GetBlackScore(next_tindex);
+                    }
+                    else
+                    {
+                        // Capture or promotion has moved us to a different table.
+                        Debug.Assert(move.IsCaptureOrPromotion());
+
+                        // I don't think it's possible for us to toggle to the mirror image configuration.
+                        Debug.Assert(board.GetEndgameConfig(true) != BlackEndgameConfig);
+
+                        Table next_table;
+                        if (finished.TryGetValue(next_wconfig, out next_table))
+                        {
+                            if (board.IsWhiteTurn)
+                                score = next_table.GetWhiteScore(next_tindex);
+                            else
+                                score = next_table.GetBlackScore(next_tindex);
+                        }
+                        else if (board.IsDrawByInsufficientMaterial())
+                        {
+                            // We have wandered into a draw by insufficient material.
+                            // We don't need endgame tables for those!
+                            score = 0;
+                        }
+                        else
+                            throw new Exception(string.Format("Don't know how to handle endgame position: {0}", board.ForsythEdwardsNotation()));
+                    }
+
+                    // Adjust for negamax and ply delay.
+                    if (score > 0)
+                        score = -(score - 1);
+                    else if (score < 0)
+                        score = -(score + 1);
+
+                    if (score > bestscore)
+                        bestscore = score;
+
+                    board.PopMove();
+                }
+
+                Debug.Assert(bestscore != Score.NegInf);
+                if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
+                {
+                    if (board.IsWhiteTurn)
+                        table.SetWhiteScore(tindex, bestscore);
+                    else
+                        table.SetBlackScore(tindex, bestscore);
+
+                    return 1;
+                }
             }
             return 0;
         }

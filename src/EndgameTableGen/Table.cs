@@ -20,6 +20,9 @@ namespace EndgameTableGen
             data = new byte[BytesPerPosition * size];
         }
 
+        public const int MinScore = -2048;
+        public const int MaxScore = +2047;
+
         public void Clear()
         {
             Array.Clear(data, 0, data.Length);
@@ -53,7 +56,7 @@ namespace EndgameTableGen
             // The score must fit in a 12-bit signed integer.
             // This is because we have to pack two of them into 3 bytes of memory.
 
-            if (score < -2048 || score > +2047)
+            if (score < MinScore || score > MaxScore)
                 throw new ArgumentException("Score is out of range: " + score);
 
             int k = 3 * tindex;
@@ -67,7 +70,7 @@ namespace EndgameTableGen
 
         public void SetBlackScore(int tindex, int score)
         {
-            if (score < -2048 || score > +2047)
+            if (score < MinScore || score > MaxScore)
                 throw new ArgumentException("Score is out of range: " + score);
 
             int k = 3 * tindex;

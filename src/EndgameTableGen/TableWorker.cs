@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Numerics;
 using System.Text;
+using Gearbox;
 
 namespace EndgameTableGen
 {
@@ -13,6 +14,8 @@ namespace EndgameTableGen
         public const int B_INDEX = 2;
         public const int N_INDEX = 3;
         public const int P_INDEX = 4;
+
+        public const int NumSides = 2;
         public const int WHITE = 0;
         public const int BLACK = 1;
 
@@ -27,14 +30,27 @@ namespace EndgameTableGen
             // Fail if any piece count is greater than 9.
             // (Possible only when all pawns promoted to knights/bishops... LOL.)
             var sb = new StringBuilder();
-            for (int mover=0; mover < 5; ++mover)
-                for (int side=0; side < 2; ++side)
+            for (int mover=0; mover < NumNonKings; ++mover)
+                for (int side=0; side < NumSides; ++side)
                     if (0 <= config[side,mover] && config[side,mover] <= 9)
                         sb.Append(config[side,mover]);
                     else
                         throw new ArgumentException("Invalid mover count in config[]");
 
             return sb.ToString();
+        }
+
+        protected long GetEndgameConfig(int[,] config, bool reverseSides)      // same idea as board.GetEndgameConfig
+        {
+            // Calculate the decimal integer QqRrBbNnPp.
+            // This identifies the lookup table to use.
+            long id = 0;
+            int w = reverseSides ? BLACK : WHITE;
+            int b = reverseSides ? WHITE : BLACK;
+            for (int mover=0; mover < NumNonKings; ++mover)
+                id = 100*id + 10*config[w,mover] + config[b,mover];
+
+            return id;
         }
 
         protected string ConfigFileName(int[,] config)
