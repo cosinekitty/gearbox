@@ -664,16 +664,20 @@ namespace EndgameTableGen
         }
 
         private List<long> ConfigIdFromPackedId = new List<long>();
+        private List<long> ReverseConfigIdFromPackedId = new List<long>();
         private Dictionary<long, int> PackedIdFromConfigId = new Dictionary<long, int>();
 
         int PackConfigId(long config_id)
         {
+            long rev_id = ReverseSideConfigId(config_id);
+
             int packed_id;
             if (PackedIdFromConfigId.TryGetValue(config_id, out packed_id))
                 return packed_id;
 
             packed_id = ConfigIdFromPackedId.Count;
             ConfigIdFromPackedId.Add(config_id);
+            ReverseConfigIdFromPackedId.Add(rev_id);
             PackedIdFromConfigId.Add(config_id, packed_id);
             return packed_id;
         }
@@ -681,6 +685,11 @@ namespace EndgameTableGen
         long UnpackConfigId(int packed_id)
         {
             return ConfigIdFromPackedId[packed_id];
+        }
+
+        long UnpackReverseConfigId(int packed_id)
+        {
+            return ReverseConfigIdFromPackedId[packed_id];
         }
 
         private int FindForcedMates_GraphMode(Table table, Board board, int tindex)
@@ -744,7 +753,7 @@ namespace EndgameTableGen
                 {
                     int next_tindex = edge.next_tindex;
                     long w_next_id = UnpackConfigId(edge.packed_config_id);
-                    long b_next_id = ReverseSideConfigId(w_next_id);
+                    long b_next_id = UnpackReverseConfigId(edge.packed_config_id);
 
                     int score;
                     if (w_next_id == WhiteConfigId)
