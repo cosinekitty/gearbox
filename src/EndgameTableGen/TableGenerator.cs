@@ -8,6 +8,12 @@ namespace EndgameTableGen
 {
     internal delegate int PositionVisitorFunc(Table table, Board board, int tindex);
 
+    internal enum SweepStrategy
+    {
+        Simple,
+        Graph,
+    }
+
     internal class TableGenerator : TableWorker
     {
         private const int EnemyMatedScore  = +2000;
@@ -30,7 +36,7 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
-        public bool GraphMode = true;   // instead of regenerating movelists for each position, remember list of connections to other positions
+        public SweepStrategy Strategy = SweepStrategy.Graph;
         public long WhiteConfigId;
         public long BlackConfigId;
 
@@ -80,9 +86,23 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
+                PositionVisitorFunc sweepFunc;
 
-                if (GraphMode)
-                    Graph = new GraphNode[size];
+                switch (Strategy)
+                {
+                    case SweepStrategy.Simple:
+                        Graph = null;
+                        sweepFunc = FindForcedMates_Simple;
+                        break;
+
+                    case SweepStrategy.Graph:
+                        Graph = new GraphNode[size];
+                        sweepFunc = FindForcedMates_GraphMode;
+                        break;
+
+                    default:
+                        throw new Exception(string.Format("Unsupported strategy: {0}", Strategy));
+                }
 
                 if (EnableSelfCheck)
                 {
@@ -108,7 +128,7 @@ namespace EndgameTableGen
                     for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
                     {
                         prev_sum = sum;
-                        total += sum = ForEachPosition(table, config, GraphMode ? FindForcedMates_GraphMode : FindForcedMates);
+                        total += sum = ForEachPosition(table, config, sweepFunc);
 
                         // There are up to 2 scores per position (one for White, one for Black).
                         double ratio = (double)total / (2.0 * size);
@@ -540,7 +560,7 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private int FindForcedMates(Table table, Board board, int tindex)
+        private int FindForcedMates_Simple(Table table, Board board, int tindex)
         {
             // If we have already scored a position, don't try to work it again.
             if (0 != GetScore(table, board.IsWhiteTurn, tindex))
