@@ -1704,14 +1704,14 @@ namespace Gearbox
             return UncachedPlayerInCheck() && !UncachedPlayerCanMove();
         }
 
-        private bool UncachedPlayerInCheck()
+        public bool UncachedPlayerInCheck()
         {
             return isWhiteTurn
                 ? IsAttackedBy(wkofs, Square.Black)
                 : IsAttackedBy(bkofs, Square.White);
         }
 
-        private bool UncachedPlayerCanMove()
+        public bool UncachedPlayerCanMove()
         {
             return isWhiteTurn
                 ? PlayerCanMove(Square.White, Square.Black, Direction.N, 2, 7)

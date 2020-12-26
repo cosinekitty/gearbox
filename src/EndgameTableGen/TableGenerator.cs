@@ -30,6 +30,7 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
+        public bool GraphMode = true;   // instead of regenerating movelists for each position, remember list of connections to other positions
         public long WhiteConfigId;
         public long BlackConfigId;
 
@@ -55,6 +56,8 @@ namespace EndgameTableGen
             Debug.Assert(ReverseSideConfigId(1234567851) == 2143658715);
         }
 
+        public GraphNode[] Graph;
+
         public override void GenerateTable(int[,] config)
         {
             Table table;
@@ -77,6 +80,9 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
+
+                if (GraphMode)
+                    Graph = new GraphNode[size];
 
                 if (EnableSelfCheck)
                 {
@@ -102,7 +108,7 @@ namespace EndgameTableGen
                     for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
                     {
                         prev_sum = sum;
-                        total += sum = ForEachPosition(table, config, FindForcedMates);
+                        total += sum = ForEachPosition(table, config, GraphMode ? FindForcedMates_GraphMode : FindForcedMates);
 
                         // There are up to 2 scores per position (one for White, one for Black).
                         double ratio = (double)total / (2.0 * size);
@@ -525,12 +531,13 @@ namespace EndgameTableGen
             return isWhiteTurn ? table.GetWhiteScore(tindex) : table.GetBlackScore(tindex);
         }
 
-        private void SetScore(Table table, bool isWhiteTurn, int tindex, int score)
+        private int SetScore(Table table, bool isWhiteTurn, int tindex, int score)
         {
             if (isWhiteTurn)
                 table.SetWhiteScore(tindex, score);
             else
                 table.SetBlackScore(tindex, score);
+            return 1;   // assist tallying the number of scores set
         }
 
         private int FindForcedMates(Table table, Board board, int tindex)
@@ -636,7 +643,133 @@ namespace EndgameTableGen
             return 0;
         }
 
-        private static long ReverseSideConfigId(long id)
+        private int FindForcedMates_GraphMode(Table table, Board board, int tindex)
+        {
+            // If we have already scored a position, don't try to work it again.
+            if (0 != GetScore(table, board.IsWhiteTurn, tindex))
+                return 0;
+
+            bool wturn = board.IsWhiteTurn;
+            bool bturn = !wturn;
+
+            if (PlyLevel == 0)
+            {
+                // This is the first pass through the table.
+                // This function is called twice for each position:
+                // once with White to move, the other with Black to move.
+                // Pre-generate the list of transitions to other (config_id, table_index)
+                // pairs based on the legal moves available to the side with the turn.
+                // These graph edges will be recycled for all the subsequent passes.
+                board.GenMoves(LegalMoveList);
+                if (LegalMoveList.nmoves == 0)
+                {
+                    // This is either stalemate or checkmate.
+                    // If checkmate, store the score.
+                    if (board.UncachedPlayerInCheck())
+                        return SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
+
+                    return 0;   // stalemate
+                }
+
+                var edgeList = new GraphEdge[LegalMoveList.nmoves];
+
+                for (int i = 0; i < LegalMoveList.nmoves; ++i)
+                {
+                    Move move = LegalMoveList.array[i];
+                    board.PushMove(move);
+                    edgeList[i] = new GraphEdge
+                    {
+                        w_next_id = board.GetEndgameConfigId(false),
+                        next_tindex = board.GetEndgameTableIndex(false),
+                        reverse_tindex = board.GetEndgameTableIndex(true),
+                        draw_by_insufficient_material = board.IsDrawByInsufficientMaterial(),
+                    };
+                    board.PopMove();
+                }
+
+                if (board.IsWhiteTurn)
+                    Graph[tindex].whiteEdgeList = edgeList;
+                else
+                    Graph[tindex].blackEdgeList = edgeList;
+            }
+            else
+            {
+                // Negamax search for moves that lead to forced mates in exactly PlyLevel plies.
+                int bestscore = Score.NegInf;
+
+                GraphEdge[] edgeList = wturn ? Graph[tindex].whiteEdgeList : Graph[tindex].blackEdgeList;
+                if (edgeList == null || edgeList.Length == 0)
+                    return 0;   // ignore all checkmates and stalemates as this level of the search
+
+                foreach (GraphEdge edge in edgeList)
+                {
+                    int next_tindex = edge.next_tindex;
+                    long w_next_id = edge.w_next_id;
+                    long b_next_id = ReverseSideConfigId(w_next_id);
+
+                    int score;
+                    if (w_next_id == WhiteConfigId)
+                    {
+                        // We are still in the same endgame table (move is not a capture/promotion).
+                        score = GetScore(table, bturn, next_tindex);
+                    }
+                    else
+                    {
+                        // Capture or promotion has moved us to a different table.
+
+                        Table next_table;
+                        if (finished.TryGetValue(w_next_id, out next_table))
+                        {
+                            score = GetScore(next_table, bturn, next_tindex);
+                        }
+                        else if (finished.TryGetValue(b_next_id, out next_table))
+                        {
+                            // We flipped into a mirror image of a previously computed configuration.
+                            int reverse_tindex = board.GetEndgameTableIndex(true);
+                            score = GetScore(next_table, wturn, edge.reverse_tindex);
+                        }
+                        else if (edge.draw_by_insufficient_material)
+                        {
+                            // We have wandered into a draw by insufficient material.
+                            // We don't need endgame tables for those!
+                            score = 0;
+                        }
+                        else
+                        {
+                            throw new Exception(string.Format("Don't know how to handle endgame position: {0}", board.ForsythEdwardsNotation()));
+                        }
+                    }
+
+                    // Adjust for negamax and ply delay.
+                    if (score > 0)
+                        score = -(score - 1);
+                    else if (score < 0)
+                        score = -(score + 1);
+
+                    if (score > bestscore)
+                        bestscore = score;
+                }
+
+                Debug.Assert(bestscore != Score.NegInf);
+                if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
+                {
+                    int count = SetScore(table, wturn, tindex, bestscore);
+
+                    if (WhiteConfigId == BlackConfigId)
+                    {
+                        // This configuration has symmetrical White/Black material.
+                        // Therefore we can score two positions at the same time!
+                        int reverse_tindex = board.GetEndgameTableIndex(true);
+                        count += SetScore(table, bturn, reverse_tindex, bestscore);
+                    }
+
+                    return count;
+                }
+            }
+            return 0;
+        }
+
+        internal static long ReverseSideConfigId(long id)
         {
             if (id < 0 || id > 9999999999)
                 throw new ArgumentException(string.Format("Invalid config id: {0}", id));
