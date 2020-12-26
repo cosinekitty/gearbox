@@ -769,7 +769,6 @@ namespace EndgameTableGen
                         else if (finished.TryGetValue(b_next_id, out next_table))
                         {
                             // We flipped into a mirror image of a previously computed configuration.
-                            int reverse_tindex = board.GetEndgameTableIndex(true);
                             score = GetScore(next_table, wturn, edge.reverse_tindex);
                         }
                         else
@@ -792,19 +791,7 @@ namespace EndgameTableGen
 
                 Debug.Assert(bestscore != Score.NegInf);
                 if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
-                {
-                    int count = SetScore(table, wturn, tindex, bestscore);
-
-                    if (WhiteConfigId == BlackConfigId)
-                    {
-                        // This configuration has symmetrical White/Black material.
-                        // Therefore we can score two positions at the same time!
-                        int reverse_tindex = board.GetEndgameTableIndex(true);
-                        count += SetScore(table, bturn, reverse_tindex, bestscore);
-                    }
-
-                    return count;
-                }
+                    return SetScore(table, wturn, tindex, bestscore);
             }
             return 0;
         }
