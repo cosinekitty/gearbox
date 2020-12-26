@@ -702,7 +702,6 @@ namespace EndgameTableGen
                         w_next_id = board.GetEndgameConfigId(false),
                         next_tindex = board.GetEndgameTableIndex(false),
                         reverse_tindex = board.GetEndgameTableIndex(true),
-                        draw_by_insufficient_material = board.IsDrawByInsufficientMaterial(),
                     };
                     board.PopMove();
                 }
@@ -748,15 +747,11 @@ namespace EndgameTableGen
                             int reverse_tindex = board.GetEndgameTableIndex(true);
                             score = GetScore(next_table, wturn, edge.reverse_tindex);
                         }
-                        else if (edge.draw_by_insufficient_material)
+                        else
                         {
                             // We have wandered into a draw by insufficient material.
                             // We don't need endgame tables for those!
                             score = 0;
-                        }
-                        else
-                        {
-                            throw new Exception(string.Format("Don't know how to handle endgame position: {0}", board.ForsythEdwardsNotation()));
                         }
                     }
 
