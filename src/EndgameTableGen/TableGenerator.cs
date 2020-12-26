@@ -37,6 +37,7 @@ namespace EndgameTableGen
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
         public SweepStrategy Strategy = SweepStrategy.Graph;
+        private GraphPool gpool;
         public long WhiteConfigId;
         public long BlackConfigId;
 
@@ -61,8 +62,6 @@ namespace EndgameTableGen
             chrono.Restart();
             Debug.Assert(ReverseSideConfigId(1234567851) == 2143658715);
         }
-
-        public GraphNode[] Graph;
 
         public override void GenerateTable(int[,] config)
         {
@@ -91,12 +90,11 @@ namespace EndgameTableGen
                 switch (Strategy)
                 {
                     case SweepStrategy.Simple:
-                        Graph = null;
                         sweepFunc = FindForcedMates_Simple;
                         break;
 
                     case SweepStrategy.Graph:
-                        Graph = new GraphNode[size];
+                        gpool = new GraphPool(size);
                         sweepFunc = FindForcedMates_GraphMode;
                         break;
 
@@ -129,6 +127,9 @@ namespace EndgameTableGen
                     {
                         prev_sum = sum;
                         total += sum = ForEachPosition(table, config, sweepFunc);
+
+                        if (PlyLevel == 0 && gpool != null)
+                            Log("Pool size = {0:n0} ; average moves/score = {1}", gpool.pool.Count, ((double)gpool.pool.Count / size).ToString("F2"));
 
                         // There are up to 2 scores per position (one for White, one for Black).
                         double ratio = (double)total / (2.0 * size);
@@ -720,37 +721,32 @@ namespace EndgameTableGen
                     return 0;   // stalemate
                 }
 
-                var edgeList = new GraphEdge[LegalMoveList.nmoves];
-
+                gpool.StartNewList(tindex, wturn, LegalMoveList.nmoves);
                 for (int i = 0; i < LegalMoveList.nmoves; ++i)
                 {
                     Move move = LegalMoveList.array[i];
                     board.PushMove(move);
-                    edgeList[i] = new GraphEdge
+                    gpool.pool.Add(new GraphEdge
                     {
                         packed_config_id = PackConfigId(board.GetEndgameConfigId(false)),
                         next_tindex = board.GetEndgameTableIndex(false),
                         reverse_tindex = board.GetEndgameTableIndex(true),
-                    };
+                    });
                     board.PopMove();
                 }
-
-                if (board.IsWhiteTurn)
-                    Graph[tindex].whiteEdgeList = edgeList;
-                else
-                    Graph[tindex].blackEdgeList = edgeList;
             }
             else
             {
                 // Negamax search for moves that lead to forced mates in exactly PlyLevel plies.
                 int bestscore = Score.NegInf;
 
-                GraphEdge[] edgeList = wturn ? Graph[tindex].whiteEdgeList : Graph[tindex].blackEdgeList;
-                if (edgeList == null || edgeList.Length == 0)
+                GraphEdgeList edgeList = gpool.GetList(tindex, wturn);
+                if (edgeList.count == 0)
                     return 0;   // ignore all checkmates and stalemates as this level of the search
 
-                foreach (GraphEdge edge in edgeList)
+                for (int e = 0; e < edgeList.count; ++e)
                 {
+                    GraphEdge edge = gpool.pool[edgeList.front + e];
                     int next_tindex = edge.next_tindex;
                     long w_next_id = UnpackConfigId(edge.packed_config_id);
                     long b_next_id = UnpackReverseConfigId(edge.packed_config_id);
