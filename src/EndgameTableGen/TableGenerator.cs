@@ -663,6 +663,26 @@ namespace EndgameTableGen
             return 0;
         }
 
+        private List<long> ConfigIdFromPackedId = new List<long>();
+        private Dictionary<long, int> PackedIdFromConfigId = new Dictionary<long, int>();
+
+        int PackConfigId(long config_id)
+        {
+            int packed_id;
+            if (PackedIdFromConfigId.TryGetValue(config_id, out packed_id))
+                return packed_id;
+
+            packed_id = ConfigIdFromPackedId.Count;
+            ConfigIdFromPackedId.Add(config_id);
+            PackedIdFromConfigId.Add(config_id, packed_id);
+            return packed_id;
+        }
+
+        long UnpackConfigId(int packed_id)
+        {
+            return ConfigIdFromPackedId[packed_id];
+        }
+
         private int FindForcedMates_GraphMode(Table table, Board board, int tindex)
         {
             // If we have already scored a position, don't try to work it again.
@@ -699,7 +719,7 @@ namespace EndgameTableGen
                     board.PushMove(move);
                     edgeList[i] = new GraphEdge
                     {
-                        w_next_id = board.GetEndgameConfigId(false),
+                        packed_config_id = PackConfigId(board.GetEndgameConfigId(false)),
                         next_tindex = board.GetEndgameTableIndex(false),
                         reverse_tindex = board.GetEndgameTableIndex(true),
                     };
@@ -723,7 +743,7 @@ namespace EndgameTableGen
                 foreach (GraphEdge edge in edgeList)
                 {
                     int next_tindex = edge.next_tindex;
-                    long w_next_id = edge.w_next_id;
+                    long w_next_id = UnpackConfigId(edge.packed_config_id);
                     long b_next_id = ReverseSideConfigId(w_next_id);
 
                     int score;
