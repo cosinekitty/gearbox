@@ -626,7 +626,6 @@ namespace EndgameTableGen
                         // This configuration has symmetrical White/Black material.
                         // Therefore we can score two positions at the same time!
                         int reverse_tindex = board.GetEndgameTableIndex(true);
-                        Debug.Assert(reverse_tindex != tindex);
                         SetScore(table, board.IsBlackTurn, reverse_tindex, bestscore);
                         return 2;
                     }
