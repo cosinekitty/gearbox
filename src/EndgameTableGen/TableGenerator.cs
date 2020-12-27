@@ -8,12 +8,6 @@ namespace EndgameTableGen
 {
     internal delegate int PositionVisitorFunc(Table table, Board board, int tindex);
 
-    internal enum SweepStrategy
-    {
-        Simple,
-        Graph,
-    }
-
     internal class TableGenerator : TableWorker
     {
         private const int EnemyMatedScore  = +2000;
@@ -36,7 +30,6 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
         public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
-        public SweepStrategy Strategy = SweepStrategy.Graph;
         private GraphPool gpool;
         public long WhiteConfigId;
         public long BlackConfigId;
@@ -85,22 +78,7 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
-                PositionVisitorFunc sweepFunc;
-
-                switch (Strategy)
-                {
-                    case SweepStrategy.Simple:
-                        sweepFunc = FindForcedMates_Simple;
-                        break;
-
-                    case SweepStrategy.Graph:
-                        gpool = new GraphPool(size);
-                        sweepFunc = FindForcedMates_GraphMode;
-                        break;
-
-                    default:
-                        throw new Exception(string.Format("Unsupported strategy: {0}", Strategy));
-                }
+                gpool = new GraphPool(size);
 
                 if (EnableSelfCheck)
                 {
@@ -126,9 +104,9 @@ namespace EndgameTableGen
                     for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
                     {
                         prev_sum = sum;
-                        total += sum = ForEachPosition(table, config, sweepFunc);
+                        total += sum = ForEachPosition(table, config, FindForcedMates);
 
-                        if (PlyLevel == 0 && gpool != null)
+                        if (PlyLevel == 0)
                             Log("Pool size = {0:n0} ; average moves/score = {1}", gpool.pool.Count, ((double)gpool.pool.Count / size).ToString("F2"));
 
                         // There are up to 2 scores per position (one for White, one for Black).
@@ -564,109 +542,6 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private int FindForcedMates_Simple(Table table, Board board, int tindex)
-        {
-            // If we have already scored a position, don't try to work it again.
-            if (0 != GetScore(table, board.IsWhiteTurn, tindex))
-                return 0;
-
-            if (PlyLevel == 0)
-            {
-                // Look for immediate checkmates only.
-                if (board.IsCheckmate())
-                {
-                    SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
-                    return 1;
-                }
-            }
-            else
-            {
-                // Negamax search for moves that lead to forced mates in exactly PlyLevel plies.
-                int bestscore = Score.NegInf;
-                board.GenMoves(LegalMoveList);
-                if (LegalMoveList.nmoves == 0)
-                    return 0;   // ignore all checkmates and stalemates as this level of the search
-
-                for (int i = 0; i < LegalMoveList.nmoves; ++i)
-                {
-                    Move move = LegalMoveList.array[i];
-                    board.PushMove(move);
-
-                    int next_tindex = board.GetEndgameTableIndex(false);
-                    long w_next_id = board.GetEndgameConfigId(false);
-                    long b_next_id = ReverseSideConfigId(w_next_id);
-                    Debug.Assert(b_next_id == board.GetEndgameConfigId(true));
-
-                    int score;
-                    if (w_next_id == WhiteConfigId)
-                    {
-                        // We are still in the same endgame table (move is not a capture/promotion).
-                        Debug.Assert(!move.IsCaptureOrPromotion());
-                        score = GetScore(table, board.IsWhiteTurn, next_tindex);
-                    }
-                    else
-                    {
-                        // Capture or promotion has moved us to a different table.
-                        Debug.Assert(move.IsCaptureOrPromotion());
-
-                        // I don't think it's possible for us to toggle to the mirror image of the current configuration.
-                        Debug.Assert(w_next_id != BlackConfigId);
-
-                        Table next_table;
-                        if (finished.TryGetValue(w_next_id, out next_table))
-                        {
-                            score = GetScore(next_table, board.IsWhiteTurn, next_tindex);
-                        }
-                        else if (finished.TryGetValue(b_next_id, out next_table))
-                        {
-                            // We flipped into a mirror image of a previously computed configuration.
-                            int reverse_tindex = board.GetEndgameTableIndex(true);
-                            score = GetScore(next_table, board.IsBlackTurn, reverse_tindex);
-                        }
-                        else if (board.IsDrawByInsufficientMaterial())
-                        {
-                            // We have wandered into a draw by insufficient material.
-                            // We don't need endgame tables for those!
-                            score = 0;
-                        }
-                        else
-                        {
-                            throw new Exception(string.Format("Don't know how to handle endgame position: {0}", board.ForsythEdwardsNotation()));
-                        }
-                    }
-
-                    // Adjust for negamax and ply delay.
-                    if (score > 0)
-                        score = -(score - 1);
-                    else if (score < 0)
-                        score = -(score + 1);
-
-                    if (score > bestscore)
-                        bestscore = score;
-
-                    board.PopMove();
-                }
-
-                Debug.Assert(bestscore != Score.NegInf);
-                if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
-                {
-                    SetScore(table, board.IsWhiteTurn, tindex, bestscore);
-
-                    if (WhiteConfigId == BlackConfigId)
-                    {
-                        // This configuration has symmetrical White/Black material.
-                        // Therefore we can score two positions at the same time!
-                        int reverse_tindex = board.GetEndgameTableIndex(true);
-                        SetScore(table, board.IsBlackTurn, reverse_tindex, bestscore);
-                        return 2;
-                    }
-
-                    return 1;
-                }
-            }
-            return 0;
-        }
-
         private List<long> ConfigIdFromPackedId = new List<long>();
         private List<long> ReverseConfigIdFromPackedId = new List<long>();
         private Dictionary<long, int> PackedIdFromConfigId = new Dictionary<long, int>();
@@ -696,7 +571,7 @@ namespace EndgameTableGen
             return ReverseConfigIdFromPackedId[packed_id];
         }
 
-        private int FindForcedMates_GraphMode(Table table, Board board, int tindex)
+        private int FindForcedMates(Table table, Board board, int tindex)
         {
             // If we have already scored a position, don't try to work it again.
             if (0 != GetScore(table, board.IsWhiteTurn, tindex))
