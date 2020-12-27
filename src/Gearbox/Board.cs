@@ -1548,9 +1548,10 @@ namespace Gearbox
         {
             // Swap offsets from the point of view of White
             // with equivalents from the point of view of Black.
+            // This is like rotating the board 180 degrees.
             int x = ofs % 10;
             int y = ofs / 10;
-            return 10*(11 - y) + x;
+            return 10*(11 - y) + (9 - x);
         }
 
         private readonly Position PositionCache = new Position();
