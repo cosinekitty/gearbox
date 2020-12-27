@@ -18,6 +18,7 @@ namespace EndgameTableGen
 
     internal class GraphPool
     {
+        public readonly int InitialPoolCapacity;
         public readonly List<GraphEdge> pool = new List<GraphEdge>();
         public readonly GraphEdgeList[] whiteTable;     // whiteTable[tindex] = list of transitions to other nodes
         public readonly GraphEdgeList[] blackTable;
@@ -26,7 +27,7 @@ namespace EndgameTableGen
         {
             whiteTable = new GraphEdgeList[size];
             blackTable = new GraphEdgeList[size];
-            pool.Capacity = 20 * size;      // an experimentally determined worst-case factor to prevent reallocation
+            InitialPoolCapacity = pool.Capacity = 20 * size;      // an experimentally determined worst-case factor to prevent reallocation
         }
 
         public void StartNewList(int tindex, bool wturn, int nmoves)

@@ -88,7 +88,6 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
-                gpool.Reset(size);
 
                 if (EnableSelfCheck)
                 {
@@ -104,6 +103,7 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
+                    gpool.Reset(size);
                     long prev_sum = 1;
                     long sum = 1;
                     long total = 0;
@@ -127,6 +127,9 @@ namespace EndgameTableGen
                         // because the table index scheme accomodates putting more than one piece in the same square,
                         // which never happens in an actual position.
                         Debug.Assert(total < 2*size);
+
+                        if (gpool.pool.Capacity > gpool.InitialPoolCapacity)
+                            Log("WARNING: pool capacity grew from {0:n0} to {1:n0}", gpool.InitialPoolCapacity, gpool.pool.Capacity);
                     }
 
                     // Save the table to disk.
