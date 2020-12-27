@@ -244,6 +244,7 @@ namespace EndgameTableGen
                 // A White, non-pawn, non-king piece can be placed in any of the 64 squares, so long as that square is empty.
                 if (whiteRemaining > 0)
                 {
+                    Square piece = MakeSquare(WHITE, pieceIndex);
                     for (int wi = startIndex; wi < WholeBoardOffsetTable.Length; ++wi)
                     {
                         int diag = Position.DiagonalHeight(wi);
@@ -253,7 +254,7 @@ namespace EndgameTableGen
                         int wofs = WholeBoardOffsetTable[wi];
                         if (square[wofs] == Square.Empty)
                         {
-                            square[wofs] = MakeSquare(WHITE, pieceIndex);
+                            square[wofs] = piece;
 
                             sum += PositionSearch(
                                 func, table, config, board,
@@ -271,6 +272,7 @@ namespace EndgameTableGen
                 else if (blackRemaining > 0)
                 {
                     // A Black, non-pawn, non-king piece can be placed in any of the 64 squares, so long as that square is empty.
+                    Square piece = MakeSquare(BLACK, pieceIndex);
                     for (int bi = startIndex; bi < WholeBoardOffsetTable.Length; ++bi)
                     {
                         int diag = Position.DiagonalHeight(bi);
@@ -280,7 +282,7 @@ namespace EndgameTableGen
                         int bofs = WholeBoardOffsetTable[bi];
                         if (square[bofs] == Square.Empty)
                         {
-                            square[bofs] = MakeSquare(BLACK, pieceIndex);
+                            square[bofs] = piece;
 
                             sum += PositionSearch(
                                 func, table, config, board,
