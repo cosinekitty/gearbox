@@ -1,8 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Numerics;
-using System.Text;
-using Gearbox;
 
 namespace EndgameTableGen
 {
@@ -23,7 +22,7 @@ namespace EndgameTableGen
         public abstract void GenerateTable(int[,] config);
         public abstract void Finish();
 
-        protected long GetConfigId(int[,] config, bool reverseSides)      // same idea as board.GetConfigId
+        public static long GetConfigId(int[,] config, bool reverseSides)      // same idea as board.GetConfigId
         {
             // Calculate the decimal integer QqRrBbNnPp.
             // This identifies the lookup table to use.
@@ -36,6 +35,21 @@ namespace EndgameTableGen
             return id;
         }
 
+        public static int[,] DecodeConfig(long id)
+        {
+            long n = id;
+            var config = new int[NumSides, NumNonKings];
+            for (int mover = NumNonKings-1; mover >= 0; --mover)
+            {
+                config[BLACK, mover] = (int)(n % 10);
+                n /= 10;
+                config[WHITE, mover] = (int)(n % 10);
+                n /= 10;
+            }
+            Debug.Assert(GetConfigId(config, false) == id);
+            return config;
+        }
+
         protected string ConfigFileName(int[,] config)
         {
             long id = GetConfigId(config, false);
@@ -46,7 +60,7 @@ namespace EndgameTableGen
             return Path.Combine(dir, fn);
         }
 
-        protected BigInteger TableSize(int[,] config)
+        public static BigInteger TableSize(int[,] config)
         {
             BigInteger size = 1;
             int wp = config[WHITE,P_INDEX];

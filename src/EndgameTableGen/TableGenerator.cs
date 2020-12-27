@@ -157,7 +157,7 @@ namespace EndgameTableGen
             Log("Finished after {0} = {1} seconds.", chrono.Elapsed, chrono.Elapsed.TotalSeconds);
         }
 
-        private int ForEachPosition(Table table, int[,] config, PositionVisitorFunc func)
+        public int ForEachPosition(Table table, int[,] config, PositionVisitorFunc func)
         {
             int sum = 0;
 
