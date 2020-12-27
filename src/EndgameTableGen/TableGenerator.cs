@@ -814,5 +814,112 @@ namespace EndgameTableGen
             }
             return rev;
         }
+
+        private static void ValidatePlacement(Square[] square, int ofs, Square piece)
+        {
+            if (ofs < 0 || ofs >= 120 || square[ofs] == Square.Offboard)
+                throw new ArgumentException(string.Format("Offset is outside the board: {0}", ofs));
+
+            if (square[ofs] != Square.Empty)
+                throw new ArgumentException(string.Format("Attempt to place {0} at {1}, which already contains {2}", piece, Board.Algebraic(ofs), square[ofs]));
+        }
+
+        private static void Place(Square[] square, int ofs, Square piece)
+        {
+            ValidatePlacement(square, ofs, piece);
+            square[ofs] = piece;
+        }
+
+        internal static void DecodePosition(Board board, long config_id, int table_index, bool white_turn)
+        {
+            board.Clear(white_turn);
+            Square[] square = board.GetSquaresArray();
+
+            int[,] config = DecodeConfig(config_id);
+            int wp = config[WHITE, P_INDEX];
+            int bp = config[BLACK, P_INDEX];
+            bool ep = (wp > 0 && bp > 0);
+            int pawn_multiplier = ep ? 56 : 48;
+
+            int t = table_index;
+            int ofs, index;
+            int ep_count = 0;
+
+            // Decode black pawns.
+            for (int k=0; k < bp; ++k)
+            {
+                index = t % pawn_multiplier;
+                t /= pawn_multiplier;
+                if (index >= 48)
+                {
+                    // This black pawn is in the en passant target state.
+                    ++ep_count;
+                    index -= 24;
+                    ofs = Position.OffsetFromIndex(index + 8);
+                    board.SetEpTarget(ofs + Direction.N);
+                }
+                else
+                {
+                    ofs = Position.OffsetFromIndex(index + 8);
+                }
+                Place(square, ofs, Square.BP);
+            }
+
+            // Decode white pawns.
+            for (int k=0; k < wp; ++k)
+            {
+                index = t % pawn_multiplier;
+                t /= pawn_multiplier;
+                if (index >= 48)
+                {
+                    // This white pawn is in the en passant target state.
+                    ++ep_count;
+                    index -= 32;
+                    ofs = Position.OffsetFromIndex(index + 8);
+                    board.SetEpTarget(ofs + Direction.S);
+                }
+                else
+                {
+                    ofs = Position.OffsetFromIndex(index + 8);
+                }
+                Place(square, ofs, Square.WP);
+            }
+
+            if (ep_count > 1)
+                throw new ArgumentException(string.Format("Position has {0} pawns in the en passant target state.", ep_count));
+
+            // Decode all pieces between king and pawn.
+            for (int mover = N_INDEX; mover >= Q_INDEX; --mover)
+            {
+                for (int side = BLACK; side >= WHITE; --side)
+                {
+                    Square piece = MakeSquare(side, mover);
+                    for (int k=0; k < config[side, mover]; ++k)
+                    {
+                        index = t % 64;
+                        t /= 64;
+                        ofs = Position.OffsetFromIndex(index);
+                        Place(square, ofs, piece);
+                    }
+                }
+            }
+
+            // Decode the black king.
+            index = t % 64;
+            t /= 64;
+            ofs = Position.OffsetFromIndex(index);
+            ValidatePlacement(square, ofs, Square.BK);
+            board.PlaceBlackKing(ofs);
+
+            // Decode the white king, following the symmetry rules.
+            if (wp + bp == 0)
+                ofs = EightfoldSymmetryTable[t];
+            else
+                ofs = LeftHalfOffsetTable[t];
+            ValidatePlacement(square, ofs, Square.WK);
+            board.PlaceWhiteKing(ofs);
+
+            board.RefreshAfterDangerousChanges();
+        }
     }
 }

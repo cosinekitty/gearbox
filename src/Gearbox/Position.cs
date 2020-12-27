@@ -151,10 +151,18 @@ namespace Gearbox
 
         public static int IndexFromOffset(int offset)
         {
-            // Convert square[] index 21..98 to tablebase index 0..63.
+            // Convert square[] offset 21..98 to tablebase index 0..63.
             int x = (offset % 10) - 1;
             int y = (offset / 10) - 2;
             return 8*y + x;
+        }
+
+        public static int OffsetFromIndex(int index)
+        {
+            // Convert tablebase index 0..63 to square[] offset 21..98.
+            int x = index % 8;
+            int y = index / 8;
+            return 21 + x + 10*y;
         }
 
         public int GetEndgameTableIndex()

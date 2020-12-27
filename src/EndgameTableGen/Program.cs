@@ -39,6 +39,13 @@ EndgameTableGen list filename
     a valid endgame configuration ID. This is because the
     configuration ID is fundamental for interpreting the
     contents of the file.
+
+EndgameTableGen decode config_id table_index side_to_move
+    Prints the FEN of a board configuration corresponding to
+    the given configuration and table index.
+    config_id    = decimal integer QqRrBbNnPp.
+    table_index  = integer offset into the table.
+    side_to_move = 'w' or 'b'.
 ";
 
         static int Main(string[] args)
@@ -48,10 +55,35 @@ EndgameTableGen list filename
                 return ListTable(args[1]);
             }
 
+            if ((args.Length == 4) && (args[0] == "decode"))
+            {
+                string side_to_move = args[3];
+                if (side_to_move != "w" && side_to_move != "b")
+                {
+                    Console.WriteLine("Invalid side_to_move: {0}", side_to_move);
+                    return 1;
+                }
+
+                if (long.TryParse(args[1], out long config_id) && (config_id >= 0) && (config_id <= 9999999999))
+                {
+                    if (int.TryParse(args[2], out int table_index))
+                    {
+                        var board = new Board(false);
+                        TableGenerator.DecodePosition(board, config_id, table_index, side_to_move == "w");
+                        Console.WriteLine(board.ForsythEdwardsNotation());
+                        return 0;
+                    }
+
+                    Console.WriteLine("Invalid table_index: {0}", args[2]);
+                    return 1;
+                }
+                Console.WriteLine("Invalid config_id: {0}", args[1]);
+                return 1;
+            }
+
             if ((args.Length == 2) && (MakeWorker(args[0]) is ITableWorker worker))
             {
-                int nonkings;
-                if (int.TryParse(args[1], out nonkings) && (nonkings >= 1) && (nonkings <= 9))
+                if (int.TryParse(args[1], out int nonkings) && (nonkings >= 1) && (nonkings <= 9))
                 {
                     var planner = new WorkPlanner(worker);
                     planner.Plan(nonkings);
