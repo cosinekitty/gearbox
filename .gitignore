@@ -6,3 +6,4 @@ tables
 launchSettings.json
 *.diagsession
 *.log
+games/ 
