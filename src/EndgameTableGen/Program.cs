@@ -102,11 +102,11 @@ EndgameTableGen decode config_id table_index side_to_move
                         int max_table_size = MaxTableSize(nonkings);
 
                         // Now the generator can pre-allocate the worst-case memory usage.
-                        worker = new TableGenerator(max_table_size) { EnableTableGeneration = true, EnableSelfCheck = true };
+                        worker = new TableGenerator(max_table_size) { EnableTableGeneration = true };
                         break;
 
                     case "test":
-                        worker = new TableGenerator(0) { EnableTableGeneration = false, EnableSelfCheck = true };
+                        worker = new TableGenerator(0) { EnableTableGeneration = false };
                         break;
 
                     default:
@@ -128,7 +128,7 @@ EndgameTableGen decode config_id table_index side_to_move
             var worker = new MaxTableSizeFinder();
             var planner = new WorkPlanner(worker);
             planner.Plan(nonkings);
-            Console.WriteLine("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
+            TableWorker.Log("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
             return (int)worker.MaxTableSize;
         }
 

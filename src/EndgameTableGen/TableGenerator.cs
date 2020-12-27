@@ -28,7 +28,6 @@ namespace EndgameTableGen
         private int PlyLevel;   // how many plies in the future are we finding mates for?
         private readonly Stopwatch chrono = new Stopwatch();
         private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
-        public bool EnableSelfCheck = true;
         public bool EnableTableGeneration = true;
         private GraphPool gpool;
         public long WhiteConfigId;
@@ -88,25 +87,21 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
-
-                if (EnableSelfCheck)
-                {
-                    WhiteCount = BlackCount = 0;
-                    int total = ForEachPosition(table, config, SelfTest);
-                    double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
-                    Log("SelfTest: {0:n0} White positions, {1:n0} Black positions, {2:n0} total; ratio = {3}.",
-                        WhiteCount, BlackCount, total, ratio.ToString("F6"));
-                    Debug.Assert(total == WhiteCount + BlackCount);
-                    Debug.Assert(total < 2*size);
-                    table.Clear();
-                }
+                WhiteCount = BlackCount = 0;
+                int total = ForEachPosition(table, config, InitialPass);
+                double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
+                Log("InitialPass: {0:n0} White positions, {1:n0} Black positions, {2:n0} total; ratio = {3}.",
+                    WhiteCount, BlackCount, total, ratio.ToString("F6"));
+                Debug.Assert(total == WhiteCount + BlackCount);
+                Debug.Assert(total < 2*size);
+                table.Clear();
 
                 if (EnableTableGeneration)
                 {
                     gpool.Reset(size);
-                    long prev_sum = 1;
-                    long sum = 1;
-                    long total = 0;
+                    int prev_sum = 1;
+                    int sum = 1;
+                    total = 0;
                     // For the KP vs K table, we don't find immediate checkmates.
                     // So we can't stop as soon as sum == 0.
                     // In general, we allow 2 levels to go by without any progress before stopping,
@@ -120,7 +115,7 @@ namespace EndgameTableGen
                             Log("Pool size = {0:n0} ; average moves/score = {1}", gpool.pool.Count, ((double)gpool.pool.Count / size).ToString("F2"));
 
                         // There are up to 2 scores per position (one for White, one for Black).
-                        double ratio = (double)total / (2.0 * size);
+                        ratio = (double)total / (2.0 * size);
                         Log("PlyLevel {0}: Added {1} scores for a total of {2}/{3} = {4}.", PlyLevel, sum, total, 2*size, ratio.ToString("F4"));
 
                         // It should never be possible to even reach table saturation,
@@ -505,7 +500,7 @@ namespace EndgameTableGen
         private long WhiteCount;
         private long BlackCount;
 
-        private int SelfTest(Table table, Board board, int tindex)
+        private int InitialPass(Table table, Board board, int tindex)
         {
             ++CallCount;
 
@@ -638,7 +633,6 @@ namespace EndgameTableGen
                 for (int e = 0; e < edgeList.count; ++e)
                 {
                     GraphEdge edge = gpool.pool[edgeList.front + e];
-                    int next_tindex = edge.next_tindex;
                     long w_next_id = UnpackConfigId(edge.packed_config_id);
                     long b_next_id = UnpackReverseConfigId(edge.packed_config_id);
 
@@ -646,7 +640,7 @@ namespace EndgameTableGen
                     if (w_next_id == WhiteConfigId)
                     {
                         // We are still in the same endgame table (move is not a capture/promotion).
-                        score = GetScore(table, bturn, next_tindex);
+                        score = GetScore(table, bturn, edge.next_tindex);
                     }
                     else
                     {
@@ -655,7 +649,7 @@ namespace EndgameTableGen
                         Table next_table;
                         if (finished.TryGetValue(w_next_id, out next_table))
                         {
-                            score = GetScore(next_table, bturn, next_tindex);
+                            score = GetScore(next_table, bturn, edge.next_tindex);
                         }
                         else if (finished.TryGetValue(b_next_id, out next_table))
                         {
