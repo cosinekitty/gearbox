@@ -26,6 +26,7 @@ namespace EndgameTableGen
         {
             whiteTable = new GraphEdgeList[size];
             blackTable = new GraphEdgeList[size];
+            pool.Capacity = 20 * size;      // an experimentally determined worst-case factor to prevent reallocation
         }
 
         public void StartNewList(int tindex, bool wturn, int nmoves)
@@ -40,6 +41,16 @@ namespace EndgameTableGen
         public GraphEdgeList GetList(int tindex, bool wturn)
         {
             return wturn ? whiteTable[tindex] : blackTable[tindex];
+        }
+
+        public void Reset(int required_size)
+        {
+            if (required_size > whiteTable.Length)
+                throw new ArgumentException(string.Format("Required size {0} is larger than pre-allocated size {1}", required_size, whiteTable.Length));
+
+            Array.Clear(whiteTable, 0, whiteTable.Length);
+            Array.Clear(blackTable, 0, blackTable.Length);
+            pool.Clear();
         }
     }
 }

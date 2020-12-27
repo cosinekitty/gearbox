@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Numerics;
 using Gearbox;
 
 namespace EndgameTableGen
@@ -81,38 +82,74 @@ EndgameTableGen decode config_id table_index side_to_move
                 return 1;
             }
 
-            if ((args.Length == 2) && (MakeWorker(args[0]) is ITableWorker worker))
+            if (args.Length == 2)       // must handle all other 2-arg commands before here
             {
-                if (int.TryParse(args[1], out int nonkings) && (nonkings >= 1) && (nonkings <= 9))
+                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > 9))
                 {
-                    var planner = new WorkPlanner(worker);
-                    planner.Plan(nonkings);
-                    return 0;
+                    Console.WriteLine("Invalid number of non-kings: {0}", args[1]);
+                    return 1;
                 }
 
-                Console.WriteLine("Invalid number of non-kings: {0}", args[1]);
-                return 1;
+                ITableWorker worker;
+                switch (args[0])
+                {
+                    case "plan":
+                        worker = new TablePrinter();
+                        break;
+
+                    case "gen":
+                        // Figure out the maximum possible table size up front.
+                        int max_table_size = MaxTableSize(nonkings);
+
+                        // Now the generator can pre-allocate the worst-case memory usage.
+                        worker = new TableGenerator(max_table_size) { EnableTableGeneration = true, EnableSelfCheck = true };
+                        break;
+
+                    case "test":
+                        worker = new TableGenerator(0) { EnableTableGeneration = false, EnableSelfCheck = true };
+                        break;
+
+                    default:
+                        Console.WriteLine("ERROR: Unknown type of worker: {0}", args[0]);
+                        return 1;
+                }
+
+                var planner = new WorkPlanner(worker);
+                planner.Plan(nonkings);
+                return 0;
             }
 
             Console.WriteLine(UsageText);
             return 1;
         }
 
-        static ITableWorker MakeWorker(string kind)
+        private static int MaxTableSize(int nonkings)
         {
-            switch (kind)
+            var worker = new MaxTableSizeFinder();
+            var planner = new WorkPlanner(worker);
+            planner.Plan(nonkings);
+            Console.WriteLine("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
+            return (int)worker.MaxTableSize;
+        }
+
+        private class MaxTableSizeFinder : TableWorker
+        {
+            public BigInteger MaxTableSize;
+
+            public override void Start()
             {
-                case "plan":
-                    return new TablePrinter();
+                MaxTableSize = 0;
+            }
 
-                case "gen":
-                    return new TableGenerator { EnableTableGeneration = true, EnableSelfCheck = true };
+            public override void GenerateTable(int[,] config)
+            {
+                BigInteger size = TableSize(config);
+                if (size > MaxTableSize)
+                    MaxTableSize = size;
+            }
 
-                case "test":
-                    return new TableGenerator { EnableTableGeneration = false, EnableSelfCheck = true };
-
-                default:
-                    return null;
+            public override void Finish()
+            {
             }
         }
 
@@ -134,7 +171,7 @@ EndgameTableGen decode config_id table_index side_to_move
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
             Table table = Table.Load(filename, size);
-            var worker = new TableGenerator();
+            var worker = new TableGenerator(0);
             worker.ForEachPosition(table, config, PrintNode);
             return 0;
         }

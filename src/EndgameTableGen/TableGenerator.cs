@@ -34,6 +34,16 @@ namespace EndgameTableGen
         public long WhiteConfigId;
         public long BlackConfigId;
 
+        public TableGenerator(int max_table_size)
+        {
+            if (max_table_size > 0)
+            {
+                // Pre-allocate the GraphPool with the largest size we will need,
+                // so as to reduce garbage collector burden.
+                gpool = new GraphPool(max_table_size);
+            }
+        }
+
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
         {
             var table = new List<int>();
@@ -78,7 +88,7 @@ namespace EndgameTableGen
 
                 // Generate the table.
                 table = new Table(size);
-                gpool = new GraphPool(size);
+                gpool.Reset(size);
 
                 if (EnableSelfCheck)
                 {
