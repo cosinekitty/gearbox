@@ -193,7 +193,8 @@ namespace EndgameTableGen
 
                 for (int bkindex = 0; bkindex < WholeBoardOffsetTable.Length; ++bkindex)
                 {
-                    if (need_diag_filter && Position.DiagonalHeight(bkindex) > 0)
+                    int bk_diag_height = Position.DiagonalHeight(bkindex);
+                    if (need_diag_filter && (bk_diag_height > 0))
                         continue;   // eliminate redundant board positions when using 8-fold symmetry and white king is on the diagonal
 
                     int bkofs = WholeBoardOffsetTable[bkindex];
@@ -209,7 +210,7 @@ namespace EndgameTableGen
                             Q_INDEX,
                             config[WHITE,Q_INDEX],
                             config[BLACK,Q_INDEX],
-                            need_diag_filter,
+                            need_diag_filter && (bk_diag_height == 0),
                             0);
                     }
                 }
