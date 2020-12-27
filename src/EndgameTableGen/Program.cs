@@ -109,9 +109,8 @@ EndgameTableGen list filename
 
         static int PrintNode(Table table, Board board, int tindex)
         {
-            int wscore = table.GetWhiteScore(tindex);
-            int bscore = table.GetBlackScore(tindex);
-            Console.WriteLine("{0,9} {1,5} {2,5} {3}", tindex, wscore, bscore, board.ForsythEdwardsNotation());
+            int score = board.IsWhiteTurn ? table.GetWhiteScore(tindex) : table.GetBlackScore(tindex);
+            Console.WriteLine("{0,9} {1,5} {2}", tindex, score, board.ForsythEdwardsNotation());
             return 1;
         }
     }
