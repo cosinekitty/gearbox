@@ -23,10 +23,10 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using Gearbox;
 
@@ -34,18 +34,36 @@ namespace BoardTest
 {
     class Program
     {
+        static readonly Dictionary<string, Func<string[], bool>> TestTable = new()
+        {
+            ["all"] = TestAll,
+            ["puzzles"] = TestPuzzles,
+        };
+
         static int Main(string[] args)
         {
-            bool fast = args.Length == 1 && args[0] == "fast";
+            if (args.Length > 0)
+            {
+                if (TestTable.TryGetValue(args[0], out var func))
+                    return func(args.Skip(1).ToArray()) ? 0 : 1;
+            }
+            Console.WriteLine("ERROR: Invalid command line arguments.");
+            Console.WriteLine("The following command line verbs are supported:");
+            foreach (string key in TestTable.Keys.OrderBy(k => k.ToUpperInvariant()))
+                Console.WriteLine(key);
+            return 1;
+        }
 
-            return (
+        static bool TestAll(string[] args)
+        {
+            return
                 TestStandardSetup() &&
                 TestDraws() &&
                 TestGameTags() &&
-                TestPuzzles() &&
+                TestPuzzles(null) &&
                 TestGameListing() &&
-                (fast || TestPgn())
-            ) ? 0 : 1;
+                TestPgn()
+            ;
         }
 
         static bool TestPgn()
@@ -374,7 +392,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             new Puzzle(2.9, "d7f6", 10, "4k1r1/1pqnpp2/8/p1pRP2Q/P1P5/1P5P/1B4p1/6K1 b - - 0 36"),          // https://lichess.org/training/62867
         };
 
-        static bool TestPuzzles()
+        static bool TestPuzzles(string[] args)
         {
             var board = new Board();
             var thinker = new Thinker();
