@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 
 namespace EndgameTableGen
 {
@@ -74,20 +75,65 @@ namespace EndgameTableGen
             else
             {
                 // Leaf node of the recursive search tree.
-                if (IsCheckmatePossible())
+                if (IsForcedCheckmatePossible())
                     worker.GenerateTable(config);
             }
         }
 
-        private bool IsCheckmatePossible()
+        private bool IsForcedCheckmatePossible()
         {
-            // This is based on the corresponding logic in Board.GetGameResult().
+            // This function returns false only when it is certain
+            // that forced checkmate is impossible for the given configuration.
+            // Otherwise it must return true, so that we generate
+            // an endgame table for the configuration.
+
             int q = config[WHITE, Q_INDEX] + config[BLACK, Q_INDEX];
             int r = config[WHITE, R_INDEX] + config[BLACK, R_INDEX];
-            int b = config[WHITE, B_INDEX] + config[BLACK, B_INDEX];
-            int n = config[WHITE, N_INDEX] + config[BLACK, N_INDEX];
             int p = config[WHITE, P_INDEX] + config[BLACK, P_INDEX];
-            return (q+r+p > 0) || (n+b > 1);
+            if (q + r + p > 0)
+                return true;
+
+            int wb = config[WHITE, B_INDEX];
+            int wn = config[WHITE, N_INDEX];
+            int bb = config[BLACK, B_INDEX];
+            int bn = config[BLACK, N_INDEX];
+
+            if (wn + wb + bn + bb > 1)
+            {
+                // Checkmate is possible, but not proven forcible.
+                // Exclude some known cases where checkmates occur but are not forced.
+                // Others may exist, but it's better to err on the side of returning true.
+                string dec = Decimal(wb, bb, wn, bn);
+                switch (dec)
+                {
+                    //    BbNn
+                    case "1100":
+                    case "1001":
+                    case "0110":
+                    case "0011":
+                    case "0020":
+                    case "0002":
+                        // Add more material draw cases here as they are discovered.
+                        return false;
+
+                    default:
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string Decimal(params int[] digits)
+        {
+            var sb = new StringBuilder(digits.Length);
+            foreach (int d in digits)
+            {
+                if (d < 0 || d > 9)
+                    throw new ArgumentException("Invalid digit: " + d);
+                sb.Append(d);
+            }
+            return sb.ToString();
         }
     }
 }
