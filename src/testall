@@ -7,7 +7,7 @@ Fail()
 }
 
 cd BoardTest || Fail "Could not change to BoardTest directory."
-dotnet run || Fail "BoardTest"
+dotnet run -- all || Fail "BoardTest"
 
 cd ../PossibleMates || Fail "Could not change to PossibleMates directory."
 ./testmates || exit $?
