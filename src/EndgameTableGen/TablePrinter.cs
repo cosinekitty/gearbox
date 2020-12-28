@@ -10,28 +10,27 @@ namespace EndgameTableGen
 
         public override void Start()
         {
-            Console.WriteLine("    table   Qq Rr Bb Nn Pp {0,20}", "size");
+            Console.WriteLine("[Qq Rr Bb Nn Pp]{0,22}", "[size]");
             tableCount = 0;
             totalSize = 0;
         }
 
         public override void GenerateTable(int[,] config)
         {
-            Console.Write("{0,9}  ", ++tableCount);
-
             for (int m=0; m < WorkPlanner.NumNonKings; ++m)
                 Console.Write(" {0}{1}", config[0,m], config[1,m]);
 
             BigInteger size = TableSize(config);
-            Console.WriteLine(" {0,20:n0}", size);
+            Console.WriteLine(" {0,22:n0}", size);
 
             totalSize += size;
+            ++tableCount;
         }
 
         public override void Finish()
         {
-            Console.WriteLine("                             ------------------");
-            Console.WriteLine("                           {0,20:n0}", totalSize);
+            Console.WriteLine("---------------   --------------------");
+            Console.WriteLine("{0,15} {1,22:n0}", tableCount, totalSize);
         }
     }
 }
