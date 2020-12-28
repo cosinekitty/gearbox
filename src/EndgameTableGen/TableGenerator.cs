@@ -10,8 +10,8 @@ namespace EndgameTableGen
 
     internal class TableGenerator : TableWorker
     {
-        private const int EnemyMatedScore  = +2000;
-        private const int FriendMatedScore = -2000;
+        internal const int EnemyMatedScore  = +2000;
+        internal const int FriendMatedScore = -2000;
 
         private static readonly int[] EightfoldSymmetryTable = new int[]
         {

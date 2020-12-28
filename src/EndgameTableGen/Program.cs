@@ -41,6 +41,9 @@ EndgameTableGen list filename
     configuration ID is fundamental for interpreting the
     contents of the file.
 
+EndgameTableGen stats filename
+    Analyze the given endgame table and print statistics.
+
 EndgameTableGen decode config_id table_index side_to_move
     Prints the FEN of a board configuration corresponding to
     the given configuration and table index.
@@ -54,6 +57,11 @@ EndgameTableGen decode config_id table_index side_to_move
             if ((args.Length == 2) && (args[0] == "list"))
             {
                 return ListTable(args[1]);
+            }
+
+            if ((args.Length == 2) && (args[0] == "stats"))
+            {
+                return PrintTableStats(args[1]);
             }
 
             if ((args.Length == 4) && (args[0] == "decode"))
@@ -181,6 +189,69 @@ EndgameTableGen decode config_id table_index side_to_move
             int score = board.IsWhiteTurn ? table.GetWhiteScore(tindex) : table.GetBlackScore(tindex);
             Console.WriteLine("{0,9} {1,5} {2}", tindex, score, board.ForsythEdwardsNotation());
             return 1;
+        }
+
+        static int PrintTableStats(string filename)
+        {
+            if (!File.Exists(filename))
+            {
+                Console.WriteLine("ERROR: File does not exist: {0}", filename);
+                return 1;
+            }
+
+            string config_text = Path.GetFileNameWithoutExtension(filename);
+            if (config_text.Length != 10 || !long.TryParse(config_text, out long config_id))
+            {
+                Console.WriteLine("ERROR: Filename does not contain a valid configuration ID.");
+                return 1;
+            }
+
+            int[,] config = TableWorker.DecodeConfig(config_id);
+            int size = (int) TableWorker.TableSize(config);
+            Table table = Table.Load(filename, size);
+            Console.WriteLine(filename);
+            Console.WriteLine("{0,12:n0} score slots", 2*size);
+            int whiteWins=0, whiteLosses=0, blackWins=0, blackLosses=0, occupied=0;
+            int longestForcedMatePlies = -1;
+            for (int tindex=0; tindex < size; ++tindex)
+            {
+                int wscore = table.GetWhiteScore(tindex);
+                int bscore = table.GetBlackScore(tindex);
+                if (wscore != 0 || bscore != 0)
+                {
+                    ++occupied;
+
+                    if (wscore != 0)
+                    {
+                        if (wscore < 0)
+                            ++whiteLosses;
+                        else
+                            ++whiteWins;
+
+                        longestForcedMatePlies = Math.Max(longestForcedMatePlies, TableGenerator.EnemyMatedScore - Math.Abs(wscore));
+                    }
+
+                    if (bscore != 0)
+                    {
+                        if (bscore < 0)
+                            ++blackLosses;
+                        else
+                            ++blackWins;
+
+                        longestForcedMatePlies = Math.Max(longestForcedMatePlies, TableGenerator.EnemyMatedScore - Math.Abs(bscore));
+                    }
+                }
+            }
+
+            Console.WriteLine("{0,12:n0} occupied score slots; ratio = {1}", occupied, occupied / (2.0 * size));
+            Console.WriteLine("{0,12:n0} White wins", whiteWins);
+            Console.WriteLine("{0,12:n0} White losses", whiteLosses);
+            Console.WriteLine("{0,12:n0} Black wins", blackWins);
+            Console.WriteLine("{0,12:n0} Black losses.", blackLosses);
+            Console.WriteLine("Longest forced mate plies = {0}", longestForcedMatePlies);
+            Console.WriteLine();
+
+            return 0;
         }
     }
 }
