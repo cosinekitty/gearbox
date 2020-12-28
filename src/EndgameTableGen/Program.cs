@@ -210,7 +210,7 @@ EndgameTableGen decode config_id table_index side_to_move
             int size = (int) TableWorker.TableSize(config);
             Table table = Table.Load(filename, size);
             Console.WriteLine(filename);
-            Console.WriteLine("{0,12:n0} score slots", 2*size);
+            Console.WriteLine("{0,12:n0} total position capacity", size);
             int whiteWins=0, whiteLosses=0, blackWins=0, blackLosses=0, occupied=0;
             int longestForcedMatePlies = -1;
             for (int tindex=0; tindex < size; ++tindex)
@@ -243,7 +243,7 @@ EndgameTableGen decode config_id table_index side_to_move
                 }
             }
 
-            Console.WriteLine("{0,12:n0} occupied score slots; ratio = {1}", occupied, occupied / (2.0 * size));
+            Console.WriteLine("{0,12:n0} occupied score slots; ratio = {1}", occupied, ((double)occupied / size).ToString("F6"));
             Console.WriteLine("{0,12:n0} White wins", whiteWins);
             Console.WriteLine("{0,12:n0} White losses", whiteLosses);
             Console.WriteLine("{0,12:n0} Black wins", blackWins);
