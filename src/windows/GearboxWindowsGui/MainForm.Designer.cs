@@ -29,20 +29,37 @@ namespace GearboxWindowsGui
         /// </summary>
         private void InitializeComponent()
         {
+            this.panel_ChessBoard = new System.Windows.Forms.Panel();
             this.SuspendLayout();
+            // 
+            // panel_ChessBoard
+            // 
+            this.panel_ChessBoard.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left)));
+            this.panel_ChessBoard.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel_ChessBoard.Location = new System.Drawing.Point(13, 13);
+            this.panel_ChessBoard.Name = "panel_ChessBoard";
+            this.panel_ChessBoard.Size = new System.Drawing.Size(626, 654);
+            this.panel_ChessBoard.TabIndex = 0;
+            this.panel_ChessBoard.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_ChessBoard_Paint);
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(799, 618);
+            this.ClientSize = new System.Drawing.Size(708, 679);
+            this.Controls.Add(this.panel_ChessBoard);
+            this.MinimumSize = new System.Drawing.Size(700, 47);
             this.Name = "MainForm";
             this.Text = "Gearbox Chess Engine";
+            this.Resize += new System.EventHandler(this.MainForm_Resize);
             this.ResumeLayout(false);
 
         }
 
         #endregion
+
+        private System.Windows.Forms.Panel panel_ChessBoard;
     }
 }
 
