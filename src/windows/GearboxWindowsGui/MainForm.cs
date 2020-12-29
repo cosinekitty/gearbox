@@ -18,7 +18,7 @@ namespace GearboxWindowsGui
 
         private int TopMarginPixels()
         {
-            return menuStrip1.Height + 25;
+            return mainMenuStrip.Height + 25;
         }
 
         public MainForm()
