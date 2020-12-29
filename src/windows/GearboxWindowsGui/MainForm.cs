@@ -90,5 +90,10 @@ namespace GearboxWindowsGui
                 panel_ChessBoard.Invalidate(curr);
             }
         }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
     }
 }
