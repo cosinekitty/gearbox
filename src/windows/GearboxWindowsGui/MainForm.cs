@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -15,6 +16,8 @@ namespace GearboxWindowsGui
     public partial class MainForm : Form
     {
         private BoardDisplay boardDisplay = new();
+        private GameTags gameTags = new GameTags();
+        private string currentPgnFileName;
 
         private int TopMarginPixels()
         {
@@ -94,6 +97,39 @@ namespace GearboxWindowsGui
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Application.Exit();
+        }
+
+        private void Save()
+        {
+            string pgn = boardDisplay.board.PortableGameNotation(gameTags);
+            using (StreamWriter output = File.CreateText(currentPgnFileName))
+                output.WriteLine(pgn);
+        }
+
+        private void SaveAs()
+        {
+            var dialog = new SaveFileDialog();
+            dialog.Filter = "Chess Game|*.pgn";
+            dialog.Title = "Save the chess game as Portable Game Notation (PGN).";
+            dialog.ShowDialog();
+            if (!string.IsNullOrEmpty(dialog.FileName))
+            {
+                currentPgnFileName = dialog.FileName;
+                Save();
+            }
+        }
+
+        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SaveAs();
+        }
+
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(currentPgnFileName))
+                SaveAs();
+            else
+                Save();
         }
     }
 }

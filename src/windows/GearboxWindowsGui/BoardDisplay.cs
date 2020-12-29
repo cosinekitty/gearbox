@@ -12,7 +12,7 @@ namespace GearboxWindowsGui
     internal class BoardDisplay
     {
         private bool reverse;   // false = show from White's point of view, true = Black's
-        private readonly Board board = new Board();
+        internal readonly Board board = new Board();
         private readonly MoveList legalMoveList = new MoveList();
         private readonly Dictionary<Square, Image> imageTable = new();
         private string imageFolder = @"c:\don\github\gearbox\src\windows\GearboxWindowsGui\images"; // FIXFIXFIX
