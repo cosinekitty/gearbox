@@ -86,22 +86,9 @@ namespace GearboxWindowsGui
                 boardDisplay.UpdateDraggedPieceLocation(e.X, e.Y);
                 Rectangle curr = boardDisplay.AnimationRectangle();
 
-                // Limit the area of the invalidation to a rectangle that contains
-                // pixels near where we have been animating the dragged piece.
-                // This is necessary to keep the frame rate reasonable.
-                Rectangle merge = MergeRectangles(prev, curr);
-                panel_ChessBoard.Invalidate(merge);
+                panel_ChessBoard.Invalidate(prev);
+                panel_ChessBoard.Invalidate(curr);
             }
-        }
-
-        private Rectangle MergeRectangles(Rectangle a, Rectangle b)
-        {
-            int x1 = Math.Min(a.X, b.X);
-            int y1 = Math.Min(a.Y, b.Y);
-            int x2 = Math.Max(a.X + a.Width, b.X + b.Width);
-            int y2 = Math.Max(a.Y + a.Height, b.Y + b.Height);
-            var rect = new Rectangle(x1, y1, x2 - x1, y2 - y1);
-            return rect;
         }
     }
 }
