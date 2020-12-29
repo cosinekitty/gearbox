@@ -15,6 +15,7 @@ namespace GearboxWindowsGui
     public partial class MainForm : Form
     {
         private BoardDisplay boardDisplay = new();
+        private readonly int topMarginPixels;
 
         public MainForm()
         {
@@ -29,6 +30,7 @@ namespace GearboxWindowsGui
                 new object[] { true }
             );
 
+            topMarginPixels = menuStrip1.Height + 25;
             ResizeChessBoard();
         }
 
@@ -39,7 +41,7 @@ namespace GearboxWindowsGui
             // We never want to clip the chess board, and it must
             // always have a number of pixels that is divisible by 8
             // so all of the squares have an integer number of pixels.
-            int pixels = (Math.Min(ClientRectangle.Width, ClientRectangle.Height) - 20) & ~7;
+            int pixels = (Math.Min(ClientRectangle.Width, ClientRectangle.Height) - topMarginPixels) & ~7;
             boardDisplay.SetPixelsPerSquare(pixels / 8);
             panel_ChessBoard.Width = pixels;
             panel_ChessBoard.Height = pixels;
