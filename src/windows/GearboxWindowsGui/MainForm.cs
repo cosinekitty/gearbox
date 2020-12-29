@@ -131,5 +131,12 @@ namespace GearboxWindowsGui
             else
                 Save();
         }
+
+        private void newToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentPgnFileName = null;
+            boardDisplay.board.SetPosition(Board.StandardSetup);
+            panel_ChessBoard.Invalidate();
+        }
     }
 }
