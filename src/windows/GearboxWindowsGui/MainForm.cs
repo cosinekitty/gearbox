@@ -22,7 +22,12 @@ namespace GearboxWindowsGui
 
         private void ResizeChessBoard()
         {
-            int pixels = (this.ClientRectangle.Height - 20) & ~7;    // must be divisible by 8
+            // Figure out how large to make the chess board based on changes
+            // to the size of the whole form window.
+            // We never want to clip the chess board, and it must
+            // always have a number of pixels that is divisible by 8
+            // so all of the squares have an integer number of pixels.
+            int pixels = (Math.Min(ClientRectangle.Width, ClientRectangle.Height) - 20) & ~7;
             panel_ChessBoard.Width = pixels;
             panel_ChessBoard.Height = pixels;
             panel_ChessBoard.Invalidate();

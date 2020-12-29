@@ -44,9 +44,9 @@ namespace GearboxWindowsGui
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(708, 679);
+            this.ClientSize = new System.Drawing.Size(682, 685);
             this.Controls.Add(this.panel_ChessBoard);
-            this.MinimumSize = new System.Drawing.Size(700, 47);
+            this.MinimumSize = new System.Drawing.Size(700, 700);
             this.Name = "MainForm";
             this.Text = "Gearbox Chess Engine";
             this.Resize += new System.EventHandler(this.MainForm_Resize);
