@@ -39,6 +39,9 @@ namespace GearboxWindowsGui
             this.panel_ChessBoard.Size = new System.Drawing.Size(626, 654);
             this.panel_ChessBoard.TabIndex = 0;
             this.panel_ChessBoard.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_ChessBoard_Paint);
+            this.panel_ChessBoard.MouseDown += new System.Windows.Forms.MouseEventHandler(this.panel_ChessBoard_MouseDown);
+            this.panel_ChessBoard.MouseMove += new System.Windows.Forms.MouseEventHandler(this.panel_ChessBoard_MouseMove);
+            this.panel_ChessBoard.MouseUp += new System.Windows.Forms.MouseEventHandler(this.panel_ChessBoard_MouseUp);
             // 
             // MainForm
             // 

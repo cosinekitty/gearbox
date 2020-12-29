@@ -98,6 +98,14 @@ namespace Gearbox
             return Board.FromGame(game);
         }
 
+        public Square GetSquareContents(int ofs)
+        {
+            if (ofs < 21 || ofs > 98 || square[ofs] == Square.Offboard)
+                throw new ArgumentException(string.Format("Invalid board offset: {0}", ofs));
+
+            return square[ofs];
+        }
+
         public int FullMoveNumber { get { return fullMoveNumber; } }
         public bool IsWhiteTurn { get { return isWhiteTurn; } }
         public bool IsBlackTurn { get { return !isWhiteTurn; } }
