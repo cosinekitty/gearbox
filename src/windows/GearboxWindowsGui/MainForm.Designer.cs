@@ -34,9 +34,6 @@ namespace GearboxWindowsGui
             // 
             // panel_ChessBoard
             // 
-            this.panel_ChessBoard.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left)));
-            this.panel_ChessBoard.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.panel_ChessBoard.Location = new System.Drawing.Point(13, 13);
             this.panel_ChessBoard.Name = "panel_ChessBoard";
             this.panel_ChessBoard.Size = new System.Drawing.Size(626, 654);

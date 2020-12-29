@@ -15,6 +15,8 @@ namespace GearboxWindowsGui
         private readonly Board board = new Board();
         private readonly Dictionary<Square, Image> imageTable = new();
         private string imageFolder = @"c:\don\github\gearbox\src\windows\GearboxWindowsGui\images"; // FIXFIXFIX
+        private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe1, 0xce, 0xaa));
+        private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0x9c, 0xa2, 0x66));
 
         public BoardDisplay()
         {
@@ -57,11 +59,17 @@ namespace GearboxWindowsGui
                 {
                     int sy = reverse ? (7 - y) : y;
                     int ry = (7 - y) * squarePixels;
+                    var rect = new Rectangle(rx, ry, squarePixels, squarePixels);
+                    var brush = (((x + y) & 1) == 0) ? darkSquareBrush : lightSqaureBrush;
+
+                    // Draw the colored square itself.
+                    graphics.FillRectangle(brush, rect);
+
+                    // If there is a piece on the square, superimpose its icon on the square.
                     int ofs = 21 + (10 * sy) + sx;
                     Square piece = squares[ofs];
                     if (imageTable.TryGetValue(piece, out Image image))
                     {
-                        var rect = new Rectangle(rx, ry, squarePixels, squarePixels);
                         graphics.DrawImage(image, rect);
                     }
                 }

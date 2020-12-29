@@ -17,14 +17,20 @@ namespace GearboxWindowsGui
         public MainForm()
         {
             InitializeComponent();
+            ResizeChessBoard();
+        }
+
+        private void ResizeChessBoard()
+        {
+            int pixels = (this.ClientRectangle.Height - 20) & ~7;    // must be divisible by 8
+            panel_ChessBoard.Width = pixels;
+            panel_ChessBoard.Height = pixels;
+            panel_ChessBoard.Invalidate();
         }
 
         private void MainForm_Resize(object sender, EventArgs e)
         {
-            if (this.panel_ChessBoard.Width != this.panel_ChessBoard.Height)
-            {
-                this.panel_ChessBoard.Width = this.panel_ChessBoard.Height;
-            }
+            ResizeChessBoard();
         }
 
         private void panel_ChessBoard_Paint(object sender, PaintEventArgs e)
