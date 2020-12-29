@@ -56,20 +56,44 @@ namespace GearboxWindowsGui
             this.reverse = reverse;
         }
 
-        public void Render(Graphics graphics, int squarePixels)
+        public void SetPixelsPerSquare(int squarePixels)
         {
-            this.pixelsPerSquare = squarePixels;
+            pixelsPerSquare = squarePixels;
+        }
+
+        internal void UpdateDraggedPieceLocation(int mouseX, int mouseY)
+        {
+            dragMouseX = mouseX;
+            dragMouseY = mouseY;
+        }
+
+        internal Rectangle AnimationRectangle()
+        {
+            int px = dragMouseX - (pixelsPerSquare / 2);
+            int py = dragMouseY - (pixelsPerSquare / 2);
+            var rect = new Rectangle(px, py, pixelsPerSquare, pixelsPerSquare);
+            return rect;
+        }
+
+        public void Render(Graphics graphics, Rectangle clipRectangle)
+        {
             for (int x=0; x < 8; ++x)
             {
                 int sx = reverse ? (7 - x) : x;
-                int rx = squarePixels * x;
+                int rx = pixelsPerSquare * x;
                 for (int y=0; y < 8; ++y)
                 {
                     int sy = reverse ? (7 - y) : y;
-                    int ry = (7 - y) * squarePixels;
+                    int ry = (7 - y) * pixelsPerSquare;
                     int ofs = 21 + (10 * sy) + sx;
 
-                    var rect = new Rectangle(rx, ry, squarePixels, squarePixels);
+                    var rect = new Rectangle(rx, ry, pixelsPerSquare, pixelsPerSquare);
+
+                    // For the sake of performance, it is important to only draw the parts
+                    // of the chess board that overlap with the invalidated rectangle.
+                    if (!RectanglesOverlap(rect, clipRectangle))
+                        continue;
+
                     var brush = (((x + y) & 1) == 0) ? darkSquareBrush : lightSqaureBrush;
 
                     // Draw the colored square itself.
@@ -87,9 +111,7 @@ namespace GearboxWindowsGui
                         // If there is a piece on the square, superimpose its icon on the square.
                         Square piece = board.GetSquareContents(ofs);
                         if (imageTable.TryGetValue(piece, out Image image))
-                        {
                             graphics.DrawImage(image, rect);
-                        }
                     }
                 }
             }
@@ -99,18 +121,30 @@ namespace GearboxWindowsGui
                 // Draw any dragged piece on top of everything else.
                 if (imageTable.TryGetValue(pieceBeingDragged, out Image image))
                 {
-                    int px = dragMouseX - (squarePixels / 2);
-                    int py = dragMouseY - (squarePixels / 2);
-                    var rect = new Rectangle(px, py, squarePixels, squarePixels);
-                    graphics.DrawImage(image, rect);
+                    Rectangle rect = AnimationRectangle();
+                    if (RectanglesOverlap(rect, clipRectangle))
+                        graphics.DrawImage(image, rect);
                 }
             }
         }
 
-        internal void UpdateDraggedPieceLocation(int mouseX, int mouseY)
+        private bool RectanglesOverlap(Rectangle a, Rectangle b)
         {
-            dragMouseX = mouseX;
-            dragMouseY = mouseY;
+            // If two rectangles overlap, one of the rectangle's corners must be inside the other rectangle.
+            return
+                PointInsideRectangle(a.X, a.Y, b) ||
+                PointInsideRectangle(a.X + a.Width - 1, a.Y, b) ||
+                PointInsideRectangle(a.X + a.Width - 1, a.Y + a.Height - 1, b) ||
+                PointInsideRectangle(a.X, a.Y + a.Height - 1, b) ||
+                PointInsideRectangle(b.X, b.Y, a) ||
+                PointInsideRectangle(b.X + b.Width - 1, b.Y, a) ||
+                PointInsideRectangle(b.X + b.Width - 1, b.Y + b.Height - 1, a) ||
+                PointInsideRectangle(b.X, b.Y + b.Height - 1, a);
+        }
+
+        private bool PointInsideRectangle(int x, int y, Rectangle r)
+        {
+            return (x >= r.X) && (x < r.X + r.Width) && (y >= r.Y) && (y < r.Y + r.Height);
         }
 
         public int BoardOffset(int mouseX, int mouseY)
