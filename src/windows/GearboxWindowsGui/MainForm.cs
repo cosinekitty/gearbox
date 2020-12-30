@@ -108,14 +108,15 @@ namespace GearboxWindowsGui
 
         private void SaveAs()
         {
-            var dialog = new SaveFileDialog();
-            dialog.Filter = "Chess Game|*.pgn";
-            dialog.Title = "Save the chess game as Portable Game Notation (PGN).";
-            dialog.ShowDialog();
-            if (!string.IsNullOrEmpty(dialog.FileName))
+            using (var dialog = new SaveFileDialog())
             {
-                currentPgnFileName = dialog.FileName;
-                Save();
+                dialog.Filter = "Chess Game|*.pgn";
+                dialog.Title = "Save the chess game in Portable Game Notation (PGN) format";
+                if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(dialog.FileName))
+                {
+                    currentPgnFileName = dialog.FileName;
+                    Save();
+                }
             }
         }
 
@@ -137,6 +138,39 @@ namespace GearboxWindowsGui
             currentPgnFileName = null;
             boardDisplay.board.SetPosition(Board.StandardSetup);
             panel_ChessBoard.Invalidate();
+        }
+
+        private void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Chess Game|*.pgn";
+                dialog.Title = "Load a chess game from a Portable Game Notation (PGN) file";
+                if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(dialog.FileName))
+                {
+                    // Test the correctness of the PNG file.
+                    // If it contains more than one game, just load the first game in it.
+                    Game firstGame = null;
+                    try
+                    {
+                        using (StreamReader infile = File.OpenText(dialog.FileName))
+                        {
+                            firstGame = Game.FromStream(infile).FirstOrDefault();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Error loading PGN file.", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+
+                    if (firstGame != null)
+                    {
+                        boardDisplay.board.LoadGame(firstGame);
+                        gameTags = firstGame.Tags;
+                        currentPgnFileName = dialog.FileName;
+                    }
+                }
+            }
         }
     }
 }

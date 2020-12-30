@@ -87,6 +87,16 @@ namespace Gearbox
             return board;
         }
 
+        public void LoadGame(Game game)
+        {
+            if (game != null)
+            {
+                SetPosition(game.Tags.InitialState);
+                foreach (Move move in game.MoveHistory)
+                    PushMove(move);
+            }
+        }
+
         public static Board FromPgnText(string pgn)
         {
             // Extract the first full game from the PGN string.
