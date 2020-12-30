@@ -18,6 +18,8 @@ namespace Gearbox
             array = new HashEntry[size];
         }
 
+        public int Size => array.Length;
+
         public HashEntry Read(HashValue hash)
         {
             int index = (int)(hash.a % (ulong)array.Length);

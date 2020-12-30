@@ -15,7 +15,7 @@ namespace Gearbox
         private System.Timers.Timer searchTimer;
         private int quiescentCheckLimit = 3;
         private List<Stratum> stratumList = new List<Stratum>(100);
-        private HashTable xpos = new HashTable(50000000);
+        private HashTable xpos;
         private int evalCount;
         private readonly object searchMutex = new object();
         private bool searchInProgress;
@@ -23,10 +23,18 @@ namespace Gearbox
         private AutoResetEvent abortSignal = new AutoResetEvent(false);
         private ISearchInfoSink sink;       // Supports sending notifications about the search to a user interface or debug log
 
-        public Thinker()
+        public Thinker(int hashTableSize)
         {
+            NewHashTable(hashTableSize);
             searchTimer = new System.Timers.Timer();
             searchTimer.Elapsed += OnSearchTimeElapsed;
+        }
+
+        public int HashTableSize => xpos.Size;
+
+        public void NewHashTable(int size)
+        {
+            xpos = new HashTable(size);
         }
 
         public void SetInfoSink(ISearchInfoSink sink)

@@ -16,7 +16,8 @@ namespace GearboxUci
         static bool debugMode;
         static bool exit;
         static AutoResetEvent signal = new AutoResetEvent(false);
-        static Thinker thinker = new Thinker();
+        const int HashTableSize = 50000000;
+        static Thinker thinker = new Thinker(HashTableSize);
         static Board board = new Board();
         static SearchLimits searchLimits;
 

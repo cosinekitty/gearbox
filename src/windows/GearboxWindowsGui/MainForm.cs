@@ -22,7 +22,8 @@ namespace GearboxWindowsGui
         private bool keepRunningThinker = true;
         private Thread thinkerThread;
         private AutoResetEvent signal = new AutoResetEvent(false);
-        private Thinker thinker = new Thinker();
+        private const int HashTableSize = 50000000;
+        private Thinker thinker = new Thinker(HashTableSize);
         private bool isComputerThinking;
 
         private int TopMarginPixels()
