@@ -394,7 +394,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
 
         static bool TestPuzzles(string[] args)
         {
-            const int HashTableSize = 50000000;
+            int HashTableSize = (args.Length > 0) ? int.Parse(args[0]) : 50000000;
             var board = new Board();
             var thinker = new Thinker(HashTableSize);
             var legal = new MoveList();
@@ -434,6 +434,20 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
             totalTime.Stop();
             Console.WriteLine("        -------          -------- ------------");
             Console.WriteLine("PASS:   {0,7}          {1,8} {2,12:n0}", count, totalTime.Elapsed.TotalSeconds.ToString("0.000"), totalEvalCount);
+
+            if (args.Length > 1)
+            {
+                // Append statistics to an output csv file.
+                string outFileName = args[1];
+
+                if (!File.Exists(outFileName))
+                    using (StreamWriter output = File.CreateText(outFileName))
+                        output.WriteLine("\"HashTableSize\",\"TimeInSeconds\",\"EvalCount\"");
+
+                using (StreamWriter output = File.AppendText(outFileName))
+                    output.WriteLine("{0},{1},{2}", HashTableSize, totalTime.Elapsed.TotalSeconds, totalEvalCount);
+            }
+
             return true;
         }
 
