@@ -172,5 +172,11 @@ namespace GearboxWindowsGui
                 }
             }
         }
+
+        private void rotateBoardToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            boardDisplay.RotateBoard();
+            panel_ChessBoard.Invalidate();
+        }
     }
 }

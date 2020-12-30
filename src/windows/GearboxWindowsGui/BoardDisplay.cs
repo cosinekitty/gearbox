@@ -51,9 +51,9 @@ namespace GearboxWindowsGui
             return Image.FromFile(path);
         }
 
-        public void RotateBoard(bool reverse)
+        public void RotateBoard()
         {
-            this.reverse = reverse;
+            reverse = !reverse;
         }
 
         public void SetPixelsPerSquare(int squarePixels)
