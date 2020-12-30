@@ -17,7 +17,9 @@ namespace GearboxWindowsGui
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            var form = new MainForm();
+            Application.ApplicationExit += form.OnApplicationExit;
+            Application.Run(form);
         }
     }
 }

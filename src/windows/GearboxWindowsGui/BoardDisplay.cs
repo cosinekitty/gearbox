@@ -229,6 +229,17 @@ namespace GearboxWindowsGui
             return false;
         }
 
+        internal void MakeMove(Move move)
+        {
+            if (legalMoveList.Contains(move))
+            {
+                board.PushMove(move);
+                board.GenMoves(legalMoveList);
+            }
+            else
+                throw new Exception("Illegal move received: " + move);
+        }
+
         private void CancelDrag()
         {
             dragSourceOffset = 0;

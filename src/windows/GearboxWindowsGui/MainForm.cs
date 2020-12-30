@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -18,6 +19,11 @@ namespace GearboxWindowsGui
         private BoardDisplay boardDisplay = new();
         private GameTags gameTags = new GameTags();
         private string currentPgnFileName;
+        private bool keepRunningThinker = true;
+        private Thread thinkerThread;
+        private AutoResetEvent signal = new AutoResetEvent(false);
+        private Thinker thinker = new Thinker();
+        private bool isComputerThinking;
 
         private int TopMarginPixels()
         {
@@ -38,6 +44,13 @@ namespace GearboxWindowsGui
             );
 
             ResizeChessBoard();
+
+            thinkerThread = new Thread(ThinkerThreadFunc)
+            {
+                IsBackground = true,
+                Name = "Gearbox Thinker",
+            };
+            thinkerThread.Start();
         }
 
         private void ResizeChessBoard()
@@ -66,32 +79,59 @@ namespace GearboxWindowsGui
 
         private void panel_ChessBoard_MouseDown(object sender, MouseEventArgs e)
         {
-            // Did the user just click on a square that contains a piece
-            // the current side can move?
-            // If so, start animating its movement along with the mouse.
-            // FIXFIXFIX: check that it is the human's turn to move.
-            boardDisplay.StartDraggingPiece(e.X, e.Y);
-            panel_ChessBoard.Invalidate();
+            if (!isComputerThinking)
+            {
+                // Did the user just click on a square that contains a piece
+                // the current side can move?
+                // If so, start animating its movement along with the mouse.
+                boardDisplay.StartDraggingPiece(e.X, e.Y);
+                panel_ChessBoard.Invalidate();
+            }
         }
 
         private void panel_ChessBoard_MouseUp(object sender, MouseEventArgs e)
         {
-            boardDisplay.DropPiece(e.X, e.Y);
-            panel_ChessBoard.Invalidate();
+            if (!isComputerThinking)
+            {
+                if (boardDisplay.DropPiece(e.X, e.Y))
+                {
+                    isComputerThinking = true;
+                    signal.Set();
+                }
+                panel_ChessBoard.Invalidate();
+            }
         }
 
         private void panel_ChessBoard_MouseMove(object sender, MouseEventArgs e)
         {
-            if (boardDisplay.IsDraggingPiece())
+            if (!isComputerThinking)
             {
-                // Keep animating the piece being moved.
-                Rectangle prev = boardDisplay.AnimationRectangle();
-                boardDisplay.UpdateDraggedPieceLocation(e.X, e.Y);
-                Rectangle curr = boardDisplay.AnimationRectangle();
+                if (boardDisplay.IsDraggingPiece())
+                {
+                    // Keep animating the piece being moved.
+                    Rectangle prev = boardDisplay.AnimationRectangle();
+                    boardDisplay.UpdateDraggedPieceLocation(e.X, e.Y);
+                    Rectangle curr = boardDisplay.AnimationRectangle();
 
-                panel_ChessBoard.Invalidate(prev);
-                panel_ChessBoard.Invalidate(curr);
+                    panel_ChessBoard.Invalidate(prev);
+                    panel_ChessBoard.Invalidate(curr);
+                }
             }
+        }
+
+        private void OnSearchCompleted(Move move)
+        {
+            boardDisplay.MakeMove(move);
+            panel_ChessBoard.Invalidate();
+            isComputerThinking = false;
+        }
+
+        public void OnApplicationExit(object sender, EventArgs e)
+        {
+            keepRunningThinker = false;
+            thinker.AbortSearch();
+            signal.Set();
+            thinkerThread.Join();
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -177,6 +217,21 @@ namespace GearboxWindowsGui
         {
             boardDisplay.RotateBoard();
             panel_ChessBoard.Invalidate();
+        }
+
+        private void ThinkerThreadFunc()
+        {
+            var board = new Board();
+            while (signal.WaitOne() && keepRunningThinker)
+            {
+                // Clone the game state from the display board.
+                // Then use the local clone to do the analysis.
+                GameHistory history = boardDisplay.board.GetGameHistory();
+                board.LoadGameHistory(history);
+                thinker.SetSearchTime(5000);
+                Move move = thinker.Search(board);
+                this.BeginInvoke(new Action<Move>(OnSearchCompleted), move);
+            }
         }
     }
 }

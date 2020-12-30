@@ -215,6 +215,13 @@ namespace Gearbox
             return new GameHistory(optionalFen, moveArray, result);
         }
 
+        public void LoadGameHistory(GameHistory history)
+        {
+            SetPosition(history.InitialState);
+            foreach (Move move in history.MoveHistory)
+                PushMove(move);
+        }
+
         public string ForsythEdwardsNotation()
         {
             var fen = new StringBuilder();
