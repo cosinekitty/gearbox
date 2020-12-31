@@ -45,13 +45,7 @@ namespace GearboxWindowsGui
             );
 
             ResizeChessBoard();
-
-            thinkerThread = new Thread(ThinkerThreadFunc)
-            {
-                IsBackground = true,
-                Name = "Gearbox Thinker",
-            };
-            thinkerThread.Start();
+            InitThinker();
         }
 
         private void ResizeChessBoard()
@@ -66,6 +60,20 @@ namespace GearboxWindowsGui
             panel_ChessBoard.Width = pixels;
             panel_ChessBoard.Height = pixels;
             panel_ChessBoard.Invalidate();
+        }
+
+        private void InitThinker()
+        {
+            string endgameTableDir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR");   // FIXFIXFIX: should find tables with executable
+            if (endgameTableDir != null)
+                thinker.LoadEndgameTables(endgameTableDir);
+
+            thinkerThread = new Thread(ThinkerThreadFunc)
+            {
+                IsBackground = true,
+                Name = "Gearbox Thinker",
+            };
+            thinkerThread.Start();
         }
 
         private void MainForm_Resize(object sender, EventArgs e)
@@ -208,6 +216,7 @@ namespace GearboxWindowsGui
                     {
                         boardDisplay.board.LoadGame(firstGame);
                         gameTags = firstGame.Tags;
+                        boardDisplay.RefreshMoves();
                         currentPgnFileName = dialog.FileName;
                     }
                 }

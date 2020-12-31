@@ -229,6 +229,11 @@ namespace GearboxWindowsGui
             return false;
         }
 
+        internal void RefreshMoves()
+        {
+            board.GenMoves(legalMoveList);
+        }
+
         internal void MakeMove(Move move)
         {
             if (legalMoveList.Contains(move))

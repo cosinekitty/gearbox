@@ -1,11 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 
 namespace Gearbox
@@ -89,27 +85,27 @@ namespace Gearbox
                     // The first is the configuration ID, which is a decimal number
                     // whose digits represent how many of each piece there are,
                     // in the order QqRrBbNnPp.
-                    Match m = Regex.Match(fn, @"([0-9]{10})\.endgame");
-                    if (m.Success)
+                    if (Path.GetExtension(fn) == ".endgame")
                     {
-                        long config_id = long.Parse(m.Groups[1].Value);
-                        string path = Path.Combine(dir, fn);
-
-                        // Currently only in-memory tables are supported.
-                        // Tables larger than 2 nonking pieces will not fit in memory.
-                        // Later I will consider support tables based on seeking in a file.
-                        int nonking = NonKingPieceCount(config_id);
-                        switch (nonking)
+                        string config_text = Path.GetFileNameWithoutExtension(fn);
+                        if (long.TryParse(config_text, out long config_id) && config_id >= 0 && config_id <= 9999999999)
                         {
-                            case 1:
-                            case 2:
-                                endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(path);
-                                ++count;
-                                break;
+                            // Currently only in-memory tables are supported.
+                            // Tables larger than 2 nonking pieces will not fit in memory.
+                            // Later I will consider support tables based on seeking in a file.
+                            int nonking = NonKingPieceCount(config_id);
+                            switch (nonking)
+                            {
+                                case 1:
+                                case 2:
+                                    endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(fn);
+                                    ++count;
+                                    break;
 
-                            default:
-                                // do nothing
-                                break;
+                                default:
+                                    // do nothing
+                                    break;
+                            }
                         }
                     }
                 }
