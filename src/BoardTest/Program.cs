@@ -60,7 +60,7 @@ namespace BoardTest
                 TestStandardSetup() &&
                 TestDraws() &&
                 TestGameTags() &&
-                TestPuzzles(null) &&
+                TestPuzzles(new string[0]) &&
                 TestGameListing() &&
                 TestPgn()
             ;
