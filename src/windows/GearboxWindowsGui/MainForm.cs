@@ -100,13 +100,16 @@ namespace GearboxWindowsGui
 
         private void OnTurnChanged()
         {
-            bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
-            if (computerShouldThink)
+            if (!isComputerThinking)
             {
-                // FIXFIXFIX - Cancel any partially selected human move.
-                // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
-                isComputerThinking = true;
-                signal.Set();
+                bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
+                if (computerShouldThink)
+                {
+                    // FIXFIXFIX - Cancel any partially selected human move.
+                    // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
+                    isComputerThinking = true;
+                    signal.Set();
+                }
             }
         }
 
@@ -229,6 +232,7 @@ namespace GearboxWindowsGui
                         gameTags = firstGame.Tags;
                         boardDisplay.RefreshMoves();
                         currentPgnFileName = dialog.FileName;
+                        panel_ChessBoard.Invalidate();
                         OnTurnChanged();
                     }
                 }
