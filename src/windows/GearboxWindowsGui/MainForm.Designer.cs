@@ -43,6 +43,9 @@ namespace GearboxWindowsGui
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.viewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.rotateBoardToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.gameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItemComputerWhite = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItemComputerBlack = new System.Windows.Forms.ToolStripMenuItem();
             this.mainMenuStrip.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -63,7 +66,8 @@ namespace GearboxWindowsGui
             this.mainMenuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.fileToolStripMenuItem,
             this.editToolStripMenuItem,
-            this.viewToolStripMenuItem});
+            this.viewToolStripMenuItem,
+            this.gameToolStripMenuItem});
             this.mainMenuStrip.Location = new System.Drawing.Point(0, 0);
             this.mainMenuStrip.Name = "mainMenuStrip";
             this.mainMenuStrip.Size = new System.Drawing.Size(802, 28);
@@ -161,6 +165,29 @@ namespace GearboxWindowsGui
             this.rotateBoardToolStripMenuItem.Text = "&Rotate board";
             this.rotateBoardToolStripMenuItem.Click += new System.EventHandler(this.rotateBoardToolStripMenuItem_Click);
             // 
+            // gameToolStripMenuItem
+            // 
+            this.gameToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItemComputerWhite,
+            this.toolStripMenuItemComputerBlack});
+            this.gameToolStripMenuItem.Name = "gameToolStripMenuItem";
+            this.gameToolStripMenuItem.Size = new System.Drawing.Size(62, 24);
+            this.gameToolStripMenuItem.Text = "&Game";
+            // 
+            // toolStripMenuItemComputerWhite
+            // 
+            this.toolStripMenuItemComputerWhite.Name = "toolStripMenuItemComputerWhite";
+            this.toolStripMenuItemComputerWhite.Size = new System.Drawing.Size(239, 26);
+            this.toolStripMenuItemComputerWhite.Text = "Computer plays &White";
+            this.toolStripMenuItemComputerWhite.Click += new System.EventHandler(this.toolStripMenuItemComputerWhite_Click);
+            // 
+            // toolStripMenuItemComputerBlack
+            // 
+            this.toolStripMenuItemComputerBlack.Name = "toolStripMenuItemComputerBlack";
+            this.toolStripMenuItemComputerBlack.Size = new System.Drawing.Size(239, 26);
+            this.toolStripMenuItemComputerBlack.Text = "Computer plays &Black";
+            this.toolStripMenuItemComputerBlack.Click += new System.EventHandler(this.toolStripMenuItemComputerBlack_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
@@ -195,6 +222,9 @@ namespace GearboxWindowsGui
         private System.Windows.Forms.ToolStripMenuItem editToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem rotateBoardToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem gameToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerWhite;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerBlack;
     }
 }
 

@@ -98,15 +98,25 @@ namespace GearboxWindowsGui
             }
         }
 
+        private void OnTurnChanged()
+        {
+            bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
+            if (computerShouldThink)
+            {
+                // FIXFIXFIX - Cancel any partially selected human move.
+                // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
+                isComputerThinking = true;
+                signal.Set();
+            }
+        }
+
         private void panel_ChessBoard_MouseUp(object sender, MouseEventArgs e)
         {
             if (!isComputerThinking)
             {
                 if (boardDisplay.DropPiece(e.X, e.Y))
-                {
-                    isComputerThinking = true;
-                    signal.Set();
-                }
+                    OnTurnChanged();
+
                 panel_ChessBoard.Invalidate();
             }
         }
@@ -133,6 +143,7 @@ namespace GearboxWindowsGui
             boardDisplay.MakeMove(move);
             panel_ChessBoard.Invalidate();
             isComputerThinking = false;
+            OnTurnChanged();
         }
 
         public void OnApplicationExit(object sender, EventArgs e)
@@ -218,6 +229,7 @@ namespace GearboxWindowsGui
                         gameTags = firstGame.Tags;
                         boardDisplay.RefreshMoves();
                         currentPgnFileName = dialog.FileName;
+                        OnTurnChanged();
                     }
                 }
             }
@@ -238,10 +250,24 @@ namespace GearboxWindowsGui
                 // Then use the local clone to do the analysis.
                 GameHistory history = boardDisplay.board.GetGameHistory();
                 board.LoadGameHistory(history);
-                thinker.SetSearchTime(5000);
+                thinker.SetSearchTime(3000);
                 Move move = thinker.Search(board);
                 this.BeginInvoke(new Action<Move>(OnSearchCompleted), move);
             }
+        }
+
+        private void toolStripMenuItemComputerWhite_Click(object sender, EventArgs e)
+        {
+            // Toggle whether the computer should play White.
+            toolStripMenuItemComputerWhite.Checked = !toolStripMenuItemComputerWhite.Checked;
+            OnTurnChanged();
+        }
+
+        private void toolStripMenuItemComputerBlack_Click(object sender, EventArgs e)
+        {
+            // Toggle whether the computer should play Black.
+            toolStripMenuItemComputerBlack.Checked = !toolStripMenuItemComputerBlack.Checked;
+            OnTurnChanged();
         }
     }
 }
