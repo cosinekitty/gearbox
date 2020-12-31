@@ -66,7 +66,7 @@ namespace GearboxWindowsGui
             this.viewToolStripMenuItem});
             this.mainMenuStrip.Location = new System.Drawing.Point(0, 0);
             this.mainMenuStrip.Name = "mainMenuStrip";
-            this.mainMenuStrip.Size = new System.Drawing.Size(743, 28);
+            this.mainMenuStrip.Size = new System.Drawing.Size(802, 28);
             this.mainMenuStrip.TabIndex = 1;
             this.mainMenuStrip.Text = "menuStrip1";
             // 
@@ -165,11 +165,11 @@ namespace GearboxWindowsGui
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(743, 679);
+            this.ClientSize = new System.Drawing.Size(802, 683);
             this.Controls.Add(this.panel_ChessBoard);
             this.Controls.Add(this.mainMenuStrip);
             this.MainMenuStrip = this.mainMenuStrip;
-            this.MinimumSize = new System.Drawing.Size(700, 700);
+            this.MinimumSize = new System.Drawing.Size(820, 730);
             this.Name = "MainForm";
             this.Text = "Gearbox Chess Engine";
             this.Resize += new System.EventHandler(this.MainForm_Resize);

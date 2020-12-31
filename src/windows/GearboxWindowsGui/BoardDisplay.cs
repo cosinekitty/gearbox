@@ -16,8 +16,8 @@ namespace GearboxWindowsGui
         private readonly MoveList legalMoveList = new MoveList();
         private readonly Dictionary<Square, Image> imageTable = new();
         private string imageFolder = @"c:\don\github\gearbox\src\windows\GearboxWindowsGui\images"; // FIXFIXFIX
-        private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe1, 0xce, 0xaa));
-        private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0x9c, 0xa2, 0x66));
+        private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe8, 0xdd, 0xb9));
+        private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0xc9, 0xb0, 0x60));
         private int pixelsPerSquare;
         private Square pieceBeingDragged = Square.Empty;
         private int dragMouseX;
