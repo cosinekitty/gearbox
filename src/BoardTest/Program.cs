@@ -38,6 +38,7 @@ namespace BoardTest
         {
             ["all"] = TestAll,
             ["puzzles"] = TestPuzzles,
+            ["endgame"] = TestEndgames,
         };
 
         static int Main(string[] args)
@@ -56,14 +57,45 @@ namespace BoardTest
 
         static bool TestAll(string[] args)
         {
+            var emptyArgs = new string[0];
+
             return
                 TestStandardSetup() &&
                 TestDraws() &&
                 TestGameTags() &&
-                TestPuzzles(new string[0]) &&
+                TestEndgames(emptyArgs) &&
+                TestPuzzles(emptyArgs) &&
                 TestGameListing() &&
                 TestPgn()
             ;
+        }
+
+        static bool TestEndgames(string[] args)
+        {
+            const string TableDirVarName = "GEARBOX_TABLEBASE_DIR";
+            string dir = Environment.GetEnvironmentVariable(TableDirVarName);
+            if (dir == null)
+            {
+                Console.WriteLine("(Skipping endgame test because variable not set: {0})", TableDirVarName);
+            }
+            else
+            {
+                var board = new Board("8/8/8/8/5kp1/8/4K3/8 b - - 9 5");
+                var thinker = new Thinker(1000);
+                thinker.SetSearchLimit(1);
+                int loadCount = thinker.LoadEndgameTables(dir);
+                Console.WriteLine("Loaded {0} endgame tables.", loadCount);
+                Move move = thinker.Search(board);
+                string scoreFormat = Score.Format(move.score);
+                Console.WriteLine("{0} {1}", move, scoreFormat);
+                if (scoreFormat != "#11")
+                {
+                    Console.WriteLine("Incorrect score");
+                    return false;
+                }
+                Console.WriteLine("PASS: Endgames");
+            }
+            return true;
         }
 
         static bool TestPgn()

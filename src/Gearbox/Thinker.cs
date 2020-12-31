@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
@@ -22,6 +24,7 @@ namespace Gearbox
         private bool abort;
         private AutoResetEvent abortSignal = new AutoResetEvent(false);
         private ISearchInfoSink sink;       // Supports sending notifications about the search to a user interface or debug log
+        private readonly Dictionary<long, IEndgameTable> endgameTableForConfigId = new Dictionary<long, IEndgameTable>();
 
         public Thinker(int hashTableSize)
         {
@@ -57,6 +60,73 @@ namespace Gearbox
         public int EvalCount
         {
             get { return evalCount; }
+        }
+
+        public void UnloadEndgameTables()
+        {
+            endgameTableForConfigId.Clear();
+        }
+
+        public int LoadEndgameTables(string dir)    // returns the number of table files loaded
+        {
+            UnloadEndgameTables();
+
+            int count = 0;
+
+            if (dir == null)
+                dir = Directory.GetCurrentDirectory();
+
+            if (Directory.Exists(dir))
+            {
+                dir = Path.GetFullPath(dir);
+
+                // Currently support endgame tables that can fit in memory only.
+                // This means nonking piece count <= 2.
+
+                foreach (string fn in Directory.EnumerateFiles(dir))
+                {
+                    // Valid filenames look like this: 1001000000.endgame.
+                    // The first is the configuration ID, which is a decimal number
+                    // whose digits represent how many of each piece there are,
+                    // in the order QqRrBbNnPp.
+                    Match m = Regex.Match(fn, @"([0-9]{10})\.endgame");
+                    if (m.Success)
+                    {
+                        long config_id = long.Parse(m.Groups[1].Value);
+                        string path = Path.Combine(dir, fn);
+
+                        // Currently only in-memory tables are supported.
+                        // Tables larger than 2 nonking pieces will not fit in memory.
+                        // Later I will consider support tables based on seeking in a file.
+                        int nonking = NonKingPieceCount(config_id);
+                        switch (nonking)
+                        {
+                            case 1:
+                            case 2:
+                                endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(path);
+                                ++count;
+                                break;
+
+                            default:
+                                // do nothing
+                                break;
+                        }
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        private int NonKingPieceCount(long config_id)
+        {
+            int count = 0;
+            while (config_id > 0)
+            {
+                count += (int)(config_id % 10);
+                config_id /= 10;
+            }
+            return count;
         }
 
         public Move Search(Board board)
@@ -435,20 +505,44 @@ namespace Gearbox
         {
             ++evalCount;
 
+            int score;
+
+            if (endgameTableForConfigId.Count > 0)
+            {
+                // We have at least one endgame table loaded.
+                // Check to see if we can use an endgame table in this position.
+                // How many non-king pieces exist on the board?
+                int table_index;
+                IEndgameTable table;
+
+                long config_id = board.GetEndgameConfigId(false);
+                if (endgameTableForConfigId.TryGetValue(config_id, out table))
+                {
+                    table_index = board.GetEndgameTableIndex(false);
+                    score = table.GetScore(table_index, board.IsWhiteTurn);
+                    return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
+                }
+
+                // Try again, swapping Black and White.
+                config_id = board.GetEndgameConfigId(true);
+                if (endgameTableForConfigId.TryGetValue(config_id, out table))
+                {
+                    table_index = board.GetEndgameTableIndex(true);
+                    score = table.GetScore(table_index, board.IsBlackTurn);
+                    return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
+                }
+            }
+
             // Evaluate the board with scores relative to White.
 
-            int score =
+            score =
                 Score.Pawn   * (board.inventory[(int)Square.WP] - board.inventory[(int)Square.BP]) +
                 Score.Knight * (board.inventory[(int)Square.WN] - board.inventory[(int)Square.BN]) +
                 Score.Bishop * (board.inventory[(int)Square.WB] - board.inventory[(int)Square.BB]) +
                 Score.Rook   * (board.inventory[(int)Square.WR] - board.inventory[(int)Square.BR]) +
                 Score.Queen  * (board.inventory[(int)Square.WQ] - board.inventory[(int)Square.BQ]);
 
-            // If it is actually Black's turn, negate the score for NegaMax.
-            if (board.IsBlackTurn)
-                score = -score;
-
-            return score;
+            return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
         }
 
         private Stratum StratumForDepth(int depth)
