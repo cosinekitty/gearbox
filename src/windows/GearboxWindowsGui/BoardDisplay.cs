@@ -67,6 +67,28 @@ namespace GearboxWindowsGui
             dragMouseY = mouseY;
         }
 
+        private int SquareCenterScreenX(int ofs)
+        {
+            int x = (ofs % 10) - 1;
+            return (pixelsPerSquare / 2) + pixelsPerSquare * (reverse ? (7 - x) : x);
+        }
+
+        private int SquareCenterScreenY(int ofs)
+        {
+            int y = (ofs / 10) - 2;
+            return (pixelsPerSquare / 2) + pixelsPerSquare * (reverse ? y : (7 - y));
+        }
+
+        internal void UpdateAnimation(Move move, double fraction)
+        {
+            int x1 = SquareCenterScreenX(move.source);
+            int y1 = SquareCenterScreenY(move.source);
+            int x2 = SquareCenterScreenX(move.dest);
+            int y2 = SquareCenterScreenY(move.dest);
+            dragMouseX = (int)Math.Round(x1 + fraction * (x2 - x1));
+            dragMouseY = (int)Math.Round(y1 + fraction * (y2 - y1));
+        }
+
         internal Rectangle AnimationRectangle()
         {
             int px = dragMouseX - (pixelsPerSquare / 2);
@@ -171,6 +193,18 @@ namespace GearboxWindowsGui
             return pieceBeingDragged != Square.Empty;
         }
 
+        public void StartAnimatingMove(Move move)
+        {
+            if (!legalMoveList.Contains(move))
+                throw new Exception("Attempt to animate an illegal move.");
+
+            pieceBeingDragged = board.GetSquareContents(move.source);
+            if (0 == (pieceBeingDragged & (Square.White | Square.Black)))
+                throw new Exception("Just tried to start animating an invalid piece!");
+
+            dragSourceOffset = move.source;
+        }
+
         public bool StartDraggingPiece(int mouseX, int mouseY)
         {
             if (!IsDraggingPiece())
@@ -192,6 +226,11 @@ namespace GearboxWindowsGui
                 }
             }
             return false;
+        }
+
+        public void StopAnimatingMove()
+        {
+            CancelDrag();
         }
 
         public bool DropPiece(int mouseX, int mouseY)

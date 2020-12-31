@@ -25,6 +25,12 @@ namespace GearboxWindowsGui
         private const int HashTableSize = 50000000;
         private Thinker thinker = new Thinker(HashTableSize);
         private bool isComputerThinking;
+        private System.Windows.Forms.Timer animationTimer = new System.Windows.Forms.Timer();
+        private const int millisPerAnimationFrame = 15;
+        private const double animationSquaresPerSecond = 15.0;   // how fast to animate the computer's pieces sliding across the board
+        private int animationFrameCounter;
+        private int animationTotalFrames;
+        private Move animationMoveInProgress;
 
         private int TopMarginPixels()
         {
@@ -44,6 +50,8 @@ namespace GearboxWindowsGui
                 new object[] { true }
             );
 
+            animationTimer.Tick += OnAnimationTimerTick;
+            animationTimer.Interval = millisPerAnimationFrame;
             ResizeChessBoard();
             InitThinker();
         }
@@ -94,6 +102,10 @@ namespace GearboxWindowsGui
                 // the current side can move?
                 // If so, start animating its movement along with the mouse.
                 boardDisplay.StartDraggingPiece(e.X, e.Y);
+
+                // It's best to force repainting the whole board, because
+                // the piece will start out "snapped" to a random
+                // distance from where it started, depending on the mouse coordinates.
                 panel_ChessBoard.Invalidate();
             }
         }
@@ -102,13 +114,18 @@ namespace GearboxWindowsGui
         {
             if (!isComputerThinking)
             {
-                bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
-                if (computerShouldThink)
+                // Never tell the computer to think when the game is over.
+                GameResult result = boardDisplay.board.GetGameResult();
+                if (result == GameResult.InProgress)
                 {
-                    // FIXFIXFIX - Cancel any partially selected human move.
-                    // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
-                    isComputerThinking = true;
-                    signal.Set();
+                    bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
+                    if (computerShouldThink)
+                    {
+                        // FIXFIXFIX - Cancel any partially selected human move.
+                        // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
+                        isComputerThinking = true;
+                        signal.Set();
+                    }
                 }
             }
         }
@@ -141,12 +158,46 @@ namespace GearboxWindowsGui
             }
         }
 
+        private void OnAnimationTimerTick(object sender, EventArgs evt)
+        {
+            if (animationFrameCounter < animationTotalFrames)
+            {
+                double fraction = (double)animationFrameCounter / (double)animationTotalFrames;
+                Rectangle prev = boardDisplay.AnimationRectangle();
+                boardDisplay.UpdateAnimation(animationMoveInProgress, fraction);
+                Rectangle curr = boardDisplay.AnimationRectangle();
+                panel_ChessBoard.Invalidate(prev);
+                panel_ChessBoard.Invalidate(curr);
+                ++animationFrameCounter;
+            }
+            else
+            {
+                animationTimer.Stop();
+                boardDisplay.StopAnimatingMove();
+                boardDisplay.MakeMove(animationMoveInProgress);
+                panel_ChessBoard.Invalidate();
+                isComputerThinking = false;
+                OnTurnChanged();
+            }
+        }
+
         private void OnSearchCompleted(Move move)
         {
-            boardDisplay.MakeMove(move);
-            panel_ChessBoard.Invalidate();
-            isComputerThinking = false;
-            OnTurnChanged();
+            // Start animating the computer's move.
+            // The move doesn't actually commit until the animation is complete.
+
+            boardDisplay.StartAnimatingMove(move);
+
+            // Calculate the number of frames needed for this animation.
+            // We scale it so that the perceived speed of the sliding piece is always about the same.
+            double dx = (move.dest % 10) - (move.source % 10);
+            double dy = (move.dest / 10) - (move.source / 10);
+            double distance = Math.Sqrt((dx * dx) + (dy * dy));
+            double animationTime = distance / animationSquaresPerSecond;
+            animationTotalFrames = (int)Math.Round((animationTime * 1000.0) / millisPerAnimationFrame);
+            animationFrameCounter = 0;
+            animationMoveInProgress = move;
+            animationTimer.Start();
         }
 
         public void OnApplicationExit(object sender, EventArgs e)
@@ -256,6 +307,9 @@ namespace GearboxWindowsGui
                 board.LoadGameHistory(history);
                 thinker.SetSearchTime(3000);
                 Move move = thinker.Search(board);
+                if (!keepRunningThinker)
+                    break;
+
                 this.BeginInvoke(new Action<Move>(OnSearchCompleted), move);
             }
         }
