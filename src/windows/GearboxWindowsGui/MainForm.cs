@@ -38,19 +38,23 @@ namespace GearboxWindowsGui
             return mainMenuStrip.Height + 25;
         }
 
+        private void EnableDoubleBuffering(Control control)
+        {
+            // A hack I found to stop flickering on rendering: enable double-buffering on the panel.
+            typeof(Control).InvokeMember(
+                "DoubleBuffered",
+                BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                control,
+                new object[] { true }
+            );
+        }
+
         public MainForm()
         {
             InitializeComponent();
-
-            // A hack I found to stop flickering on rendering: enable double-buffering on the chess board panel.
-            typeof(Panel).InvokeMember(
-                "DoubleBuffered", 
-                BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic,
-                null, 
-                panel_ChessBoard, 
-                new object[] { true }
-            );
-
+            EnableDoubleBuffering(panel_ChessBoard);
+            EnableDoubleBuffering(panel_BestPath);
             animationTimer.Tick += OnAnimationTimerTick;
             animationTimer.Interval = millisPerAnimationFrame;
             ResizeChessBoard();
