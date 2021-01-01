@@ -17,7 +17,6 @@ namespace GearboxWindowsGui
         internal readonly Board board = new Board();
         private readonly MoveList legalMoveList = new MoveList();
         private readonly Dictionary<Square, Image> imageTable = new();
-        private readonly string installFolder = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
         private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe8, 0xdd, 0xb9));
         private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0xc9, 0xb0, 0x60));
         private int pixelsPerSquare;
@@ -51,7 +50,7 @@ namespace GearboxWindowsGui
 
         private Image LoadImage(string fn)
         {
-            string path = Path.Combine(installFolder, "images", fn);
+            string path = Path.Combine(MainForm.InstallFolder, "images", fn);
             return Image.FromFile(path);
         }
 

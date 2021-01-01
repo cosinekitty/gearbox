@@ -16,6 +16,7 @@ namespace GearboxWindowsGui
 {
     public partial class MainForm : Form, ISearchInfoSink
     {
+        internal static readonly string InstallFolder = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
         private BoardDisplay boardDisplay = new();
         private GameTags gameTags = new GameTags();
         private string currentPgnFileName;
@@ -79,10 +80,11 @@ namespace GearboxWindowsGui
 
         private void InitThinker()
         {
-            string endgameTableDir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR");   // FIXFIXFIX: should find tables with executable
-            if (endgameTableDir != null)
-                thinker.LoadEndgameTables(endgameTableDir);
+            string endgameTableDir =
+                Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ??
+                Path.Combine(InstallFolder, "endgame");
 
+            thinker.LoadEndgameTables(endgameTableDir);
             thinker.SetInfoSink(this);
 
             thinkerThread = new Thread(ThinkerThreadFunc)
