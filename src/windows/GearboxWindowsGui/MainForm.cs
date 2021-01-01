@@ -14,7 +14,7 @@ using System.Windows.Forms;
 
 namespace GearboxWindowsGui
 {
-    public partial class MainForm : Form
+    public partial class MainForm : Form, ISearchInfoSink
     {
         private BoardDisplay boardDisplay = new();
         private GameTags gameTags = new GameTags();
@@ -31,6 +31,7 @@ namespace GearboxWindowsGui
         private int animationFrameCounter;
         private int animationTotalFrames;
         private Move animationMoveInProgress;
+        private BestPath currentBestPath;
 
         private int TopMarginPixels()
         {
@@ -68,6 +69,8 @@ namespace GearboxWindowsGui
             panel_ChessBoard.Width = pixels;
             panel_ChessBoard.Height = pixels;
             panel_ChessBoard.Invalidate();
+
+            panel_BestPath.Left = panel_ChessBoard.Right + 10;
         }
 
         private void InitThinker()
@@ -75,6 +78,8 @@ namespace GearboxWindowsGui
             string endgameTableDir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR");   // FIXFIXFIX: should find tables with executable
             if (endgameTableDir != null)
                 thinker.LoadEndgameTables(endgameTableDir);
+
+            thinker.SetInfoSink(this);
 
             thinkerThread = new Thread(ThinkerThreadFunc)
             {
@@ -326,6 +331,39 @@ namespace GearboxWindowsGui
             // Toggle whether the computer should play Black.
             toolStripMenuItemComputerBlack.Checked = !toolStripMenuItemComputerBlack.Checked;
             OnTurnChanged();
+        }
+
+        public void OnBeginSearchMove(Board board, Move move, int limit)
+        {
+        }
+
+        private void DisplayBestPath(BestPath path)
+        {
+            currentBestPath = path;
+            panel_BestPath.Invalidate();
+        }
+
+        public void OnBestPath(Board board, BestPath path)
+        {
+            this.BeginInvoke(new Action<BestPath>(DisplayBestPath), path);
+        }
+
+        private void panel_BestPath_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics graphics = e.Graphics;
+            using var font = new Font(FontFamily.GenericMonospace, 10.0f, FontStyle.Regular);
+            using var brush = new SolidBrush(Color.Black);
+            const float PixelsPerRow = 20.0f;
+            if (currentBestPath != null && currentBestPath.nodes != null)
+            {
+                string scoreText = Score.Format(currentBestPath.nodes[0].move.score);
+                graphics.DrawString(scoreText, font, brush, 10.0f, 0.0f);
+                for (int i = 0; i < currentBestPath.nodes.Length; ++i)
+                {
+                    BestPathNode node = currentBestPath.nodes[i];
+                    graphics.DrawString(node.san, font, brush, 10.0f, (i + 1) * PixelsPerRow);
+                }
+            }
         }
     }
 }

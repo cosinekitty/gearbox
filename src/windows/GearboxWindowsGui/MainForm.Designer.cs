@@ -46,6 +46,7 @@ namespace GearboxWindowsGui
             this.gameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItemComputerWhite = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItemComputerBlack = new System.Windows.Forms.ToolStripMenuItem();
+            this.panel_BestPath = new System.Windows.Forms.Panel();
             this.mainMenuStrip.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -188,11 +189,20 @@ namespace GearboxWindowsGui
             this.toolStripMenuItemComputerBlack.Text = "Computer plays &Black";
             this.toolStripMenuItemComputerBlack.Click += new System.EventHandler(this.toolStripMenuItemComputerBlack_Click);
             // 
+            // panel_BestPath
+            // 
+            this.panel_BestPath.Location = new System.Drawing.Point(645, 31);
+            this.panel_BestPath.Name = "panel_BestPath";
+            this.panel_BestPath.Size = new System.Drawing.Size(145, 636);
+            this.panel_BestPath.TabIndex = 2;
+            this.panel_BestPath.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_BestPath_Paint);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(802, 683);
+            this.Controls.Add(this.panel_BestPath);
             this.Controls.Add(this.panel_ChessBoard);
             this.Controls.Add(this.mainMenuStrip);
             this.MainMenuStrip = this.mainMenuStrip;
@@ -225,6 +235,7 @@ namespace GearboxWindowsGui
         private System.Windows.Forms.ToolStripMenuItem gameToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerWhite;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerBlack;
+        private System.Windows.Forms.Panel panel_BestPath;
     }
 }
 
