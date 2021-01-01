@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Gearbox;
 
 namespace GearboxWindowsGui
@@ -23,6 +24,8 @@ namespace GearboxWindowsGui
         private int dragMouseX;
         private int dragMouseY;
         private int dragSourceOffset;
+        private Pen emphasisPen = new Pen(Color.DarkOrange);
+        private int[] emphasizedOffsetList = new int[0];
 
         public BoardDisplay()
         {
@@ -121,6 +124,9 @@ namespace GearboxWindowsGui
                     // Draw the colored square itself.
                     graphics.FillRectangle(brush, rect);
 
+                    if (emphasizedOffsetList.Contains(ofs))
+                        graphics.DrawRectangle(emphasisPen, rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
+
                     if (IsDraggingPiece() && (ofs == dragSourceOffset))
                     {
                         // Special case: if the user is currently dragging a piece,
@@ -148,6 +154,46 @@ namespace GearboxWindowsGui
                         graphics.DrawImage(image, rect);
                 }
             }
+            else
+            {
+                GameResult result = board.GetGameResult();
+                switch (result)
+                {
+                    case GameResult.WhiteWon:
+                        DrawResultText(graphics, "1–0");
+                        break;
+
+                    case GameResult.BlackWon:
+                        DrawResultText(graphics, "0–1");
+                        break;
+
+                    case GameResult.Draw:
+                        DrawResultText(graphics, "½–½");
+                        break;
+
+                    case GameResult.InProgress:
+                    default:
+                        break;      // do nothing
+                }
+            }
+        }
+
+        private void DrawResultText(Graphics graphics, string text)
+        {
+            // Draw the text that represents the end of the game
+            // centered on the chess board.
+
+            using var font = new Font(FontFamily.GenericMonospace, 1.2f * pixelsPerSquare, FontStyle.Regular);
+            using var bgBrush = new SolidBrush(Color.Yellow);
+            using var fgBrush = new SolidBrush(Color.DarkRed);
+            Size tsize = TextRenderer.MeasureText(text, font);
+            float x = (4 * pixelsPerSquare) - (tsize.Width / 2);
+            float y = (4 * pixelsPerSquare) - (tsize.Height / 2);
+            float dx = -0.01f * pixelsPerSquare;
+            float dy = -0.01f * pixelsPerSquare;
+            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            graphics.DrawString(text, font, bgBrush, x + dx, y + dy);
+            graphics.DrawString(text, font, fgBrush, x, y);
         }
 
         private bool RectanglesOverlap(Rectangle a, Rectangle b)
@@ -247,17 +293,8 @@ namespace GearboxWindowsGui
                         {
                             // FIXFIXFIX: handle pawn promotion: user must choose promotion piece.
                             // Commit the move and stop animating.
-                            board.PushMove(move);
+                            MakeMove(move);
                             CancelDrag();
-
-                            // Update the list of legal moves.
-                            board.GenMoves(legalMoveList);
-
-                            GameResult result = board.GetGameResult();
-                            if (result != GameResult.InProgress)
-                            {
-                                // FIXFIXFIX: handle end of game here.
-                            }
                             return true;
                         }
                     }
@@ -277,7 +314,13 @@ namespace GearboxWindowsGui
         {
             if (legalMoveList.Contains(move))
             {
+                // Highlight the source and destination squares.
+                emphasizedOffsetList = new int[] { move.source, move.dest };
+
+                // Make the move on the board.
                 board.PushMove(move);
+
+                // Update the list of currently legal moves.
                 board.GenMoves(legalMoveList);
             }
             else
