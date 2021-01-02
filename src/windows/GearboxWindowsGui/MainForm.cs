@@ -262,6 +262,7 @@ namespace GearboxWindowsGui
         {
             currentPgnFileName = null;
             boardDisplay.board.SetPosition(Board.StandardSetup);
+            boardDisplay.RefreshMoves();
             panel_ChessBoard.Invalidate();
         }
 
