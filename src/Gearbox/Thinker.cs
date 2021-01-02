@@ -21,6 +21,7 @@ namespace Gearbox
         private AutoResetEvent abortSignal = new AutoResetEvent(false);
         private ISearchInfoSink sink;       // Supports sending notifications about the search to a user interface or debug log
         private readonly Dictionary<long, IEndgameTable> endgameTableForConfigId = new Dictionary<long, IEndgameTable>();
+        public bool SimpleEvalMode;    // a hack used for puzzle tests, so I can avoid retuning expected scores all the time
 
         public Thinker(int hashTableSize)
         {
@@ -538,11 +539,19 @@ namespace Gearbox
                 Score.Rook   * (board.inventory[(int)Square.WR] - board.inventory[(int)Square.BR]) +
                 Score.Queen  * (board.inventory[(int)Square.WQ] - board.inventory[(int)Square.BQ]);
 
-            if (board.whiteBishopsOnColor[0] > 0 && board.whiteBishopsOnColor[1] > 0)
-                score += Score.BishopsOnOppositeColors;
 
-            if (board.blackBishopsOnColor[0] > 0 && board.blackBishopsOnColor[1] > 0)
-                score -= Score.BishopsOnOppositeColors;
+            if (!SimpleEvalMode)
+            {
+                // Put all nuanced positional heuristics inside this 'if'.
+                // I have this so I can develop positional understanding without
+                // having to constantly tweak the puzzle unit tests.
+
+                if (board.whiteBishopsOnColor[0] > 0 && board.whiteBishopsOnColor[1] > 0)
+                    score += Score.BishopsOnOppositeColors;
+
+                if (board.blackBishopsOnColor[0] > 0 && board.blackBishopsOnColor[1] > 0)
+                    score -= Score.BishopsOnOppositeColors;
+            }
 
             return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
         }
