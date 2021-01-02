@@ -79,7 +79,7 @@ namespace Gearbox
                 return string.Format("#{0}", 1 + (EnemyMated - score)/2);
 
             if (score < WonForEnemy)
-                return string.Format("#-{0}", 1 + (FriendMated + score)/2);
+                return string.Format("#-{0}", (score - FriendMated)/2);
 
             if (score == 0)
                 return "0.000";
