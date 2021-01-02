@@ -234,7 +234,7 @@ namespace GearboxWindowsGui
             graphics.DrawString(text, font, fgBrush, x, y);
         }
 
-        private bool RectanglesOverlap(Rectangle a, Rectangle b)
+        private static bool RectanglesOverlap(Rectangle a, Rectangle b)
         {
             // If two rectangles overlap, one of the rectangle's corners must be inside the other rectangle.
             return
@@ -248,7 +248,7 @@ namespace GearboxWindowsGui
                 PointInsideRectangle(b.X, b.Y + b.Height - 1, a);
         }
 
-        private bool PointInsideRectangle(int x, int y, Rectangle r)
+        private static bool PointInsideRectangle(int x, int y, Rectangle r)
         {
             return (x >= r.X) && (x < r.X + r.Width) && (y >= r.Y) && (y < r.Y + r.Height);
         }
