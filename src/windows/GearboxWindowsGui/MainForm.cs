@@ -121,6 +121,19 @@ namespace GearboxWindowsGui
             }
         }
 
+        private void SetComputerIsThinking(bool thinking)
+        {
+            isComputerThinking = thinking;
+
+            // If the computer is thinking, disable controls that don't make sense.
+            // If the computer is not thinking, enable those controls.
+
+            newToolStripMenuItem.Enabled = !thinking;
+            openToolStripMenuItem.Enabled = !thinking;
+            saveToolStripMenuItem.Enabled = !thinking;
+            saveAsToolStripMenuItem.Enabled = !thinking;
+        }
+
         private void OnTurnChanged()
         {
             if (!isComputerThinking)
@@ -133,8 +146,7 @@ namespace GearboxWindowsGui
                     if (computerShouldThink)
                     {
                         // FIXFIXFIX - Cancel any partially selected human move.
-                        // FIXFIXFIX - Disable controls that don't make sense while the computer is thinking.
-                        isComputerThinking = true;
+                        SetComputerIsThinking(true);
                         signal.Set();
                     }
                 }
@@ -187,7 +199,7 @@ namespace GearboxWindowsGui
                 boardDisplay.StopAnimatingMove();
                 boardDisplay.MakeMove(animationMoveInProgress);
                 panel_ChessBoard.Invalidate();
-                isComputerThinking = false;
+                SetComputerIsThinking(false);
                 OnTurnChanged();
             }
         }
