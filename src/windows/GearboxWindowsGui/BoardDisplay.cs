@@ -13,13 +13,13 @@ namespace GearboxWindowsGui
 {
     internal class BoardDisplay
     {
-        private bool reverse;   // false = show from White's point of view, true = Black's
+        internal bool reverse;   // false = show from White's point of view, true = Black's
         internal readonly Board board = new Board();
         private readonly MoveList legalMoveList = new MoveList();
         private readonly Dictionary<Square, Image> imageTable = new();
         private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe8, 0xdd, 0xb9));
         private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0xc9, 0xb0, 0x60));
-        private int pixelsPerSquare;
+        internal int pixelsPerSquare;
         private Square pieceBeingDragged = Square.Empty;
         private int dragMouseX;
         private int dragMouseY;

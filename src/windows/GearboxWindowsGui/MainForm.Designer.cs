@@ -47,14 +47,16 @@ namespace GearboxWindowsGui
             this.toolStripMenuItemComputerWhite = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItemComputerBlack = new System.Windows.Forms.ToolStripMenuItem();
             this.panel_BestPath = new System.Windows.Forms.Panel();
+            this.panel_RankNumbers = new System.Windows.Forms.Panel();
+            this.panel_FileLetters = new System.Windows.Forms.Panel();
             this.mainMenuStrip.SuspendLayout();
             this.SuspendLayout();
             // 
             // panel_ChessBoard
             // 
-            this.panel_ChessBoard.Location = new System.Drawing.Point(13, 31);
+            this.panel_ChessBoard.Location = new System.Drawing.Point(33, 31);
             this.panel_ChessBoard.Name = "panel_ChessBoard";
-            this.panel_ChessBoard.Size = new System.Drawing.Size(626, 636);
+            this.panel_ChessBoard.Size = new System.Drawing.Size(630, 636);
             this.panel_ChessBoard.TabIndex = 0;
             this.panel_ChessBoard.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_ChessBoard_Paint);
             this.panel_ChessBoard.MouseDown += new System.Windows.Forms.MouseEventHandler(this.panel_ChessBoard_MouseDown);
@@ -71,7 +73,7 @@ namespace GearboxWindowsGui
             this.gameToolStripMenuItem});
             this.mainMenuStrip.Location = new System.Drawing.Point(0, 0);
             this.mainMenuStrip.Name = "mainMenuStrip";
-            this.mainMenuStrip.Size = new System.Drawing.Size(802, 28);
+            this.mainMenuStrip.Size = new System.Drawing.Size(843, 28);
             this.mainMenuStrip.TabIndex = 1;
             this.mainMenuStrip.Text = "menuStrip1";
             // 
@@ -191,17 +193,35 @@ namespace GearboxWindowsGui
             // 
             // panel_BestPath
             // 
-            this.panel_BestPath.Location = new System.Drawing.Point(645, 31);
+            this.panel_BestPath.Location = new System.Drawing.Point(669, 31);
             this.panel_BestPath.Name = "panel_BestPath";
             this.panel_BestPath.Size = new System.Drawing.Size(145, 636);
             this.panel_BestPath.TabIndex = 2;
             this.panel_BestPath.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_BestPath_Paint);
             // 
+            // panel_RankNumbers
+            // 
+            this.panel_RankNumbers.Location = new System.Drawing.Point(0, 32);
+            this.panel_RankNumbers.Name = "panel_RankNumbers";
+            this.panel_RankNumbers.Size = new System.Drawing.Size(27, 635);
+            this.panel_RankNumbers.TabIndex = 3;
+            this.panel_RankNumbers.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_RankNumbers_Paint);
+            // 
+            // panel_FileLetters
+            // 
+            this.panel_FileLetters.Location = new System.Drawing.Point(33, 673);
+            this.panel_FileLetters.Name = "panel_FileLetters";
+            this.panel_FileLetters.Size = new System.Drawing.Size(630, 31);
+            this.panel_FileLetters.TabIndex = 4;
+            this.panel_FileLetters.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_FileLetters_Paint);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(802, 683);
+            this.ClientSize = new System.Drawing.Size(843, 716);
+            this.Controls.Add(this.panel_FileLetters);
+            this.Controls.Add(this.panel_RankNumbers);
             this.Controls.Add(this.panel_BestPath);
             this.Controls.Add(this.panel_ChessBoard);
             this.Controls.Add(this.mainMenuStrip);
@@ -236,6 +256,8 @@ namespace GearboxWindowsGui
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerWhite;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemComputerBlack;
         private System.Windows.Forms.Panel panel_BestPath;
+        private System.Windows.Forms.Panel panel_RankNumbers;
+        private System.Windows.Forms.Panel panel_FileLetters;
     }
 }
 

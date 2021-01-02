@@ -76,6 +76,14 @@ namespace GearboxWindowsGui
             panel_ChessBoard.Invalidate();
 
             panel_BestPath.Left = panel_ChessBoard.Right + 10;
+
+            panel_FileLetters.Width = pixels;
+            panel_FileLetters.Top = panel_ChessBoard.Bottom + 1;
+            panel_FileLetters.Invalidate();
+
+            panel_RankNumbers.Top = panel_ChessBoard.Top;
+            panel_RankNumbers.Height = panel_ChessBoard.Height;
+            panel_RankNumbers.Invalidate();
         }
 
         private void InitThinker()
@@ -318,6 +326,8 @@ namespace GearboxWindowsGui
         {
             boardDisplay.RotateBoard();
             panel_ChessBoard.Invalidate();
+            panel_RankNumbers.Invalidate();
+            panel_FileLetters.Invalidate();
         }
 
         private void ThinkerThreadFunc()
@@ -382,6 +392,40 @@ namespace GearboxWindowsGui
                     BestPathNode node = currentBestPath.nodes[i];
                     graphics.DrawString(node.san, font, brush, 10.0f, (i + 1) * PixelsPerRow);
                 }
+            }
+        }
+
+        private void panel_FileLetters_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics graphics = e.Graphics;
+
+            // Draw the letters a..h (for White's view) or h..a (for Black's view).
+            // Space them at the center of the 8 squares.
+            string letters = boardDisplay.reverse ? "hgfedcba" : "abcdefgh";
+            using var font = new Font(FontFamily.GenericMonospace, 10.0f, FontStyle.Regular);
+            using var brush = new SolidBrush(Color.Black);
+            for (int i = 0; i < 8; ++i)
+            {
+                float x = ((0.5f + i) * boardDisplay.pixelsPerSquare) - 6.0f;
+                float y = 3.0f;
+                graphics.DrawString(letters[i].ToString(), font, brush, x, y);
+            }
+        }
+
+        private void panel_RankNumbers_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics graphics = e.Graphics;
+
+            // Draw the numerals 1..8 (for White's view) or 8..1 (for Black's view).
+            // Space them at the center of the 8 squares.
+            using var font = new Font(FontFamily.GenericMonospace, 10.0f, FontStyle.Regular);
+            using var brush = new SolidBrush(Color.Black);
+            for (int i = 0; i < 8; ++i)
+            {
+                float x = 8.0f;
+                float y = ((0.5f + i) * boardDisplay.pixelsPerSquare) - 8.0f;
+                string numeral = (boardDisplay.reverse ? (1 + i) : (8 - i)).ToString();
+                graphics.DrawString(numeral, font, brush, x, y);
             }
         }
     }
