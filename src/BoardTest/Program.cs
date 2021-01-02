@@ -246,6 +246,14 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                 Console.WriteLine("FAIL: inconsistent hash values for standard setup.");
                 return false;
             }
+            board.RefreshAfterDangerousChanges();
+            HashValue hash3 = board.Hash();
+            Console.WriteLine(hash3);
+            if (hash3.a != hash1.a || hash3.b != hash1.b)
+            {
+                Console.WriteLine("FAIL: inconsistent hash values after RefreshAfterDangerousChanges().");
+                return false;
+            }
             Console.WriteLine("PASS: Standard Setup");
             return true;
         }

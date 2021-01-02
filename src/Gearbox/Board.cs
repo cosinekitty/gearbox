@@ -1666,16 +1666,29 @@ namespace Gearbox
 
         public void RefreshAfterDangerousChanges()
         {
-            // Update the piece inventory.
+            // Update the piece inventory and hash values to reflect
+            // direct changes to the contents of the board's squares.
+
+            pieceHash.a = pieceHash.b = 0;
 
             for (int i=0; i < inventory.Length; ++i)
                 inventory[i] = 0;
 
-            int p;
             for (int y = 21; y <= 91; y += 10)
+            {
                 for (int x = 0; x < 8; ++x)
-                    if (0 != (p = (int)square[x+y]))
-                        ++inventory[p];
+                {
+                    int ofs = x + y;
+                    Square p = square[ofs];
+                    if (p != Square.Empty)
+                    {
+                        PieceHashValues(p, ofs, out ulong a, out ulong b);
+                        pieceHash.a += a;
+                        pieceHash.b += b;
+                        ++inventory[(int)p];
+                    }
+                }
+            }
         }
 
         public void SetTurn(bool whiteToMove)
