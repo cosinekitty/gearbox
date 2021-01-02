@@ -156,15 +156,29 @@ namespace Gearbox
             return source == 0;
         }
 
+        public bool IsValidMove()
+        {
+            return (source != 0) && (0 != (flags & MoveFlags.Valid));
+        }
+
+        public Move Validate()
+        {
+            if (!IsValidMove())
+                throw new Exception($"Not a valid move: source={source}, flags={flags}");
+
+            return this;
+        }
+
         public bool IsCaptureOrPromotion()
         {
-            if (source == 0)
-                throw new Exception("Attempt to check a null move for capture/promotion.");
-
-            if (0 == (flags & MoveFlags.Valid))
-                throw new Exception("Cannot determine whether move is a capture/promotion or not.");
-
+            Validate();
             return ('\0' != prom) || (0 != (flags & MoveFlags.Capture));
+        }
+
+        public bool IsPromotion()
+        {
+            Validate();
+            return '\0' != prom;
         }
     }
 }

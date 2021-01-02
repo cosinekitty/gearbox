@@ -113,22 +113,6 @@ namespace GearboxWindowsGui
             boardDisplay.Render(e.Graphics, e.ClipRectangle);
         }
 
-        private void panel_ChessBoard_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (!isComputerThinking)
-            {
-                // Did the user just click on a square that contains a piece
-                // the current side can move?
-                // If so, start animating its movement along with the mouse.
-                boardDisplay.StartDraggingPiece(e.X, e.Y);
-
-                // It's best to force repainting the whole board, because
-                // the piece will start out "snapped" to a random
-                // distance from where it started, depending on the mouse coordinates.
-                panel_ChessBoard.Invalidate();
-            }
-        }
-
         private void SetComputerIsThinking(bool thinking)
         {
             isComputerThinking = thinking;
@@ -153,11 +137,26 @@ namespace GearboxWindowsGui
                     bool computerShouldThink = boardDisplay.board.IsWhiteTurn ? toolStripMenuItemComputerWhite.Checked : toolStripMenuItemComputerBlack.Checked;
                     if (computerShouldThink)
                     {
-                        // FIXFIXFIX - Cancel any partially selected human move.
                         SetComputerIsThinking(true);
                         signal.Set();
                     }
                 }
+            }
+        }
+
+        private void panel_ChessBoard_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (!isComputerThinking)
+            {
+                // Did the user just click on a square that contains a piece
+                // the current side can move?
+                // If so, start animating its movement along with the mouse.
+                boardDisplay.StartDraggingPiece(e.X, e.Y);
+
+                // It's best to force repainting the whole board, because
+                // the piece will start out "snapped" to a random
+                // distance from where it started, depending on the mouse coordinates.
+                panel_ChessBoard.Invalidate();
             }
         }
 

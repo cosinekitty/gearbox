@@ -19,6 +19,8 @@ namespace GearboxWindowsGui
         private readonly Dictionary<Square, Image> imageTable = new();
         private SolidBrush lightSqaureBrush = new SolidBrush(Color.FromArgb(0xe8, 0xdd, 0xb9));
         private SolidBrush darkSquareBrush = new SolidBrush(Color.FromArgb(0xc9, 0xb0, 0x60));
+        private SolidBrush pawnPromotionBackgroundBrush = new SolidBrush(Color.FromArgb(0xa3, 0xd1, 0xbc));
+        private Pen pawnPromotionBorderPen = new Pen(Color.Red);
         internal int pixelsPerSquare;
         private Square pieceBeingDragged = Square.Empty;
         private int dragMouseX;
@@ -26,6 +28,9 @@ namespace GearboxWindowsGui
         private int dragSourceOffset;
         private Pen emphasisPen = new Pen(Color.DarkOrange);
         private int[] emphasizedOffsetList = new int[0];
+        private Dictionary<int, Square> promotionChoices = new();
+        private int promotionSourceOffset;
+        private int promotionDestOffset;
 
         public BoardDisplay()
         {
@@ -102,6 +107,11 @@ namespace GearboxWindowsGui
 
         public void Render(Graphics graphics, Rectangle clipRectangle)
         {
+            int promMinX = int.MaxValue;
+            int promMinY = int.MaxValue;
+            int promMaxX = int.MinValue;
+            int promMaxY = int.MinValue;
+
             for (int x=0; x < 8; ++x)
             {
                 int sx = reverse ? (7 - x) : x;
@@ -119,27 +129,47 @@ namespace GearboxWindowsGui
                     if (!RectanglesOverlap(rect, clipRectangle))
                         continue;
 
-                    var brush = (((x + y) & 1) == 0) ? darkSquareBrush : lightSqaureBrush;
-
-                    // Draw the colored square itself.
-                    graphics.FillRectangle(brush, rect);
-
-                    if (emphasizedOffsetList.Contains(ofs))
-                        graphics.DrawRectangle(emphasisPen, rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
-
-                    if (IsDraggingPiece() && (ofs == dragSourceOffset))
+                    if (promotionChoices.TryGetValue(ofs, out Square promChoice))
                     {
-                        // Special case: if the user is currently dragging a piece,
-                        // do not show it in its original square.
-                        // Instead, paint it being dragged... we do that last,
-                        // so it shows up on top of other pieces.
+                        // Render one of the pawn promotion choices for the user.
+                        graphics.FillRectangle(pawnPromotionBackgroundBrush, rect);
+                        graphics.DrawImage(imageTable[promChoice], rect);
+
+                        // Find the outer screen boundaries of a rectangle enclosing the promotion choices.
+                        promMinX = Math.Min(promMinX, rect.X);
+                        promMaxX = Math.Max(promMaxX, rect.X + rect.Width);
+                        promMinY = Math.Min(promMinY, rect.Y);
+                        promMaxY = Math.Max(promMaxY, rect.Y + rect.Height);
                     }
                     else
                     {
-                        // If there is a piece on the square, superimpose its icon on the square.
-                        Square piece = board.GetSquareContents(ofs);
-                        if (imageTable.TryGetValue(piece, out Image image))
-                            graphics.DrawImage(image, rect);
+                        var brush = (((x + y) & 1) == 0) ? darkSquareBrush : lightSqaureBrush;
+
+                        // Draw the colored square itself.
+                        graphics.FillRectangle(brush, rect);
+
+                        if (emphasizedOffsetList.Contains(ofs))
+                            graphics.DrawRectangle(emphasisPen, rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
+
+                        if (IsDraggingPiece() && (ofs == dragSourceOffset))
+                        {
+                            // Special case: if the user is currently dragging a piece,
+                            // do not show it in its original square.
+                            // Instead, paint it being dragged... we do that last,
+                            // so it shows up on top of other pieces.
+                        }
+                        else if (ofs == promotionSourceOffset)
+                        {
+                            // Another special case: while waiting for the user to make
+                            // a pawn promotion choice, do not show the pawn still in the source square.
+                        }
+                        else
+                        {
+                            // If there is a piece on the square, superimpose its icon on the square.
+                            Square piece = board.GetSquareContents(ofs);
+                            if (imageTable.TryGetValue(piece, out Image image))
+                                graphics.DrawImage(image, rect);
+                        }
                     }
                 }
             }
@@ -175,6 +205,14 @@ namespace GearboxWindowsGui
                     default:
                         break;      // do nothing
                 }
+            }
+
+            if (WaitingForPromotionChoice())
+            {
+                // Draw a rectangular border around the promotion choices,
+                // to help visually isolate them from the rest of the board.
+
+                graphics.DrawRectangle(pawnPromotionBorderPen, promMinX, promMinY, promMaxX - promMinX, promMaxY - promMinY);
             }
         }
 
@@ -251,8 +289,18 @@ namespace GearboxWindowsGui
             dragSourceOffset = move.source;
         }
 
-        public bool StartDraggingPiece(int mouseX, int mouseY)
+        public void StartDraggingPiece(int mouseX, int mouseY)
         {
+            if (WaitingForPromotionChoice())
+            {
+                // Special case: we are waiting for the user to choose which piece to promote.
+                // The trigger for selection is the mouse location when the button is released.
+                // This function is called when the mouse is button is pressed (or screen touched).
+                // Do nothing substantive.
+                // FIXFIXFIX - highlight the square as it is dragged?
+                return;
+            }
+
             if (!IsDraggingPiece())
             {
                 int ofs = BoardOffset(mouseX, mouseY);
@@ -266,12 +314,12 @@ namespace GearboxWindowsGui
                             pieceBeingDragged = board.GetSquareContents(ofs);
                             if (0 == (pieceBeingDragged & (Square.White | Square.Black)))
                                 throw new Exception("Just tried to start dragging an invalid piece!");
-                            return true;
+                            return;
                         }
                     }
                 }
             }
-            return false;
+            return;
         }
 
         public void StopAnimatingMove()
@@ -279,8 +327,82 @@ namespace GearboxWindowsGui
             CancelDrag();
         }
 
+        private bool WaitingForPromotionChoice()
+        {
+            return promotionSourceOffset > 0;
+        }
+
+        private void EnterPawnPromotionChoiceState(int source, int dest)
+        {
+            // Overlay pawn promotion choices vertically away
+            // from the pawn promotion location.
+            // Put a queen on the promotion square, a rook one square
+            // beyond (above or below, depending on player side and board rotation),
+            // a bishop one square beyond that, and a knight one square beyond that.
+            if (board.IsWhiteTurn)
+            {
+                promotionChoices[dest] = Square.WQ;
+                promotionChoices[dest + Direction.S] = Square.WR;
+                promotionChoices[dest + (2 * Direction.S)] = Square.WB;
+                promotionChoices[dest + (3 * Direction.S)] = Square.WN;
+            }
+            else
+            {
+                promotionChoices[dest] = Square.BQ;
+                promotionChoices[dest + Direction.N] = Square.BR;
+                promotionChoices[dest + (2 * Direction.N)] = Square.BB;
+                promotionChoices[dest + (3 * Direction.N)] = Square.BN;
+            }
+
+            promotionSourceOffset = source;
+            promotionDestOffset = dest;
+        }
+
+        private void ExitPawnPromotionChoiceState()
+        {
+            promotionSourceOffset = 0;
+            promotionDestOffset = 0;
+            promotionChoices.Clear();
+        }
+
         public bool DropPiece(int mouseX, int mouseY)
         {
+            if (WaitingForPromotionChoice())
+            {
+                int clickOffset = BoardOffset(mouseX, mouseY);
+                if (promotionChoices.TryGetValue(clickOffset, out Square promPiece))
+                {
+                    // Now we can finally complete the panw promotion move.
+                    // We know the source, the destination, and the promotion piece.
+
+                    char promChar;
+                    switch (promPiece & Square.PieceMask)
+                    {
+                        case Square.Queen:  promChar = 'q'; break;
+                        case Square.Rook:   promChar = 'r'; break;
+                        case Square.Bishop: promChar = 'b'; break;
+                        case Square.Knight: promChar = 'n'; break;
+                        default:
+                            throw new Exception("Internal error: invalid promotion piece = " + promPiece);
+                    }
+
+                    for (int i=0; i < legalMoveList.nmoves; ++i)
+                    {
+                        Move move = legalMoveList.array[i];
+                        if (move.source == promotionSourceOffset && move.dest == promotionDestOffset && move.prom == promChar)
+                        {
+                            MakeMove(move);
+                            ExitPawnPromotionChoiceState();
+
+                            // Return true to signal changing the side to move.
+                            return true;
+                        }
+                    }
+
+                }
+                return false;
+            }
+
             if (IsDraggingPiece())
             {
                 int dragDestOffset = BoardOffset(mouseX, mouseY);
@@ -291,16 +413,20 @@ namespace GearboxWindowsGui
                         Move move = legalMoveList.array[i];
                         if (move.source == dragSourceOffset && move.dest == dragDestOffset)
                         {
-                            // FIXFIXFIX: handle pawn promotion: user must choose promotion piece.
-                            // Commit the move and stop animating.
-                            MakeMove(move);
                             CancelDrag();
+                            if (move.IsPromotion())
+                            {
+                                // Go into a special UI state that waits for the user
+                                // to choose the promotion piece (Queen, Rook, Bishop, Knight).
+                                EnterPawnPromotionChoiceState(move.source, move.dest);
+                                return false;
+                            }
+                            MakeMove(move);
                             return true;
                         }
                     }
                 }
             }
-
             CancelDrag();
             return false;
         }

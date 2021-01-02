@@ -320,6 +320,8 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
                         return false;
                     }
                     Move[] marray = movelist.ToMoveArray();
+                    foreach (Move move in marray)
+                        move.Validate();
 
                     line = infile.ReadLine();
                     ++lnum;
