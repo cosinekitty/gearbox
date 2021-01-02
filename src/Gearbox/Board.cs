@@ -36,6 +36,8 @@ namespace Gearbox
 
         internal readonly Square[] square = InitSquaresArray();
         internal readonly int[] inventory = new int[1 + (int)Square.BK];
+        internal readonly int[] whiteBishopsOnColor = new int[2];
+        internal readonly int[] blackBishopsOnColor = new int[2];
         private readonly UnmoveStack unmoveStack = new UnmoveStack();
         private int wkofs;              // location of the White King
         private int bkofs;              // location of the Black King
@@ -1077,15 +1079,25 @@ namespace Gearbox
         {
             if (square[ofs] == Square.Offboard)
                 throw new ArgumentException("Attempt to lift from offboard offset " + ofs);
+
             Square piece = square[ofs];
             square[ofs] = Square.Empty;
             if (piece != Square.Empty)
             {
-                ulong a, b;
-                PieceHashValues(piece, ofs, out a, out b);
+                PieceHashValues(piece, ofs, out ulong a, out ulong b);
                 pieceHash.a -= a;
                 pieceHash.b -= b;
                 --inventory[(int)piece];
+                switch (piece)
+                {
+                    case Square.WB:
+                        --whiteBishopsOnColor[SquareColor(ofs)];
+                        break;
+
+                    case Square.BB:
+                        --blackBishopsOnColor[SquareColor(ofs)];
+                        break;
+                }
             }
             return piece;
         }
@@ -1099,12 +1111,28 @@ namespace Gearbox
 
             if (piece != Square.Empty)
             {
-                ulong a, b;
-                PieceHashValues(piece, ofs, out a, out b);
+                PieceHashValues(piece, ofs, out ulong a, out ulong b);
                 pieceHash.a += a;
                 pieceHash.b += b;
                 ++inventory[(int)piece];
+                switch (piece)
+                {
+                    case Square.WB:
+                        ++whiteBishopsOnColor[SquareColor(ofs)];
+                        break;
+
+                    case Square.BB:
+                        ++blackBishopsOnColor[SquareColor(ofs)];
+                        break;
+                }
             }
+        }
+
+        public static int SquareColor(int ofs)
+        {
+            // Returns 1 if 'ofs' corresponds to a dark colored square.
+            // Returns 0 for a light colored square.
+            return ((ofs % 10) + (ofs / 10)) & 1;
         }
 
         private bool IsAttackedBy(int ofs, Square side)
@@ -1662,6 +1690,8 @@ namespace Gearbox
             playerInCheck = Ternary.Unknown;
             playerCanMove = Ternary.Unknown;
             pieceHash.a = pieceHash.b = 0;
+            whiteBishopsOnColor[0] = whiteBishopsOnColor[1] = 0;
+            blackBishopsOnColor[0] = blackBishopsOnColor[1] = 0;
         }
 
         public void RefreshAfterDangerousChanges()
@@ -1670,6 +1700,8 @@ namespace Gearbox
             // direct changes to the contents of the board's squares.
 
             pieceHash.a = pieceHash.b = 0;
+            whiteBishopsOnColor[0] = whiteBishopsOnColor[1] = 0;
+            blackBishopsOnColor[0] = blackBishopsOnColor[1] = 0;
 
             for (int i=0; i < inventory.Length; ++i)
                 inventory[i] = 0;
@@ -1679,13 +1711,23 @@ namespace Gearbox
                 for (int x = 0; x < 8; ++x)
                 {
                     int ofs = x + y;
-                    Square p = square[ofs];
-                    if (p != Square.Empty)
+                    Square piece = square[ofs];
+                    if (piece != Square.Empty)
                     {
-                        PieceHashValues(p, ofs, out ulong a, out ulong b);
+                        PieceHashValues(piece, ofs, out ulong a, out ulong b);
                         pieceHash.a += a;
                         pieceHash.b += b;
-                        ++inventory[(int)p];
+                        ++inventory[(int)piece];
+                        switch (piece)
+                        {
+                            case Square.WB:
+                                ++whiteBishopsOnColor[SquareColor(ofs)];
+                                break;
+
+                            case Square.BB:
+                                ++blackBishopsOnColor[SquareColor(ofs)];
+                                break;
+                        }
                     }
                 }
             }

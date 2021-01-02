@@ -48,11 +48,16 @@ namespace Gearbox
         public const int Undefined   = int.MinValue;    // SUBTLE: -int.MinValue is the same as +int.MinValue, thanks to two's complement math
 
         // Raw piece values... must be adjusted for tradoff bonus/penalty, etc.
-        internal const int Pawn   = 1000000;
-        internal const int Knight = 2900000;
-        internal const int Bishop = 3100000;
-        internal const int Rook   = 5000000;
-        internal const int Queen  = 9000000;
+        // These values are borrowed from the section
+        // "Update from Larry's 2012 Repertoire book The Kaufman Repertoire for Black and White" from:
+        // https://www.danheisman.com/evaluation-of-material-imbalances.html
+        internal const int Pawn   =  1000000;
+        internal const int Knight =  3500000;
+        internal const int Bishop =  3500000;
+        internal const int Rook   =  5250000;
+        internal const int Queen  = 10000000;
+
+        internal const int BishopsOnOppositeColors = 500000;   // half pawn bonus for having bishops on opposite color squares
 
         internal const int CheckBonus = 100000;
 
