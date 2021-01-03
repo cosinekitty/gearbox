@@ -438,7 +438,7 @@ Rxc4 29. Qe2 Qa5 30. Ng5 Kf8 31. Qxh5 Qxa2+ 32. Kh3 Rc2 33. Nf3 Rf2 34. Rh1 Qe2
         {
             int HashTableSize = (args.Length > 0) ? int.Parse(args[0]) : 50000000;
             var board = new Board();
-            var thinker = new Thinker(HashTableSize) { SimpleEvalMode = true };
+            var thinker = new Thinker(HashTableSize, new SimpleEvaluator());
             var legal = new MoveList();
             var scratch = new MoveList();
             int count = 0;

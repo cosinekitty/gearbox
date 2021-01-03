@@ -10,24 +10,31 @@ namespace Gearbox
     {
         private int maxSearchLimit;
         private int searchTimeMillis;
-        private System.Timers.Timer searchTimer;
+        private System.Timers.Timer searchTimer = new();
         private int quiescentCheckLimit = 3;
-        private List<Stratum> stratumList = new List<Stratum>(100);
+        private List<Stratum> stratumList = new(100);
         private HashTable xpos;
         private int evalCount;
-        private readonly object searchMutex = new object();
+        private readonly object searchMutex = new();
         private bool searchInProgress;
         private bool abort;
-        private AutoResetEvent abortSignal = new AutoResetEvent(false);
+        private AutoResetEvent abortSignal = new(false);
         private ISearchInfoSink sink;       // Supports sending notifications about the search to a user interface or debug log
-        private readonly Dictionary<long, IEndgameTable> endgameTableForConfigId = new Dictionary<long, IEndgameTable>();
-        public bool SimpleEvalMode;    // a hack used for puzzle tests, so I can avoid retuning expected scores all the time
+        private readonly Dictionary<long, IEndgameTable> endgameTableForConfigId = new();
+        private IPositionEvaluator evaluator;
+
+        public Thinker(int hashTableSize, IPositionEvaluator evaluator)
+        {
+            if (evaluator == null)
+                throw new ArgumentNullException(nameof(evaluator));
+            this.evaluator = evaluator;
+            NewHashTable(hashTableSize);
+            searchTimer.Elapsed += OnSearchTimeElapsed;
+        }
 
         public Thinker(int hashTableSize)
+            : this(hashTableSize, new FullEvaluator())
         {
-            NewHashTable(hashTableSize);
-            searchTimer = new System.Timers.Timer();
-            searchTimer.Elapsed += OnSearchTimeElapsed;
         }
 
         public int HashTableSize => xpos.Size;
@@ -358,7 +365,7 @@ namespace Gearbox
             {
                 // Quiescence search.
                 // Start with the evaluation of the current node only.
-                bestMove.score = Eval(board, depth);
+                bestMove.score = Eval(board);
 
                 // Consider "doing nothing" a move; it is a valid way to interpret quiescence.
                 if (bestMove.score >= beta)
@@ -498,7 +505,7 @@ namespace Gearbox
             return -1;       // did not find checkmate
         }
 
-        private int Eval(Board board, int depth)
+        private int Eval(Board board)
         {
             ++evalCount;
 
@@ -531,29 +538,10 @@ namespace Gearbox
             }
 
             // Evaluate the board with scores relative to White.
+            score = evaluator.Eval(board);
 
-            score =
-                Score.Pawn   * (board.inventory[(int)Square.WP] - board.inventory[(int)Square.BP]) +
-                Score.Knight * (board.inventory[(int)Square.WN] - board.inventory[(int)Square.BN]) +
-                Score.Bishop * (board.inventory[(int)Square.WB] - board.inventory[(int)Square.BB]) +
-                Score.Rook   * (board.inventory[(int)Square.WR] - board.inventory[(int)Square.BR]) +
-                Score.Queen  * (board.inventory[(int)Square.WQ] - board.inventory[(int)Square.BQ]);
-
-
-            if (!SimpleEvalMode)
-            {
-                // Put all nuanced positional heuristics inside this 'if'.
-                // I have this so I can develop positional understanding without
-                // having to constantly tweak the puzzle unit tests.
-
-                if (board.whiteBishopsOnColor[0] > 0 && board.whiteBishopsOnColor[1] > 0)
-                    score += Score.BishopsOnOppositeColors;
-
-                if (board.blackBishopsOnColor[0] > 0 && board.blackBishopsOnColor[1] > 0)
-                    score -= Score.BishopsOnOppositeColors;
-            }
-
-            return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
+            // Convert the White-relative score to player-relative, negamax score.
+            return board.IsBlackTurn ? -score : score;
         }
 
         private Stratum StratumForDepth(int depth)
