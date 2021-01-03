@@ -82,7 +82,7 @@ namespace Gearbox
             // to make it more efficient to detect passed pawns.
             // b_rank is the "board rank", used to calculate the actual board offset.
             int b_rank = enemyHomeRank;
-            for (int t_rank = 7; t_rank <= 2; --t_rank)
+            for (int t_rank = 7; t_rank >= 2; --t_rank)
             {
                 for (int file = 1; file <= 8; ++file)
                 {
