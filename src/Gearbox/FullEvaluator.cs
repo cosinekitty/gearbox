@@ -37,7 +37,6 @@ namespace Gearbox
         public int Eval(Board board)
         {
             int score =
-                Score.Pawn   * (board.inventory[(int)Square.WP] - board.inventory[(int)Square.BP]) +
                 Score.Knight * (board.inventory[(int)Square.WN] - board.inventory[(int)Square.BN]) +
                 Score.Bishop * (board.inventory[(int)Square.WB] - board.inventory[(int)Square.BB]) +
                 Score.Rook   * (board.inventory[(int)Square.WR] - board.inventory[(int)Square.BR]) +
@@ -58,11 +57,10 @@ namespace Gearbox
         private readonly int[] PawnPositionScore = new int[120];
         private readonly int[] PassedPawnPositionScore = new int[120];
 
-        private const int IsolationPenalty     = -300000;
-        private const int DoubledPenalty       = -100000;
-        private const int PawnProtectPawnBonus = +200000;
-        private const int PawnProtectPassedPawnBonus = +400000;
-
+        private const int IsolationPenalty      = -300000;
+        private const int DoubledPenalty        = -100000;
+        private int[] PawnProtectPawnBonus = new int[] { 0, +200000, +250000 };
+        private int[] PawnProtectPassedPawnBonus = new int[] { 0, +400000, +450000 };
         private int[] FriendPawnsInColumn = new int[10];
         private int[] EnemyPawnsInColumn = new int[10];
 
@@ -103,22 +101,31 @@ namespace Gearbox
                             score += PassedPawnPositionScore[t_ofs];
 
                             // Bonuses for other pawn(s) protecting this passed pawn.
+                            int prot = 0;
+
                             if (square[b_ofs - dir + Direction.E] == friendPawn)
-                                score += PawnProtectPassedPawnBonus;
+                                ++prot;
 
                             if (square[b_ofs - dir + Direction.W] == friendPawn)
-                                score += PawnProtectPassedPawnBonus;
+                                ++prot;
+
+                            score += PawnProtectPassedPawnBonus[prot];
                         }
                         else
                         {
                             // Not a passed pawn.
+                            score += PawnPositionScore[t_ofs];
 
                             // Bonuses for other pawn(s) protecting this non-passed pawn.
+                            int prot = 0;
+
                             if (square[b_ofs - dir + Direction.E] == friendPawn)
-                                score += PawnProtectPawnBonus;
+                                ++prot;
 
                             if (square[b_ofs - dir + Direction.W] == friendPawn)
-                                score += PawnProtectPawnBonus;
+                                ++prot;
+
+                            score += PawnProtectPawnBonus[prot];
                         }
                     }
                 }
