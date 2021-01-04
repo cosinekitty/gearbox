@@ -4,6 +4,36 @@ namespace Gearbox
 {
     public class FullEvaluator : IPositionEvaluator
     {
+        public FullEvaluator()
+        {
+            var rank_coeff = new double[]
+            {
+                0, 0,   // placeholders for unused ranks [0] and [1]
+                0.05, 0.10, 0.15, 0.25, 0.40, 0.80
+            };
+
+            var file_coeff = new double[]
+            {
+                -0.20, 0.00, 0.02, 0.05, 0.05, 0.02, 0.00, -0.20
+            };
+
+            const double unpass_factor = 0.0;
+            const double pass_factor = 1.0;
+            const double basis = 0.85;
+
+            for (int rank = 2; rank <= 7; ++rank)
+            {
+                for (int file = 0; file < 8; ++file)
+                {
+                    int ofs = 10*(rank+1) + (file+1);
+                    double p0 = basis + file_coeff[file] + rank_coeff[rank]*(1.0 + unpass_factor);
+                    double p1 = basis + file_coeff[file] + rank_coeff[rank]*(1.0 + pass_factor);
+                    PawnPositionScore[ofs] = (int)Math.Round(1.0e+6 * p0);
+                    PassedPawnPositionScore[ofs] = (int)Math.Round(1.0e+6 * p1);
+                }
+            }
+        }
+
         public int Eval(Board board)
         {
             int score =
@@ -25,38 +55,11 @@ namespace Gearbox
             return score;
         }
 
-        private static readonly int[] PawnPositionScore = new int[]
-        {
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
-            //        a          b          c          d          e          f          g          h
-            0,  -400000,   -100000,    -50000,         0,         0,    -50000,   -100000,   -400000,   0,   // 2
-            0,  -350000,   +100000,   +120000,   +150000,   +150000,   +120000,   +100000,   -350000,   0,   // 3
-            0,  -300000,   +120000,   +150000,   +200000,   +200000,   +150000,   +120000,   -300000,   0,   // 4
-            0,  -200000,   +150000,   +250000,   +300000,   +300000,   +250000,   +150000,   -200000,   0,   // 5
-            0,  -100000,   +250000,   +400000,   +500000,   +500000,   +400000,   +250000,   -100000,   0,   // 6
-            0,  +150000,   +350000,   +500000,   +700000,   +700000,   +500000,   +350000,   +150000,   0    // 7
-        };
-
-        private static readonly int[] PassedPawnPositionScore = new int[]
-        {
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
-            //        a          b          c          d          e          f          g          h
-            0,  -200000,   +200000,   +250000,         0,         0,   +250000,   +200000,   -200000,   0,   // 2
-            0,  -150000,   +300000,   +350000,   +450000,   +450000,   +350000,   +300000,   -150000,   0,   // 3
-            0,  -100000,   +350000,   +450000,   +550000,   +550000,   +450000,   +350000,   -100000,   0,   // 4
-            0,        0,   +500000,   +550000,   +700000,   +700000,   +550000,   +500000,         0,   0,   // 5
-            0,  +100000,   +700000,   +850000,  +1500000,  +1500000,   +850000,   +700000,   +100000,   0,   // 6
-            0,  +250000,  +1200000,  +1500000,  +2000000,  +2000000,  +1500000,  +1200000,   +250000,   0    // 7
-        };
+        private readonly int[] PawnPositionScore = new int[120];
+        private readonly int[] PassedPawnPositionScore = new int[120];
 
         private const int IsolationPenalty     = -300000;
-        private const int DoubledPenalty       = -300000;
+        private const int DoubledPenalty       = -100000;
         private const int PawnProtectPawnBonus = +200000;
         private const int PawnProtectPassedPawnBonus = +400000;
 
