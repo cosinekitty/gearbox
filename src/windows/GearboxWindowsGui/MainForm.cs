@@ -283,6 +283,7 @@ namespace GearboxWindowsGui
             boardDisplay.board.SetPosition(Board.StandardSetup);
             boardDisplay.RefreshMoves();
             panel_ChessBoard.Invalidate();
+            OnTurnChanged();
         }
 
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
