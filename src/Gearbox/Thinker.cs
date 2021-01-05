@@ -44,6 +44,11 @@ namespace Gearbox
             xpos = new HashTable(size);
         }
 
+        public void ClearHashTable()
+        {
+            xpos.Clear();
+        }
+
         public void SetInfoSink(ISearchInfoSink sink)
         {
             this.sink = sink;

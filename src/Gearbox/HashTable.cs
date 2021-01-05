@@ -1,3 +1,5 @@
+using System;
+
 namespace Gearbox
 {
     internal struct HashEntry
@@ -37,6 +39,11 @@ namespace Gearbox
                 beta = beta,
                 height = height,
             };
+        }
+
+        public void Clear()
+        {
+            Array.Clear(array, 0, array.Length);
         }
     }
 }
