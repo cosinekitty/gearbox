@@ -30,12 +30,15 @@ namespace Gearbox
             this.evaluator = evaluator;
             NewHashTable(hashTableSize);
             searchTimer.Elapsed += OnSearchTimeElapsed;
+            Name = "Gearbox";
         }
 
         public Thinker(int hashTableSize)
             : this(hashTableSize, new FullEvaluator())
         {
         }
+
+        public string Name { get; set; }    // an arbitrary name of the thinker; defaults to "Gearbox".
 
         public int HashTableSize => xpos.Size;
 

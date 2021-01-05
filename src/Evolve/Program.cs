@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using Gearbox;
 
 namespace Evolve
@@ -39,7 +40,7 @@ Evolve battle ngames gene1.json gene2.json
 
             for (int g=0; g < ngames; ++g)
             {
-                GameResult result = PlayGame(thinker1, thinker2, g & 1);
+                GameResult result = PlayGame(thinker1, thinker2, g & 1, g + 1);
                 switch (result)
                 {
                     case GameResult.WhiteWon:
@@ -76,32 +77,48 @@ Evolve battle ngames gene1.json gene2.json
             const int ThinkTimeMillis = 1000;
             var thinker = new Thinker(HashTableSize);
             thinker.SetSearchTime(ThinkTimeMillis);
+            thinker.Name = $"Gearbox {geneFileName}";
             return thinker;
         }
 
-        static GameResult PlayGame(Thinker thinker1, Thinker thinker2, int firstToMove)
+        static GameResult PlayGame(Thinker thinker1, Thinker thinker2, int firstToMove, int round)
         {
             thinker1.ClearHashTable();
             thinker2.ClearHashTable();
             var thinkers = new Thinker[] { thinker1, thinker2 };
-            int turn = firstToMove;
             var board = new Board();
             var legalMoves = new MoveList();
             var scratch = new MoveList();
-            while (true)
-            {
-                GameResult result = board.GetGameResult();
-                if (result != GameResult.InProgress)
-                    return result;
+            var utcStart = DateTime.UtcNow;
 
+            GameResult result;
+            for (int turn = firstToMove; (result = board.GetGameResult()) == GameResult.InProgress; turn ^= 1)
+            {
                 Move move = thinkers[turn].Search(board);
                 board.GenMoves(legalMoves);
                 string san = board.MoveNotation(move, legalMoves, scratch);
-                Console.WriteLine($"{san} {Score.Format(move.score)}");
+                Console.WriteLine($"MOVE:  {san} {Score.Format(move.score)}");
                 board.PushMove(move);
-                Console.WriteLine(board.ForsythEdwardsNotation());
-                turn ^= 1;
+                Console.WriteLine($"FEN:   {board.ForsythEdwardsNotation()}");
             }
+
+            // Append the game to a pgn file.
+            // Use the tags to record which side was playing White, Black.
+            var tags = new GameTags
+            {
+                Event = "Gene Battle",
+                White = thinkers[firstToMove].Name,
+                Black = thinkers[firstToMove ^ 1].Name,
+                Round = round.ToString(),
+                Date = $"{utcStart.Year:0000}.{utcStart.Month:00}.{utcStart.Day:00}",
+            };
+            tags.SetTag("Time", $"{utcStart.Hour:00}:{utcStart.Minute:00}:{utcStart.Second:00} UTC");
+
+            string pgn = board.PortableGameNotation(tags);
+            using (StreamWriter outfile = File.AppendText("battle.pgn"))
+                outfile.WriteLine(pgn);
+
+            return result;
         }
     }
 }
