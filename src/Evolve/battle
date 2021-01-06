@@ -1,5 +1,5 @@
 #!/bin/bash
 rm -f battle.pgn
 dotnet build --configuration Release || exit $?
-bin/Release/net5.0/Evolve battle 100 A B || exit $?
+bin/Release/net5.0/Evolve battle 1000 A B || exit $?
 exit 0
