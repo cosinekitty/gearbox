@@ -36,7 +36,9 @@ Evolve battle ngames gene1.json gene2.json
         {
             Thinker thinker1 = MakeThinker(geneFileName1);
             Thinker thinker2 = MakeThinker(geneFileName2);
-            int wins = 0, draws = 0, losses = 0;    // from thinker1's point of view
+            int a_wins = 0, a_losses = 0;   // from thinker1's point of view
+            int w_wins = 0, w_losses = 0;   // from White's point of view
+            int draws = 0;
 
             for (int g=0; g < ngames; ++g)
             {
@@ -44,17 +46,19 @@ Evolve battle ngames gene1.json gene2.json
                 switch (result)
                 {
                     case GameResult.WhiteWon:
+                        ++w_wins;
                         if ((g & 1) == 0)
-                            ++wins;
+                            ++a_wins;
                         else
-                            ++losses;
+                            ++a_losses;
                         break;
 
                     case GameResult.BlackWon:
+                        ++w_losses;
                         if ((g & 1) == 0)
-                            ++losses;
+                            ++a_losses;
                         else
-                            ++wins;
+                            ++a_wins;
                         break;
 
                     case GameResult.Draw:
@@ -64,7 +68,8 @@ Evolve battle ngames gene1.json gene2.json
                     default:
                         throw new Exception($"Unknown game result {result}");
                 }
-                Console.WriteLine($"STATS: games={1+g}, wins={wins}, losses={losses}, draws={draws}");
+                Console.WriteLine($"{TimeStamp()} STATS  games={1+g}, a_wins={a_wins}, a_losses={a_losses}, w_wins={w_wins}, w_losses={w_losses}, draws={draws}");
+                Console.Out.Flush();    // in case output is redirected and we want to monitor with 'tail -f'.
             }
 
             return 0;
@@ -97,9 +102,9 @@ Evolve battle ngames gene1.json gene2.json
                 Move move = thinkers[turn].Search(board);
                 board.GenMoves(legalMoves);
                 string san = board.MoveNotation(move, legalMoves, scratch);
-                Console.WriteLine($"MOVE:  {san} {Score.Format(move.score)}");
                 board.PushMove(move);
-                Console.WriteLine($"FEN:   {board.ForsythEdwardsNotation()}");
+                Console.WriteLine($"{TimeStamp()} MOVE  {san,-7} {Score.Format(move.score),8} {board.ForsythEdwardsNotation()}");
+                Console.Out.Flush();    // in case output is redirected and we want to monitor with 'tail -f'.
             }
 
             // Append the game to a pgn file.
@@ -119,6 +124,12 @@ Evolve battle ngames gene1.json gene2.json
                 outfile.WriteLine(pgn);
 
             return result;
+        }
+
+        static string TimeStamp()
+        {
+            DateTime utc = DateTime.UtcNow;
+            return utc.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 }
