@@ -80,6 +80,9 @@ namespace Gearbox
 
         public static string Format(int score)
         {
+            if (score == Undefined)
+                return "*.***";     // placeholder for undefined score: happens when there is only one legal move
+
             if (score > WonForFriend)
                 return string.Format("#{0}", 1 + (EnemyMated - score)/2);
 
