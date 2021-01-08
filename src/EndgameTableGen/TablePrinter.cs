@@ -17,13 +17,14 @@ namespace EndgameTableGen
             configIdList.Clear();
         }
 
-        public override void GenerateTable(int[,] config)
+        public override Table GenerateTable(int[,] config)
         {
             BigInteger size = TableSize(config);
             totalSize += size;
             long config_id = GetConfigId(config, false);
             configIdList.Add(config_id);
             Console.WriteLine(" {0} {1,22:n0}", ConfigString(config), size);
+            return null;
         }
 
         public override void Finish()

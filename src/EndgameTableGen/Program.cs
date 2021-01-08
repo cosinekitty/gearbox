@@ -127,6 +127,28 @@ EndgameTableGen decode config_id table_index side_to_move
                 return 0;
             }
 
+            if (args.Length == 3 && args[0] == "pgen")
+            {
+                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > 9))
+                {
+                    Console.WriteLine("Invalid number of non-kings: {0}", args[1]);
+                    return 1;
+                }
+
+                const int MaxThreads = 32;
+                if (!int.TryParse(args[2], out int num_threads) || (num_threads < 1) || (num_threads > MaxThreads))
+                {
+                    Console.WriteLine("Invalid number of threads: {0}. Must be 1..{1}.", args[2], MaxThreads);
+                    return 1;
+                }
+
+                int max_table_size = MaxTableSize(nonkings);
+                var worker = new ParallelTableGenerator(max_table_size, num_threads);
+                var planner = new WorkPlanner(worker);
+                planner.Plan(nonkings);
+                return 0;
+            }
+
             Console.WriteLine(UsageText);
             return 1;
         }
@@ -136,7 +158,7 @@ EndgameTableGen decode config_id table_index side_to_move
             var worker = new MaxTableSizeFinder();
             var planner = new WorkPlanner(worker);
             planner.Plan(nonkings);
-            TableWorker.Log("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
+            worker.Log("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
             return (int)worker.MaxTableSize;
         }
 
@@ -149,11 +171,12 @@ EndgameTableGen decode config_id table_index side_to_move
                 MaxTableSize = 0;
             }
 
-            public override void GenerateTable(int[,] config)
+            public override Table GenerateTable(int[,] config)
             {
                 BigInteger size = TableSize(config);
                 if (size > MaxTableSize)
                     MaxTableSize = size;
+                return null;
             }
 
             public override void Finish()

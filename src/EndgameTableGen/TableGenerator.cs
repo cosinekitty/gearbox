@@ -43,6 +43,15 @@ namespace EndgameTableGen
             }
         }
 
+        public void AddToFinishedTable(long config_id, Table table)
+        {
+            // This is needed only by the ParallelTableGenerator so that
+            // multiple worker threads can share the tables they have completed.
+            // There is no need to lock the table, because this function is only
+            // called thread-safely from the same thread that calls GenerateTable.
+            finished[config_id] = table;
+        }
+
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
         {
             var table = new List<int>();
@@ -65,7 +74,7 @@ namespace EndgameTableGen
             Debug.Assert(ReverseSideConfigId(1234567851) == 2143658715);
         }
 
-        public override void GenerateTable(int[,] config)
+        public override Table GenerateTable(int[,] config)
         {
             Table table;
             string filename = ConfigFileName(config);
@@ -135,6 +144,7 @@ namespace EndgameTableGen
 
             // Store the finished table in memory.
             finished.Add(WhiteConfigId, table);
+            return table;
         }
 
         public override void Finish()

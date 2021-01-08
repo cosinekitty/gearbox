@@ -21,7 +21,7 @@ namespace EndgameTableGen
         public const int BLACK = 1;
 
         public abstract void Start();
-        public abstract void GenerateTable(int[,] config);
+        public abstract Table GenerateTable(int[,] config);
         public abstract void Finish();
 
         public static string ConfigString(int[,] config)
@@ -122,14 +122,23 @@ namespace EndgameTableGen
             return size;
         }
 
-        internal static void Log(string format, params object[] args)
+        internal string LogTag;     // needed for tagging the threads in multithreaded workloads
+
+        private readonly object LogMutex = new object();
+
+        internal void Log(string format, params object[] args)
         {
-            string now = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
-            now = now.Substring(0, now.Length-6) + "Z";     // convert "...:29.2321173Z" to "...:29.23Z"
-            Console.Write(now);
-            Console.Write("  ");
-            Console.WriteLine(format, args);
-            Console.Out.Flush();    // in case being redirected to a file, so 'tail -f' or 'tee' works.
+            lock (LogMutex)     // in multithreaded cases, make sure we don't scramble lines together
+            {
+                string now = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+                now = now.Substring(0, now.Length-6) + "Z";     // convert "...:29.2321173Z" to "...:29.23Z"
+                Console.Write(now);
+                Console.Write("  ");
+                if (!string.IsNullOrEmpty(LogTag))
+                    Console.Write("[" + LogTag + "]  ");
+                Console.WriteLine(format, args);
+                Console.Out.Flush();    // in case being redirected to a file, so 'tail -f' or 'tee' works.
+            }
         }
 
         public static bool DependsOn(long config_id_1, long config_id_2)
@@ -157,9 +166,12 @@ namespace EndgameTableGen
                     {
                         // One of these piece(s) could be captured.
                         --config[side, mover];
-                        deps.Add(GetConfigId(config, false));
-                        deps.Add(GetConfigId(config, true));
-                        ConfigDependencySet(deps, config);
+                        if (WorkPlanner.IsForcedCheckmatePossible(config))
+                        {
+                            deps.Add(GetConfigId(config, false));
+                            deps.Add(GetConfigId(config, true));
+                            ConfigDependencySet(deps, config);
+                        }
                         ++config[side, mover];
                     }
                 }
@@ -171,9 +183,12 @@ namespace EndgameTableGen
                     for (int prom = Q_INDEX; prom <= N_INDEX; ++prom)
                     {
                         ++config[side, prom];
-                        deps.Add(GetConfigId(config, false));
-                        deps.Add(GetConfigId(config, true));
-                        ConfigDependencySet(deps, config);
+                        if (WorkPlanner.IsForcedCheckmatePossible(config))
+                        {
+                            deps.Add(GetConfigId(config, false));
+                            deps.Add(GetConfigId(config, true));
+                            ConfigDependencySet(deps, config);
+                        }
                         --config[side, prom];
                     }
                     ++config[side, P_INDEX];

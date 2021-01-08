@@ -75,12 +75,12 @@ namespace EndgameTableGen
             else
             {
                 // Leaf node of the recursive search tree.
-                if (IsForcedCheckmatePossible())
+                if (IsForcedCheckmatePossible(config))
                     worker.GenerateTable(config);
             }
         }
 
-        private bool IsForcedCheckmatePossible()
+        public static bool IsForcedCheckmatePossible(int[,] config)
         {
             // This function returns false only when it is certain
             // that forced checkmate is impossible for the given configuration.
