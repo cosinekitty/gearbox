@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
+using System.Text;
 
 namespace EndgameTableGen
 {
@@ -21,6 +23,24 @@ namespace EndgameTableGen
         public abstract void Start();
         public abstract void GenerateTable(int[,] config);
         public abstract void Finish();
+
+        public static string ConfigString(int[,] config)
+        {
+            var sb = new StringBuilder();
+            for (int m=0; m < WorkPlanner.NumNonKings; ++m)
+            {
+                if (m > 0)
+                    sb.Append(" ");
+                sb.AppendFormat("{0}{1}", config[0,m], config[1,m]);
+            }
+            return sb.ToString();
+        }
+
+        public static string ConfigString(long config_id)
+        {
+            int[,] config = DecodeConfig(config_id);
+            return ConfigString(config);
+        }
 
         public static long GetConfigId(int[,] config, bool reverseSides)      // same idea as board.GetConfigId
         {
@@ -110,6 +130,68 @@ namespace EndgameTableGen
             Console.Write("  ");
             Console.WriteLine(format, args);
             Console.Out.Flush();    // in case being redirected to a file, so 'tail -f' or 'tee' works.
+        }
+
+        public static bool DependsOn(long config_id_1, long config_id_2)
+        {
+            // config1 depends on config2 when we must wait for config2 to be finished
+            // before we can start calculating config1.
+            // For example, [KP vs k] depends on [KQ vs k] because the white pawn
+            // might get promoted to a white queen.
+
+            // Strategy: compute the set of all config_ids config1 could depend on.
+            // Return true if config2 is in that set.
+            int[,] config1 = DecodeConfig(config_id_1);
+            var dependencies = new HashSet<long>();
+            ConfigDependencySet(dependencies, config1);
+            return dependencies.Contains(config_id_2);
+        }
+
+        private static void ConfigDependencySet(HashSet<long> deps, int[,] config)
+        {
+            for (int side=0; side < NumSides; ++side)
+            {
+                for (int mover=0; mover < NumNonKings; ++mover)
+                {
+                    if (config[side, mover] > 0)
+                    {
+                        // One of these piece(s) could be captured.
+                        --config[side, mover];
+                        deps.Add(GetConfigId(config, false));
+                        deps.Add(GetConfigId(config, true));
+                        ConfigDependencySet(deps, config);
+                        ++config[side, mover];
+                    }
+                }
+
+                if (config[side, P_INDEX] > 0)
+                {
+                    // One of these pawn(s) could be promoted to Q, R, B, N.
+                    --config[side, P_INDEX];
+                    for (int prom = Q_INDEX; prom <= N_INDEX; ++prom)
+                    {
+                        ++config[side, prom];
+                        deps.Add(GetConfigId(config, false));
+                        deps.Add(GetConfigId(config, true));
+                        ConfigDependencySet(deps, config);
+                        --config[side, prom];
+                    }
+                    ++config[side, P_INDEX];
+                }
+            }
+        }
+
+        public static HashSet<long> ConfigDependencySet(int[,] config)
+        {
+            var deps = new HashSet<long>();
+            ConfigDependencySet(deps, config);
+            return deps;
+        }
+
+        public static HashSet<long> ConfigDependencySet(long config_id)
+        {
+            int[,] config = DecodeConfig(config_id);
+            return ConfigDependencySet(config);
         }
     }
 }
