@@ -1,7 +1,7 @@
 bin
 obj
 *.user
-tables
+*.endgame
 .vscode
 .vs
 launchSettings.json
