@@ -7,8 +7,6 @@ using Gearbox;
 
 namespace EndgameTableGen
 {
-    // I copied class TableGenerator to ParallelTableGenerator,
-    // then made changes to get it to work in multiple threads.
     internal class ParallelTableGenerator : TableWorker
     {
         private readonly int max_table_size;
@@ -16,6 +14,7 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new();
         private readonly Queue<long> workQueue = new();
         private readonly HashSet<long> allConfigIds = new();
+        private readonly Stopwatch chrono = new();
 
         public ParallelTableGenerator(int max_table_size, int num_threads)
         {
@@ -25,6 +24,10 @@ namespace EndgameTableGen
 
         public override void Start()
         {
+            chrono.Restart();
+            finished.Clear();
+            workQueue.Clear();
+            allConfigIds.Clear();
         }
 
         public override Table GenerateTable(int[,] config)
@@ -51,6 +54,18 @@ namespace EndgameTableGen
                 };
                 threadPool[i].Start(i);
             }
+
+            Log("Started {0} threads.", num_threads);
+
+            // Wait for all threads to finish.
+            for (int i = 0; i < num_threads; ++i)
+            {
+                threadPool[i].Join();
+                Log("Joined thread {0}", i);
+            }
+
+            chrono.Stop();
+            Log("Finished after {0} = {1} seconds.", chrono.Elapsed, chrono.Elapsed.TotalSeconds);
         }
 
         private void ThreadFunc(object arg)

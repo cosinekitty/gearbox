@@ -1,6 +1,6 @@
 #!/bin/bash
 if [[ -z "$1" ]]; then
-    CONFIG=Debug
+    CONFIG=Release
 else
     CONFIG=$1
 fi
