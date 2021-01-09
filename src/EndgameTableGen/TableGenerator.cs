@@ -27,7 +27,7 @@ namespace EndgameTableGen
         private readonly MoveList LegalMoveList = new MoveList();
         private int PlyLevel;   // how many plies in the future are we finding mates for?
         private readonly Stopwatch chrono = new Stopwatch();
-        private readonly Dictionary<long, Table> finished = new Dictionary<long, Table>();
+        private readonly Dictionary<long, Table> finished = new();
         public bool EnableTableGeneration = true;
         private GraphPool gpool;
         public long WhiteConfigId;
@@ -95,7 +95,7 @@ namespace EndgameTableGen
                 Log("Generating size {0:n0} table: {1}", size, filename);
 
                 // Generate the table.
-                table = new Table(size);
+                table = Table.Create(size);
                 WhiteCount = BlackCount = 0;
                 int total = ForEachPosition(table, config, InitialPass);
                 double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
