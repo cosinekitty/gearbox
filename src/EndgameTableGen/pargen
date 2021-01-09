@@ -4,7 +4,7 @@ if [[ -z "$1" ]]; then
 else
     CONFIG=$1
 fi
-NTHREADS=1
+NTHREADS=4
 rm -f ../../tables/*.endgame
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} | tee tablegen.log || exit $?

@@ -77,8 +77,7 @@ namespace EndgameTableGen
 
                 // Before starting this job, wait for all of its dependencies to finish.
                 int[,] config = DecodeConfig(config_id);
-                worker.Log("Waiting for dependencies of: {0}", ConfigString(config));
-                WaitForDependencies(thread_number, config);
+                WaitForDependencies(worker, thread_number, config);
 
                 // Update the worker's dictionary of finished endgame tables,
                 // so it definitely has all the dependencies it needs.
@@ -101,8 +100,10 @@ namespace EndgameTableGen
             }
         }
 
-        private void WaitForDependencies(int thread_number, int[,] config)
+        private void WaitForDependencies(TableGenerator worker, int thread_number, int[,] config)
         {
+            string config_string = ConfigString(config);
+
             // Compute the dependency set for this job.
             HashSet<long> deps = ConfigDependencySet(config);
 
@@ -111,6 +112,9 @@ namespace EndgameTableGen
             // redundant things like [K vs kq] when we really only need [KQ vs k].
             deps.IntersectWith(allConfigIds);
 
+            bool firstTime = true;
+            worker.Log("Checking dependencies for {0}", config_string);
+
             // Poll the dictionary of finished tables until all dependencies are completed.
             while (true)
             {
@@ -118,11 +122,22 @@ namespace EndgameTableGen
                 {
                     bool ready = true;
                     foreach (long required_config_id in deps)
+                    {
                         if (!finished.ContainsKey(required_config_id))
+                        {
                             ready = false;
+                            if (firstTime)
+                                worker.Log("Config {0} is blocked by {1}", config_string, ConfigString(required_config_id));
+                        }
+                    }
 
                     if (ready)
-                        return;     // All the dependencies are satisfied.
+                    {
+                        worker.Log("Ready to start {0}", config_string);
+                        return;
+                    }
+
+                    firstTime = false;
                 }
 
                 Thread.Sleep(1000);     // FIXFIXFIX - is there a more elegant way to wait for the table to change?
