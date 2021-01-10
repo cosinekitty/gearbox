@@ -3,7 +3,7 @@ using System.Text;
 
 namespace EndgameTableGen
 {
-    internal class WorkPlanner
+    internal class WorkPlanner: IDisposable
     {
         public const int NumSides = 2;
         public const int WHITE = 0;
@@ -22,6 +22,11 @@ namespace EndgameTableGen
         public WorkPlanner(ITableWorker worker)
         {
             this.worker = worker;
+        }
+
+        public void Dispose()
+        {
+            worker.Dispose();
         }
 
         public void Plan(int nonkings)

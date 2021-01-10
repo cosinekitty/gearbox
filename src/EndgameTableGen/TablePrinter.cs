@@ -10,6 +10,10 @@ namespace EndgameTableGen
         private BigInteger totalSize;
         private List<long> configIdList = new();
 
+        public override void Dispose()
+        {
+        }
+
         public override void Start()
         {
             Console.WriteLine("[Qq Rr Bb Nn Pp]{0,22}", "[size]");

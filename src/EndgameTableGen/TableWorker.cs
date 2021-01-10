@@ -23,6 +23,7 @@ namespace EndgameTableGen
         public abstract void Start();
         public abstract Table GenerateTable(int[,] config);
         public abstract void Finish();
+        public abstract void Dispose();
 
         public static string ConfigString(int[,] config)
         {

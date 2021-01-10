@@ -122,8 +122,10 @@ EndgameTableGen decode config_id table_index side_to_move
                         return 1;
                 }
 
-                var planner = new WorkPlanner(worker);
-                planner.Plan(nonkings);
+                using (var planner = new WorkPlanner(worker))
+                {
+                    planner.Plan(nonkings);
+                }
                 return 0;
             }
 
@@ -144,8 +146,10 @@ EndgameTableGen decode config_id table_index side_to_move
 
                 int max_table_size = MaxTableSize(nonkings);
                 var worker = new ParallelTableGenerator(max_table_size, num_threads);
-                var planner = new WorkPlanner(worker);
-                planner.Plan(nonkings);
+                using (var planner = new WorkPlanner(worker))
+                {
+                    planner.Plan(nonkings);
+                }
                 return 0;
             }
 
@@ -156,10 +160,12 @@ EndgameTableGen decode config_id table_index side_to_move
         private static int MaxTableSize(int nonkings)
         {
             var worker = new MaxTableSizeFinder();
-            var planner = new WorkPlanner(worker);
-            planner.Plan(nonkings);
-            worker.Log("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
-            return (int)worker.MaxTableSize;
+            using (var planner = new WorkPlanner(worker))
+            {
+                planner.Plan(nonkings);
+                worker.Log("For nonkings={0}, max table size = {1:n0}", nonkings, worker.MaxTableSize);
+                return (int)worker.MaxTableSize;
+            }
         }
 
         private class MaxTableSizeFinder : TableWorker
@@ -180,6 +186,10 @@ EndgameTableGen decode config_id table_index side_to_move
             }
 
             public override void Finish()
+            {
+            }
+
+            public override void Dispose()
             {
             }
         }

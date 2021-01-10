@@ -43,6 +43,17 @@ namespace EndgameTableGen
             }
         }
 
+        public override void Dispose()
+        {
+            lock (finished)
+            {
+                foreach (Table table in finished.Values)
+                    table.Dispose();
+
+                finished.Clear();
+            }
+        }
+
         public void AddToFinishedTable(long config_id, Table table)
         {
             // This is needed only by the ParallelTableGenerator so that

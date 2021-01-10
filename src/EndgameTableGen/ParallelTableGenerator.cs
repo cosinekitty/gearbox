@@ -26,6 +26,17 @@ namespace EndgameTableGen
                 waiters[i] = new AutoResetEvent(false);
         }
 
+        public override void Dispose()
+        {
+            lock (finished)
+            {
+                foreach (Table table in finished.Values)
+                    table.Dispose();
+
+                finished.Clear();
+            }
+        }
+
         public override void Start()
         {
             chrono.Restart();
