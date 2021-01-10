@@ -49,7 +49,12 @@ namespace EndgameTableGen
             // multiple worker threads can share the tables they have completed.
             // There is no need to lock the table, because this function is only
             // called thread-safely from the same thread that calls GenerateTable.
-            finished[config_id] = table;
+            // However, reading from the table itself is not thread-safe in general
+            // (DiskTable contains a file stream in which we have to seek).
+            // So only if we don't know about this table already, make a read-only clone of it.
+
+            if (!finished.ContainsKey(config_id))
+                finished.Add(config_id, table.ReadOnlyClone());
         }
 
         private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
@@ -87,7 +92,7 @@ namespace EndgameTableGen
             if (EnableTableGeneration && File.Exists(filename))
             {
                 // We have already calculated this endgame table. Load it from disk.
-                table = Table.Load(filename, size);
+                table = MemoryTable.MemoryLoad(filename, size);
                 Log("Loaded: {0}", filename);
             }
             else
@@ -95,7 +100,7 @@ namespace EndgameTableGen
                 Log("Generating size {0:n0} table: {1}", size, filename);
 
                 // Generate the table.
-                table = Table.Create(size);
+                table = new MemoryTable(size);
                 WhiteCount = BlackCount = 0;
                 int total = ForEachPosition(table, config, InitialPass);
                 double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
@@ -142,9 +147,11 @@ namespace EndgameTableGen
                 }
             }
 
-            // Store the finished table in memory.
-            finished.Add(WhiteConfigId, table);
-            return table;
+            // Migrate the table from high-speed/high-memory to slower/low-memory.
+            var diskTable = new DiskTable(size, filename);
+            diskTable.OpenForRead();
+            finished.Add(WhiteConfigId, diskTable);
+            return diskTable;
         }
 
         public override void Finish()

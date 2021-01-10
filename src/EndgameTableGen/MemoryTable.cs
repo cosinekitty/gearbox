@@ -5,23 +5,17 @@ namespace EndgameTableGen
 {
     internal class MemoryTable : Table
     {
-        private const int BytesPerPosition = 3;
-        private const int MaxTableSize = int.MaxValue / BytesPerPosition;
-
         private readonly byte[] data;
-        private readonly int size;       // the total number of entries, NOT BYTES
 
         public MemoryTable(int size)
+            : base(size)
         {
-            if (size < 1 || size > MaxTableSize)
-                throw new ArgumentException("Invalid table size: " + size);
-
-            this.size = size;
             data = new byte[BytesPerPosition * size];
         }
 
-        public const int MinScore = -2048;
-        public const int MaxScore = +2047;
+        public override void Dispose()
+        {
+        }
 
         public override void Clear()
         {
@@ -100,6 +94,11 @@ namespace EndgameTableGen
             if (0 != (s & 0x800))
                 s |= ~0xfff;
             return s;
+        }
+
+        public override Table ReadOnlyClone()
+        {
+            return this;    // already safe to use read-only in multiple threads
         }
     }
 }
