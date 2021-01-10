@@ -211,7 +211,7 @@ EndgameTableGen decode config_id table_index side_to_move
 
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
-            Table table = new MemoryTable(size);
+            Table table = new MemoryTable(size, size);
             var worker = new TableGenerator(0);
             worker.ForEachPosition(table, config, PrintNode);
             return 0;
@@ -241,7 +241,7 @@ EndgameTableGen decode config_id table_index side_to_move
 
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
-            Table table = new MemoryTable(size);
+            Table table = new MemoryTable(size, size);
             Console.WriteLine(filename);
             Console.WriteLine("{0,12:n0} total position capacity", size);
             int whiteWins=0, whiteLosses=0, blackWins=0, blackLosses=0, occupied=0;

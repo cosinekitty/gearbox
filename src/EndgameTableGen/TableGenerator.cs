@@ -32,6 +32,7 @@ namespace EndgameTableGen
         private GraphPool gpool;
         public long WhiteConfigId;
         public long BlackConfigId;
+        private MemoryTable table;
 
         public TableGenerator(int max_table_size)
         {
@@ -40,6 +41,10 @@ namespace EndgameTableGen
                 // Pre-allocate the GraphPool with the largest size we will need,
                 // so as to reduce garbage collector burden.
                 gpool = new GraphPool(max_table_size);
+
+                // Pre-allocate the in-memory table image to the largest size we will need.
+                // Start out with size=0, capacity=max_table_size.
+                table = new MemoryTable(0, max_table_size);
             }
         }
 
@@ -92,7 +97,6 @@ namespace EndgameTableGen
 
         public override Table GenerateTable(int[,] config)
         {
-            Table table;
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
             WhiteConfigId = GetConfigId(config, false);
@@ -102,16 +106,26 @@ namespace EndgameTableGen
 
             if (EnableTableGeneration && File.Exists(filename))
             {
-                // We have already calculated this endgame table. Load it from disk.
-                table = MemoryTable.MemoryLoad(filename, size);
-                Log("Loaded: {0}", filename);
+                // We have already calculated this endgame table. Fall through to code below to recycle the file.
+                Log("Recyling: {0}", filename);
             }
             else
             {
                 Log("Generating size {0:n0} table: {1}", size, filename);
 
-                // Generate the table.
-                table = new MemoryTable(size);
+                // Try to recycle the previously used table's memory if possible.
+                // Otherwise, allocate a new table.
+                if (table != null && table.Capacity >= size)
+                {
+                    Log("GenerateTable: Resizing existing table with capacity {0} to {1}", table.Capacity, size);
+                    table.Resize(size);
+                }
+                else
+                {
+                    Log("GenerateTable: Allocating new table with size {0}", size);
+                    table = new MemoryTable(size, size);
+                }
+
                 WhiteCount = BlackCount = 0;
                 int total = ForEachPosition(table, config, InitialPass);
                 double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).

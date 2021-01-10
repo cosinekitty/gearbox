@@ -7,10 +7,10 @@ namespace EndgameTableGen
     {
         private readonly byte[] data;
 
-        public MemoryTable(int size)
+        public MemoryTable(int size, int capacity)
             : base(size)
         {
-            data = new byte[BytesPerPosition * size];
+            data = new byte[BytesPerPosition * capacity];
         }
 
         public override void Dispose()
@@ -22,9 +22,20 @@ namespace EndgameTableGen
             Array.Clear(data, 0, data.Length);
         }
 
+        public int Capacity => data.Length / BytesPerPosition;
+
+        public void Resize(int newsize)
+        {
+            if (newsize < 0 || newsize > Capacity)
+                throw new ArgumentException($"Cannot set new size to {size}; existing capacity is {Capacity}");
+
+            size = newsize;
+            Clear();
+        }
+
         public static MemoryTable MemoryLoad(string filename, int size)
         {
-            var table = new MemoryTable(size);
+            var table = new MemoryTable(size, size);
             using (FileStream infile = File.OpenRead(filename))
             {
                 if (infile.Length != table.data.Length)
@@ -41,7 +52,7 @@ namespace EndgameTableGen
         {
             using (FileStream outfile = File.OpenWrite(filename))
             {
-                outfile.Write(data, 0, data.Length);
+                outfile.Write(data, 0, BytesPerPosition * size);
             }
         }
 
