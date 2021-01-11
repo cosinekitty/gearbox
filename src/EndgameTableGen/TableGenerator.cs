@@ -174,11 +174,16 @@ namespace EndgameTableGen
                 }
             }
 
-            // Migrate the table from high-speed/high-memory to slower/low-memory.
-            var diskTable = new DiskTable(size, filename);
-            diskTable.OpenForRead();
-            finished.Add(WhiteConfigId, diskTable);
-            return diskTable;
+            if (EnableTableGeneration)
+            {
+                // Migrate the table from high-speed/high-memory to slower/low-memory.
+                var diskTable = new DiskTable(size, filename);
+                diskTable.OpenForRead();
+                finished.Add(WhiteConfigId, diskTable);
+                return diskTable;
+            }
+
+            return null;
         }
 
         public override void Finish()
