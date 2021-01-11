@@ -143,6 +143,7 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
+                    Directory.CreateDirectory(ConfigWorkDirectory(CurrentConfigId));
                     string whiteEdgeFileName = EdgeFileName(true, CurrentConfigId);
                     string blackEdgeFileName = EdgeFileName(false, CurrentConfigId);
                     using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
@@ -173,12 +174,17 @@ namespace EndgameTableGen
             return null;
         }
 
+        private static string ConfigWorkDirectory(long config_id)
+        {
+            return Path.Combine(OutputDirectory(), "work_" + config_id.ToString("D10"));
+        }
+
         private void SortEdges(string filename, int table_size)
         {
             // Sort the edges in ascending order of after_table_index.
 
             const int SortRadix = 16;
-            string sort_dir = Path.Combine(OutputDirectory(), "sort_" + CurrentConfigId.ToString("D10"));
+            string sort_dir = ConfigWorkDirectory(CurrentConfigId);
 
             using (var sorter = new EdgeFileSorter(sort_dir, SortRadix, table_size))
                 sorter.Sort(filename);
@@ -188,11 +194,10 @@ namespace EndgameTableGen
 
         private static string EdgeFileName(bool white_turn_after_move, long config_id)
         {
-            string suffix = config_id.ToString("D10") + ".edge";
-            string filename = (white_turn_after_move ? "w" : "b") + suffix;
-            string dir = OutputDirectory();
-            filename = Path.Combine(dir, filename);
-            return filename;
+            return Path.Combine(
+                ConfigWorkDirectory(config_id),
+                (white_turn_after_move ? "w.edge" : "b.edge")
+            );
         }
 
         public override void Finish()

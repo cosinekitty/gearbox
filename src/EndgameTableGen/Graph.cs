@@ -150,14 +150,12 @@ namespace EndgameTableGen
             CloseInputFiles();
         }
 
-        public void Sort(string filename)
+        public void Sort(string edgeFileName)
         {
-            Directory.CreateDirectory(work_dir);
-
             // This is a radix sort, so that we can sort efficiently without using a lot of memory.
 
             // Spread the one input files into 'radix' piles, based on the final digit.
-            using (var reader = new EdgeReader(filename))
+            using (var reader = new EdgeReader(edgeFileName))
             {
                 OpenOutputFiles();
                 Spread(reader, 1);
@@ -180,10 +178,9 @@ namespace EndgameTableGen
             }
 
             // Pack the spread files back into the original single file.
-            // FIXFIXFIX - create index here too?
             MoveFilesForNextGeneration();
             OpenInputFiles();
-            using (var writer = new EdgeWriter(filename))
+            using (var writer = new EdgeWriter(edgeFileName))
             {
                 int prev_tindex = -1;
                 for (int inDigit = 0; inDigit < radix; ++inDigit)
@@ -194,7 +191,7 @@ namespace EndgameTableGen
                         // There are multiple edges with the same after_tindex,
                         // and we leave before_tindex in whatever random order they settle.
                         if (edge.after_tindex < prev_tindex)
-                            throw new Exception($"Sort failure in {filename}");
+                            throw new Exception($"Sort failure in {edgeFileName}");
 
                         writer.WriteEdge(edge);
                         prev_tindex = edge.after_tindex;
@@ -202,8 +199,7 @@ namespace EndgameTableGen
                 }
             }
             CloseInputFiles();
-
-            Directory.Delete(work_dir, true);
+            DeleteInputFiles();
         }
 
         private void DisposeArray<T>(T[] array) where T : class, IDisposable
@@ -266,6 +262,15 @@ namespace EndgameTableGen
                 string inFileName = InWorkFileName(digit);
                 string outFileName = OutWorkFileName(digit);
                 File.Move(outFileName, inFileName, true);
+            }
+        }
+
+        private void DeleteInputFiles()
+        {
+            for (int digit = 0; digit < radix; ++digit)
+            {
+                string inFileName = InWorkFileName(digit);
+                File.Delete(inFileName);
             }
         }
     }

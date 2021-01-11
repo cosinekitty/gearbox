@@ -5,7 +5,7 @@ else
     CONFIG=$1
 fi
 NTHREADS=4
-rm -f ../../tables/*.endgame ../../tables/*.edge
+rm -rf ../../tables/*.endgame ../../tables/work_*
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} || exit $?
 if [[ -f ../../tables/reference/endgame.sha256 ]]; then
