@@ -10,8 +10,10 @@ namespace EndgameTableGen
 
     internal class TableGenerator : TableWorker
     {
+        internal const int UndefinedScore   = Table.MinScore;
         internal const int EnemyMatedScore  = +2000;
         internal const int FriendMatedScore = -2000;
+        internal const int DrawScore = 0;
 
         private static readonly int[] EightfoldSymmetryTable = new int[]
         {
@@ -131,15 +133,24 @@ namespace EndgameTableGen
                     WhiteCount, BlackCount, total, ratio.ToString("F6"));
                 Debug.Assert(total == WhiteCount + BlackCount);
                 Debug.Assert(total < 2*size);
-                table.Clear();
 
                 if (EnableTableGeneration)
                 {
+                    // We start out with every score in the table set to UndefinedScore,
+                    // which is smaller than any valid score.
+                    // As valid scores are backpropagated, scores will grow upward from there.
+                    // At the very end, we need to search for all UndefinedScore values and
+                    // set them back to 0 (draw).
+                    table.SetAllScores(UndefinedScore);
+
                     string whiteEdgeFileName = EdgeFileName(true, CurrentConfigId);
                     string blackEdgeFileName = EdgeFileName(false, CurrentConfigId);
                     using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
                         using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
                             ForEachPosition(table, config, WriteAllEdges);
+
+                    // Any lingering positions with undefined scores should be interpreted as draws.
+                    table.ReplaceScores(UndefinedScore, DrawScore);
 
                     // Save the table to disk.
                     table.Save(filename);
@@ -581,6 +592,33 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
+        private int BumpScore(Table table, bool isWhiteTurn, int tindex, int score)
+        {
+            // Incremental negamax assistance:
+            // If the provided score is better than the best-so-far score stored in the table,
+            // update the score in the table with the provided score.
+            int bestscore;
+            if (isWhiteTurn)
+            {
+                bestscore = table.GetWhiteScore(tindex);
+                if (score > bestscore)
+                {
+                    table.SetWhiteScore(tindex, score);
+                    return 1;   // updated 1 score
+                }
+            }
+            else
+            {
+                bestscore = table.GetBlackScore(tindex);
+                if (score > bestscore)
+                {
+                    table.SetBlackScore(tindex, score);
+                    return 1;   // updated 1 score
+                }
+            }
+            return 0;   // nothing changed
+        }
+
         private int WriteAllEdges(Table table, Board board, int tindex)
         {
             // This function is called twice for each position:
@@ -592,17 +630,19 @@ namespace EndgameTableGen
             if (LegalMoveList.nmoves == 0)
             {
                 // This is either stalemate or checkmate.
-                // If checkmate, store the score.
-                if (board.UncachedPlayerInCheck())
-                    return SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
+                // Set the score for this position accordingly.
+                // We call SetScore instead of BumpScore, because this is the certain score,
+                // not a lower limit; this score cannot change later because there
+                // are no legal moves emanating from this position.
 
-                return 0;   // stalemate
+                int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
+                return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
 
             var edge = new GraphEdge();
             edge.before_tindex = tindex;
 
-            int best_foreign_score = Score.Undefined;
+            int best_foreign_score = UndefinedScore;
 
             // Write to blackEdgeWriter if Black has the turn AFTER making the move,
             // otherwise write to whiteEdgeWriter.
@@ -624,8 +664,8 @@ namespace EndgameTableGen
                 {
                     // This move transitions out of this endgame configuration and into another.
                     // We do not save such edges, because the score of the after-position
-                    // is already decided. We just obtain the correct score, and if it
-                    // is nonzero (forced win or forced loss), we remember that for later.
+                    // is already decided. We just remember the best of these "foreign" scores
+                    // and bump the table position as needed below.
                     ++foreignEdgeCount;
                     int after_score;
                     int after_tindex;
@@ -662,13 +702,8 @@ namespace EndgameTableGen
                 board.PopMove();
             }
 
-            if (best_foreign_score != Score.Undefined)
-            {
-                // FIXFIXFIX: figure out what to do with (white_to_move, tindex, best_foreign_score) tuple.
-                // Can't store in the table now, because it will mess up the "leveling" algorithm.
-                // Probably need to store them indexed by score, so that when we get to the correct
-                // ply number, we can include them in the nodes that get added to that level.
-            }
+            if (best_foreign_score != UndefinedScore)
+                return BumpScore(table, board.IsWhiteTurn, tindex, best_foreign_score);
 
             return 0;
         }

@@ -111,5 +111,26 @@ namespace EndgameTableGen
         {
             return this;    // already safe to use read-only in multiple threads
         }
+
+        public void SetAllScores(int score)
+        {
+            for (int tindex = 0; tindex < size; ++tindex)
+            {
+                SetWhiteScore(tindex, score);
+                SetBlackScore(tindex, score);
+            }
+        }
+
+        public void ReplaceScores(int oldScore, int newScore)
+        {
+            for (int tindex = 0; tindex < size; ++tindex)
+            {
+                if (GetWhiteScore(tindex) == oldScore)
+                    SetWhiteScore(tindex, newScore);
+
+                if (GetBlackScore(tindex) == oldScore)
+                    SetBlackScore(tindex, newScore);
+            }
+        }
     }
 }
