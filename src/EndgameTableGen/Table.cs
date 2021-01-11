@@ -19,6 +19,7 @@ namespace EndgameTableGen
             this.size = size;
         }
 
+        public int Size => size;
         public abstract void Dispose();
         public abstract void SetWhiteScore(int tindex, int score);
         public abstract void SetBlackScore(int tindex, int score);

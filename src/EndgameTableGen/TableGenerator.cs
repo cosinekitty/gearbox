@@ -144,6 +144,9 @@ namespace EndgameTableGen
                     table.SetAllScores(UndefinedScore);
 
                     string workdir = ConfigWorkDirectory(CurrentConfigId);
+                    if (Directory.Exists(workdir))
+                        throw new Exception($"Work directory already existed: {workdir}");
+
                     Directory.CreateDirectory(workdir);
 
                     string whiteEdgeFileName = Path.Combine(workdir, "w.edge");
@@ -156,8 +159,8 @@ namespace EndgameTableGen
                     string blackIndexFileName = Path.Combine(workdir, "b.index");
                     SortEdges(whiteEdgeFileName, whiteIndexFileName, size);
                     SortEdges(blackEdgeFileName, blackIndexFileName, size);
-
-                    //Directory.Delete(workdir, true);
+                    Backpropagate(table, whiteEdgeFileName, whiteIndexFileName, blackEdgeFileName, blackIndexFileName);
+                    Directory.Delete(workdir, true);
 
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
@@ -178,6 +181,54 @@ namespace EndgameTableGen
             }
 
             return null;
+        }
+
+        private void Backpropagate(
+            Table table,
+            string whiteEdgeFileName,
+            string whiteIndexFileName,
+            string blackEdgeFileName,
+            string blackIndexFileName)
+        {
+            using var whiteIndexer = new EdgeIndexer(whiteIndexFileName, whiteEdgeFileName);
+            using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
+
+            int prev_changes = 1;
+            int curr_changes = 0;
+            var before_tindex_list = new List<int>();
+            for (int ply = 0; prev_changes + curr_changes > 0; ++ply)
+            {
+                prev_changes = curr_changes;
+                int target_losing_score = FriendMatedScore + ply;
+                int target_winning_score = EnemyMatedScore - ply;
+                int white_changes = 0;
+                int black_changes = 0;
+
+                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
+                {
+                    int wscore = table.GetWhiteScore(after_tindex);
+                    if (wscore == target_losing_score || wscore == target_winning_score)
+                    {
+                        int adjusted_score = AdjustScoreForPly(wscore);
+                        whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                        foreach (int before_tindex in before_tindex_list)
+                            black_changes += BumpBlackScore(table, before_tindex, adjusted_score);
+                    }
+
+                    int bscore = table.GetBlackScore(after_tindex);
+                    if (bscore == target_losing_score || bscore == target_winning_score)
+                    {
+                        int adjusted_score = AdjustScoreForPly(bscore);
+                        blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                        foreach (int before_tindex in before_tindex_list)
+                            white_changes += BumpWhiteScore(table, before_tindex, adjusted_score);
+                    }
+                }
+
+                curr_changes = white_changes + black_changes;
+                Log("Backprop[{0}]: white changes = {1}, black changes = {2}, total = {3}, prev = {4}",
+                    ply, white_changes, black_changes, curr_changes, prev_changes);
+            }
         }
 
         private static string ConfigWorkDirectory(long config_id)
@@ -609,6 +660,28 @@ namespace EndgameTableGen
             else
                 table.SetBlackScore(tindex, score);
             return 1;   // assist tallying the number of scores set
+        }
+
+        private int BumpWhiteScore(Table table, int tindex, int score)
+        {
+            int bestscore = table.GetWhiteScore(tindex);
+            if (score > bestscore)
+            {
+                table.SetWhiteScore(tindex, score);
+                return 1;   // updated 1 score
+            }
+            return 0;
+        }
+
+        private int BumpBlackScore(Table table, int tindex, int score)
+        {
+            int bestscore = table.GetBlackScore(tindex);
+            if (score > bestscore)
+            {
+                table.SetBlackScore(tindex, score);
+                return 1;   // updated 1 score
+            }
+            return 0;
         }
 
         private int BumpScore(Table table, bool isWhiteTurn, int tindex, int score)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace EndgameTableGen
@@ -127,6 +128,88 @@ namespace EndgameTableGen
         }
     }
 
+    internal class EdgeIndexer : IDisposable
+    {
+        private string indexFileName;
+        private string edgeFileName;
+        private long indexLength;
+        private FileStream indexFile;
+        private FileStream edgeFile;
+        private byte[] buffer = new byte[8];
+
+        public EdgeIndexer(string indexFileName, string edgeFileName)
+        {
+            this.indexFileName = indexFileName;
+            this.edgeFileName = edgeFileName;
+            this.indexFile = File.OpenRead(indexFileName);
+            this.edgeFile = File.OpenRead(edgeFileName);
+            this.indexLength = this.indexFile.Length / 4;
+        }
+
+        public void Dispose()
+        {
+            if (edgeFile != null)
+            {
+                edgeFile.Dispose();
+                edgeFile = null;
+            }
+        }
+
+        public void GetBeforeTableIndexes(List<int> outlist, int after_table_index)
+        {
+            outlist.Clear();
+            int position = EdgeFileOffset(after_table_index);
+            if (position >= 0)
+            {
+                edgeFile.Seek(8L * position, SeekOrigin.Begin);
+                if (ReadEdge(out GraphEdge edge))
+                {
+                    // The very first edge should have a matching after_tindex.
+                    if (edge.after_tindex != after_table_index)
+                        throw new Exception($"Expected after_tindex={after_table_index}, but found {edge.after_tindex} in file: {edgeFileName}");
+
+                    outlist.Add(edge.before_tindex);
+                    while (ReadEdge(out edge) && (edge.after_tindex == after_table_index))
+                        outlist.Add(edge.before_tindex);
+                }
+            }
+        }
+
+        private bool ReadEdge(out GraphEdge edge)
+        {
+            // We have a somewhat redundant implementation of EdgeReader.ReadEdge() here.
+            // But that one is optimized for reading large batches.
+            // This one reads just a single edge from the file.
+            // We are seeking around and reading tiny snippets of the file, not 80K blocks.
+
+            int nread = edgeFile.Read(buffer, 0, 8);
+            if (nread != 8)
+            {
+                edge.before_tindex = -1;
+                edge.after_tindex = -1;
+                return false;
+            }
+
+            edge.after_tindex = (((int)buffer[0]) << 24) | (((int)buffer[1]) << 16) | (((int)buffer[2]) << 8) | ((int)buffer[3]);
+            edge.before_tindex = (((int)buffer[4]) << 24) | (((int)buffer[5]) << 16) | (((int)buffer[6]) << 8) | ((int)buffer[7]);
+            return true;
+        }
+
+        private int EdgeFileOffset(int after_table_index)
+        {
+            if (after_table_index < 0 || after_table_index >= indexLength)
+                throw new ArgumentException($"Invalid after_table_index={after_table_index}");
+            indexFile.Seek(4L * after_table_index, SeekOrigin.Begin);
+            int nread = indexFile.Read(buffer, 0, 4);
+            if (nread != 4)
+                throw new Exception($"Read incorrect number of bytes: {nread}");
+
+            int position = ((int)buffer[0] << 24) | ((int)buffer[1] << 16) | ((int)buffer[2] << 8) | (int)buffer[3];
+            return position;
+        }
+
+    }
+
     internal class EdgeFileSorter : IDisposable
     {
         private readonly string work_dir;
@@ -182,10 +265,10 @@ namespace EndgameTableGen
             OpenInputFiles();
             using (var indexWriter = File.OpenWrite(outIndexFileName))
             {
+                int prev_tindex = -1;
                 using (var edgeWriter = new EdgeWriter(edgeFileName))
                 {
                     int offset = 0;         // number of edges written to the sorted output edge file
-                    int prev_tindex = -1;
                     for (int inDigit = 0; inDigit < radix; ++inDigit)
                     {
                         while (readerForDigit[inDigit].ReadEdge(out GraphEdge edge))
@@ -212,6 +295,10 @@ namespace EndgameTableGen
                         }
                     }
                 }
+
+                // Pad out the index file so that any valid table_index has a placeholder (-1) entry.
+                for (int tindex = prev_tindex + 1; tindex < table_size; ++tindex)
+                    WriteIndex(indexWriter, -1);
             }
             CloseInputFiles();
             DeleteInputFiles();
