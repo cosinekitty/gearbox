@@ -150,7 +150,7 @@ namespace EndgameTableGen
             CloseInputFiles();
         }
 
-        public void Sort(string edgeFileName)
+        public void Sort(string edgeFileName, string outIndexFileName)
         {
             // This is a radix sort, so that we can sort efficiently without using a lot of memory.
 
@@ -180,26 +180,52 @@ namespace EndgameTableGen
             // Pack the spread files back into the original single file.
             MoveFilesForNextGeneration();
             OpenInputFiles();
-            using (var writer = new EdgeWriter(edgeFileName))
+            using (var indexWriter = File.OpenWrite(outIndexFileName))
             {
-                int prev_tindex = -1;
-                for (int inDigit = 0; inDigit < radix; ++inDigit)
+                using (var edgeWriter = new EdgeWriter(edgeFileName))
                 {
-                    while (readerForDigit[inDigit].ReadEdge(out GraphEdge edge))
+                    int offset = 0;         // number of edges written to the sorted output edge file
+                    int prev_tindex = -1;
+                    for (int inDigit = 0; inDigit < radix; ++inDigit)
                     {
-                        // Verify that we really have sorted!
-                        // There are multiple edges with the same after_tindex,
-                        // and we leave before_tindex in whatever random order they settle.
-                        if (edge.after_tindex < prev_tindex)
-                            throw new Exception($"Sort failure in {edgeFileName}");
+                        while (readerForDigit[inDigit].ReadEdge(out GraphEdge edge))
+                        {
+                            if (edge.after_tindex != prev_tindex)
+                            {
+                                // Verify that we really have sorted!
+                                // There are multiple edges with the same after_tindex,
+                                // and we leave before_tindex in whatever random order they settle.
+                                if (edge.after_tindex < prev_tindex)
+                                    throw new Exception($"Sort failure in {edgeFileName}");
 
-                        writer.WriteEdge(edge);
-                        prev_tindex = edge.after_tindex;
+                                // Time to write another index record.
+                                // Pad with -1 values to fill invalid/unused slots.
+                                for (int tindex = prev_tindex + 1; tindex < edge.after_tindex; ++tindex)
+                                    WriteIndex(indexWriter, -1);
+
+                                WriteIndex(indexWriter, offset);
+                            }
+
+                            edgeWriter.WriteEdge(edge);
+                            prev_tindex = edge.after_tindex;
+                            ++offset;
+                        }
                     }
                 }
             }
             CloseInputFiles();
             DeleteInputFiles();
+        }
+
+        private readonly byte[] IndexBuffer = new byte[4];
+
+        private void WriteIndex(FileStream indexWriter, int offset)
+        {
+            IndexBuffer[0] = (byte)(offset >> 24);
+            IndexBuffer[1] = (byte)(offset >> 16);
+            IndexBuffer[2] = (byte)(offset >> 8);
+            IndexBuffer[3] = (byte)(offset);
+            indexWriter.Write(IndexBuffer, 0, 4);
         }
 
         private void DisposeArray<T>(T[] array) where T : class, IDisposable

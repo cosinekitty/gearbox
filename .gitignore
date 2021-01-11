@@ -2,7 +2,7 @@ bin
 obj
 *.user
 *.endgame
-*.edge
+work_*/
 .vscode
 .vs
 launchSettings.json

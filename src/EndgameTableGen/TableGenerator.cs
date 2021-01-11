@@ -143,15 +143,21 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
-                    Directory.CreateDirectory(ConfigWorkDirectory(CurrentConfigId));
-                    string whiteEdgeFileName = EdgeFileName(true, CurrentConfigId);
-                    string blackEdgeFileName = EdgeFileName(false, CurrentConfigId);
+                    string workdir = ConfigWorkDirectory(CurrentConfigId);
+                    Directory.CreateDirectory(workdir);
+
+                    string whiteEdgeFileName = Path.Combine(workdir, "w.edge");
+                    string blackEdgeFileName = Path.Combine(workdir, "b.edge");
                     using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
                         using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
                             ForEachPosition(table, config, WriteAllEdges);
 
-                    SortEdges(whiteEdgeFileName, size);
-                    SortEdges(blackEdgeFileName, size);
+                    string whiteIndexFileName = Path.Combine(workdir, "w.index");
+                    string blackIndexFileName = Path.Combine(workdir, "b.index");
+                    SortEdges(whiteEdgeFileName, whiteIndexFileName, size);
+                    SortEdges(blackEdgeFileName, blackIndexFileName, size);
+
+                    //Directory.Delete(workdir, true);
 
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
@@ -179,7 +185,7 @@ namespace EndgameTableGen
             return Path.Combine(OutputDirectory(), "work_" + config_id.ToString("D10"));
         }
 
-        private void SortEdges(string filename, int table_size)
+        private void SortEdges(string edgeFileName, string outIndexFileName, int table_size)
         {
             // Sort the edges in ascending order of after_table_index.
 
@@ -187,17 +193,9 @@ namespace EndgameTableGen
             string sort_dir = ConfigWorkDirectory(CurrentConfigId);
 
             using (var sorter = new EdgeFileSorter(sort_dir, SortRadix, table_size))
-                sorter.Sort(filename);
+                sorter.Sort(edgeFileName, outIndexFileName);
 
-            Log("Sorted: {0}", filename);
-        }
-
-        private static string EdgeFileName(bool white_turn_after_move, long config_id)
-        {
-            return Path.Combine(
-                ConfigWorkDirectory(config_id),
-                (white_turn_after_move ? "w.edge" : "b.edge")
-            );
+            Log("Sorted: {0}", edgeFileName);
         }
 
         public override void Finish()
