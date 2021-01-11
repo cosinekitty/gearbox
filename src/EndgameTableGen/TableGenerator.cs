@@ -29,21 +29,18 @@ namespace EndgameTableGen
         private readonly Stopwatch chrono = new Stopwatch();
         private readonly Dictionary<long, Table> finished = new();
         public bool EnableTableGeneration = true;
-        private GraphPool gpool;
         public long WhiteConfigId;
         public long BlackConfigId;
         private MemoryTable table;
+        private EdgeWriter edgeWriter;
 
         public TableGenerator(int max_table_size)
         {
             if (max_table_size > 0)
             {
-                // Pre-allocate the GraphPool with the largest size we will need,
-                // so as to reduce garbage collector burden.
-                gpool = new GraphPool(max_table_size);
-
                 // Pre-allocate the in-memory table image to the largest size we will need.
                 // Start out with size=0, capacity=max_table_size.
+                // We will adjust the effective table size as needed for each configuration.
                 table = new MemoryTable(0, max_table_size);
             }
         }
@@ -137,21 +134,28 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
-                    gpool.Reset(size);
+                    string edgeFileName = WhiteConfigId.ToString("D10") + ".edge";
+                    using (edgeWriter = new EdgeWriter(edgeFileName))
+                    {
+                        ForEachPosition(table, config, FindForcedMates);
+                    }
+
+/*
                     int prev_sum = 1;
                     int sum = 1;
                     total = 0;
+
                     // For the KP vs K table, we don't find immediate checkmates.
                     // So we can't stop as soon as sum == 0.
                     // In general, we allow 2 levels to go by without any progress before stopping,
                     // because we want both Black and White to get another turn.
+                    // More abstractly, there are two colors of nodes: White (to move) and Black (to move).
+                    // The set of white nodes and the set of black nodes connect to each other but not to themselves.
+                    // Therefore, we have to wait until both settle down before we know the job is completed.
                     for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
                     {
                         prev_sum = sum;
                         total += sum = ForEachPosition(table, config, FindForcedMates);
-
-                        if (PlyLevel == 0)
-                            Log("Pool size = {0:n0} ; average moves/score = {1}", gpool.pool.Count, ((double)gpool.pool.Count / size).ToString("F2"));
 
                         // There are up to 2 scores per position (one for White, one for Black).
                         ratio = (double)total / (2.0 * size);
@@ -161,10 +165,8 @@ namespace EndgameTableGen
                         // because the table index scheme accomodates putting more than one piece in the same square,
                         // which never happens in an actual position.
                         Debug.Assert(total < 2*size);
-
-                        if (gpool.pool.Capacity > gpool.InitialPoolCapacity)
-                            Log("WARNING: pool capacity grew from {0:n0} to {1:n0}", gpool.InitialPoolCapacity, gpool.pool.Capacity);
                     }
+*/
 
                     // Save the table to disk.
                     table.Save(filename);
@@ -592,76 +594,86 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private List<long> ConfigIdFromPackedId = new List<long>();
-        private List<long> ReverseConfigIdFromPackedId = new List<long>();
-        private Dictionary<long, int> PackedIdFromConfigId = new Dictionary<long, int>();
-
-        int PackConfigId(long config_id)
-        {
-            long rev_id = ReverseSideConfigId(config_id);
-
-            int packed_id;
-            if (PackedIdFromConfigId.TryGetValue(config_id, out packed_id))
-                return packed_id;
-
-            packed_id = ConfigIdFromPackedId.Count;
-            ConfigIdFromPackedId.Add(config_id);
-            ReverseConfigIdFromPackedId.Add(rev_id);
-            PackedIdFromConfigId.Add(config_id, packed_id);
-            return packed_id;
-        }
-
-        long UnpackConfigId(int packed_id)
-        {
-            return ConfigIdFromPackedId[packed_id];
-        }
-
-        long UnpackReverseConfigId(int packed_id)
-        {
-            return ReverseConfigIdFromPackedId[packed_id];
-        }
-
         private int FindForcedMates(Table table, Board board, int tindex)
         {
             // If we have already scored a position, don't try to work it again.
             if (0 != GetScore(table, board.IsWhiteTurn, tindex))
                 return 0;
 
+            // This is the first pass through the table.
+            // This function is called twice for each position:
+            // once with White to move, the other with Black to move.
+            // Pre-generate the list of transitions to other (config_id, table_index)
+            // pairs based on the legal moves available to the side with the turn.
+            // These graph edges will be recycled for all the subsequent passes.
+            board.GenMoves(LegalMoveList);
+            if (LegalMoveList.nmoves == 0)
+            {
+                // This is either stalemate or checkmate.
+                // If checkmate, store the score.
+                if (board.UncachedPlayerInCheck())
+                    return SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
+
+                return 0;   // stalemate
+            }
+
+            var edge = new GraphEdge
+            {
+                before = new GraphNode
+                {
+                    config_id = WhiteConfigId,
+                    white_to_move = board.IsWhiteTurn,
+                    table_index = tindex,
+                },
+            };
+
+            for (int i = 0; i < LegalMoveList.nmoves; ++i)
+            {
+                Move move = LegalMoveList.array[i];
+                board.PushMove(move);
+                edge.after.config_id = board.GetEndgameConfigId(false);
+                if (edge.after.config_id == WhiteConfigId)
+                {
+                    // The most common case: making a move stays inside the current endgame table.
+                    edge.after.white_to_move = board.IsWhiteTurn;
+                    edge.after.table_index = board.GetEndgameTableIndex(false);
+                    edgeWriter.WriteEdge(edge);
+                }
+                else
+                {
+                    // This move transitions out of this endgame configuration and into another.
+                    // Figure out whether the transition should be encoded as a
+                    // normal or inverse (config_id, table_index) pair.
+                    // Sometimes we have to swap sides in order to find a valid table.
+                    // If we can't find a matching table, assume it is a draw by insufficent material.
+                    if (finished.ContainsKey(edge.after.config_id))
+                    {
+                        edge.after.white_to_move = board.IsWhiteTurn;
+                        edge.after.table_index = board.GetEndgameTableIndex(false);
+                        edgeWriter.WriteEdge(edge);
+                    }
+                    else
+                    {
+                        // We don't know about that endgame table.
+                        // Try swapping White and Black pieces.
+                        edge.after.config_id = board.GetEndgameTableIndex(true);
+                        if (finished.ContainsKey(edge.after.config_id))
+                        {
+                            edge.after.white_to_move = board.IsBlackTurn;
+                            edge.after.table_index = board.GetEndgameTableIndex(true);
+                            edgeWriter.WriteEdge(edge);
+                        }
+                    }
+                }
+                board.PopMove();
+            }
+
+/*
             bool wturn = board.IsWhiteTurn;
             bool bturn = !wturn;
 
             if (PlyLevel == 0)
             {
-                // This is the first pass through the table.
-                // This function is called twice for each position:
-                // once with White to move, the other with Black to move.
-                // Pre-generate the list of transitions to other (config_id, table_index)
-                // pairs based on the legal moves available to the side with the turn.
-                // These graph edges will be recycled for all the subsequent passes.
-                board.GenMoves(LegalMoveList);
-                if (LegalMoveList.nmoves == 0)
-                {
-                    // This is either stalemate or checkmate.
-                    // If checkmate, store the score.
-                    if (board.UncachedPlayerInCheck())
-                        return SetScore(table, board.IsWhiteTurn, tindex, FriendMatedScore);
-
-                    return 0;   // stalemate
-                }
-
-                gpool.StartNewList(tindex, wturn, LegalMoveList.nmoves);
-                for (int i = 0; i < LegalMoveList.nmoves; ++i)
-                {
-                    Move move = LegalMoveList.array[i];
-                    board.PushMove(move);
-                    gpool.pool.Add(new GraphEdge
-                    {
-                        packed_config_id = PackConfigId(board.GetEndgameConfigId(false)),
-                        next_tindex = board.GetEndgameTableIndex(false),
-                        reverse_tindex = board.GetEndgameTableIndex(true),
-                    });
-                    board.PopMove();
-                }
             }
             else
             {
@@ -720,6 +732,7 @@ namespace EndgameTableGen
                 if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
                     return SetScore(table, wturn, tindex, bestscore);
             }
+*/
             return 0;
         }
 
