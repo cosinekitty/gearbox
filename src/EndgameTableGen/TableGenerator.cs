@@ -149,6 +149,9 @@ namespace EndgameTableGen
                         using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
                             ForEachPosition(table, config, WriteAllEdges);
 
+                    SortEdges(whiteEdgeFileName, size);
+                    SortEdges(blackEdgeFileName, size);
+
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
 
@@ -168,6 +171,19 @@ namespace EndgameTableGen
             }
 
             return null;
+        }
+
+        private void SortEdges(string filename, int table_size)
+        {
+            // Sort the edges in ascending order of after_table_index.
+
+            const int SortRadix = 16;
+            string sort_dir = Path.Combine(OutputDirectory(), "sort_" + CurrentConfigId.ToString("D10"));
+
+            using (var sorter = new EdgeFileSorter(sort_dir, SortRadix, table_size))
+                sorter.Sort(filename);
+
+            Log("Sorted: {0}", filename);
         }
 
         private static string EdgeFileName(bool white_turn_after_move, long config_id)

@@ -126,4 +126,147 @@ namespace EndgameTableGen
             return tindex;
         }
     }
+
+    internal class EdgeFileSorter : IDisposable
+    {
+        private readonly string work_dir;
+        private readonly int radix;
+        private readonly int table_size;     // the number of entries in the table, NOT the size in bytes.
+        private readonly EdgeReader[] readerForDigit;
+        private readonly EdgeWriter[] writerForDigit;
+
+        public EdgeFileSorter(string work_dir, int radix, int table_size)
+        {
+            this.work_dir = work_dir;
+            this.radix = radix;
+            this.table_size = table_size;
+            this.readerForDigit = new EdgeReader[radix];
+            this.writerForDigit = new EdgeWriter[radix];
+        }
+
+        public void Dispose()
+        {
+            CloseOutputFiles();
+            CloseInputFiles();
+        }
+
+        public void Sort(string filename)
+        {
+            Directory.CreateDirectory(work_dir);
+
+            // This is a radix sort, so that we can sort efficiently without using a lot of memory.
+
+            // Spread the one input files into 'radix' piles, based on the final digit.
+            using (var reader = new EdgeReader(filename))
+            {
+                OpenOutputFiles();
+                Spread(reader, 1);
+                CloseOutputFiles();
+            }
+
+            // Keep respreading to the next pile.
+            int residue = table_size / radix;
+            for (int power = radix; residue > 0; power *= radix, residue /= radix)
+            {
+                MoveFilesForNextGeneration();
+                OpenInputFiles();
+                OpenOutputFiles();
+
+                for (int inDigit = 0; inDigit < radix; ++inDigit)
+                    Spread(readerForDigit[inDigit], power);
+
+                CloseOutputFiles();
+                CloseInputFiles();
+            }
+
+            // Pack the spread files back into the original single file.
+            // FIXFIXFIX - create index here too?
+            MoveFilesForNextGeneration();
+            OpenInputFiles();
+            using (var writer = new EdgeWriter(filename))
+            {
+                int prev_tindex = -1;
+                for (int inDigit = 0; inDigit < radix; ++inDigit)
+                {
+                    while (readerForDigit[inDigit].ReadEdge(out GraphEdge edge))
+                    {
+                        // Verify that we really have sorted!
+                        // There are multiple edges with the same after_tindex,
+                        // and we leave before_tindex in whatever random order they settle.
+                        if (edge.after_tindex < prev_tindex)
+                            throw new Exception($"Sort failure in {filename}");
+
+                        writer.WriteEdge(edge);
+                        prev_tindex = edge.after_tindex;
+                    }
+                }
+            }
+            CloseInputFiles();
+
+            Directory.Delete(work_dir, true);
+        }
+
+        private void DisposeArray<T>(T[] array) where T : class, IDisposable
+        {
+            for (int i = 0; i < array.Length; ++i)
+            {
+                if (array[i] != null)
+                {
+                    array[i].Dispose();
+                    array[i] = null;
+                }
+            }
+        }
+
+        private string InWorkFileName(int digit)
+        {
+            return Path.Combine(work_dir, digit.ToString("D2") + ".in");
+        }
+
+        private string OutWorkFileName(int digit)
+        {
+            return Path.Combine(work_dir, digit.ToString("D2") + ".out");
+        }
+
+        private void OpenInputFiles()
+        {
+            for (int digit = 0; digit < radix; ++digit)
+                readerForDigit[digit] = new EdgeReader(InWorkFileName(digit));
+        }
+
+        private void OpenOutputFiles()
+        {
+            for (int digit = 0; digit < radix; ++digit)
+                writerForDigit[digit] = new EdgeWriter(OutWorkFileName(digit));
+        }
+
+        private void CloseInputFiles()
+        {
+            DisposeArray(readerForDigit);
+        }
+
+        private void CloseOutputFiles()
+        {
+            DisposeArray(writerForDigit);
+        }
+
+        private void Spread(EdgeReader reader, int power)
+        {
+            while (reader.ReadEdge(out GraphEdge edge))
+            {
+                int outDigit = (edge.after_tindex / power) % radix;
+                writerForDigit[outDigit].WriteEdge(edge);
+            }
+        }
+
+        private void MoveFilesForNextGeneration()
+        {
+            for (int digit = 0; digit < radix; ++digit)
+            {
+                string inFileName = InWorkFileName(digit);
+                string outFileName = OutWorkFileName(digit);
+                File.Move(outFileName, inFileName, true);
+            }
+        }
+    }
 }
