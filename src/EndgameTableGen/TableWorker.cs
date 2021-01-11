@@ -71,12 +71,18 @@ namespace EndgameTableGen
             return config;
         }
 
+        protected static string OutputDirectory()
+        {
+            string dir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ?? Environment.CurrentDirectory;
+            return dir;
+        }
+
         protected string ConfigFileName(int[,] config)
         {
             long id = GetConfigId(config, false);
             if (id <= 0)
                 throw new ArgumentException("Invalid endgame configuration.");
-            string dir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ?? Environment.CurrentDirectory;
+            string dir = OutputDirectory();
             string fn = id.ToString("D10") + ".endgame";
             return Path.Combine(dir, fn);
         }

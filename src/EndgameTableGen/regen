@@ -4,7 +4,7 @@ if [[ -z "$1" ]]; then
 else
     CONFIG=$1
 fi
-rm -f ../../tables/*.endgame
+rm -f ../../tables/*.endgame ../../tables/*.edge
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen gen 2 | tee tablegen.log || exit $?
 exit 0

@@ -13,7 +13,7 @@ namespace EndgameTableGen
         We generate all legal positions.
         For each position, generate all legal moves.
         For each legal move, write the tuple
-        (before(config_id, white_to_move, table_index), after(config_id, white_to_move, table_index))
+        (white_to_move, before_tindex, after_tindex)
         to disk.
         Sort and index the resulting list by the "after" tuple.
         Therefore, given any after-position, we can find a list of before-positions
@@ -21,29 +21,17 @@ namespace EndgameTableGen
         If one side is checkmated in the after-position, then all the corresponding
         before-positions can be marked as mate-in-one positions.
         Iterating one ply at a time, we can work backwards and fill in the whole table.
-
-        Tricky: sometimes the after-position config_id transitions into another table
-        and we have to compute the inverse position (swapping White and Black).
-        That is why we have to store white_to_move in both "before" and "after" nodes.
     */
-
-    internal struct GraphNode
-    {
-        public long config_id;
-        public bool white_to_move;
-        public int  table_index;
-    }
 
     internal struct GraphEdge
     {
-        public GraphNode before;    // the state of the board before the move
-        public GraphNode after;     // the state of the board after the move
+        public int  before_tindex;
+        public int  after_tindex;
     }
 
     internal class EdgeWriter : IDisposable
     {
-        internal const int BytesPerNode = 9;    // see explanation in WriteNode()
-        internal const int BytesPerEdge = 2 * BytesPerNode;
+        internal const int BytesPerEdge = 8;
         internal const int EdgesPerBuffer = 10000;
         internal const int BytesPerBuffer = BytesPerEdge * EdgesPerBuffer;
 
@@ -70,29 +58,15 @@ namespace EndgameTableGen
 
         public void WriteEdge(GraphEdge edge)
         {
-            WriteNode(edge.before);
-            WriteNode(edge.after);
-        }
+            buffer[nbytes++] = (byte)(edge.after_tindex >> 24);
+            buffer[nbytes++] = (byte)(edge.after_tindex >> 16);
+            buffer[nbytes++] = (byte)(edge.after_tindex >> 8);
+            buffer[nbytes++] = (byte)(edge.after_tindex);
 
-        private void WriteNode(GraphNode node)
-        {
-            // Serialize the GraphNode struct to an array of bytes.
-            // Encoding:
-            // config_id is a value 0..9,999,999,999.
-            // Therefore it can fit in 34 bits.
-            // Store it in 5 bytes, and use the high bit to store white_to_move also.
-            buffer[nbytes++] = (byte)((node.white_to_move ? 0x80 : 0x00) | (byte)(node.config_id >> 32));
-            buffer[nbytes++] = (byte)(node.config_id >> 24);
-            buffer[nbytes++] = (byte)(node.config_id >> 16);
-            buffer[nbytes++] = (byte)(node.config_id >> 8);
-            buffer[nbytes++] = (byte)(node.config_id);
-
-            // Store the table index in 4 bytes.
-            // This means we need a total of 9 bytes per edge.
-            buffer[nbytes++] = (byte)(node.table_index >> 24);
-            buffer[nbytes++] = (byte)(node.table_index >> 16);
-            buffer[nbytes++] = (byte)(node.table_index >> 8);
-            buffer[nbytes++] = (byte)(node.table_index);
+            buffer[nbytes++] = (byte)(edge.before_tindex >> 24);
+            buffer[nbytes++] = (byte)(edge.before_tindex >> 16);
+            buffer[nbytes++] = (byte)(edge.before_tindex >> 8);
+            buffer[nbytes++] = (byte)(edge.before_tindex);
 
             if (nbytes == BytesPerBuffer)
             {
@@ -112,7 +86,6 @@ namespace EndgameTableGen
         public EdgeReader(string filename)
         {
             infile = File.OpenRead(filename);
-            nbytes = infile.Read(buffer, 0, buffer.Length);
         }
 
         public void Dispose()
@@ -134,33 +107,23 @@ namespace EndgameTableGen
 
             if (offset + EdgeWriter.BytesPerEdge > nbytes)
             {
-                edge = new GraphEdge();
+                edge.after_tindex = -1;
+                edge.before_tindex = -1;
                 return false;   // end of file
             }
 
-            edge.before = ReadNode();
-            edge.after = ReadNode();
+            edge.after_tindex = ReadNode();
+            edge.before_tindex = ReadNode();
             return true;
         }
 
-        private GraphNode ReadNode()
+        private int ReadNode()
         {
-            var node = new GraphNode();
-
-            node.white_to_move = (0 != (buffer[offset] & 0x80));
-
-            node.config_id |= ((long)(buffer[offset++] & 0x7f)) << 32;
-            node.config_id |= ((long)buffer[offset++]) << 24;
-            node.config_id |= ((long)buffer[offset++]) << 16;
-            node.config_id |= ((long)buffer[offset++]) << 8;
-            node.config_id |= ((long)buffer[offset++]);
-
-            node.table_index |= ((int)buffer[offset++]) << 24;
-            node.table_index |= ((int)buffer[offset++]) << 16;
-            node.table_index |= ((int)buffer[offset++]) << 8;
-            node.table_index |= ((int)buffer[offset++]);
-
-            return node;
+            int tindex = ((int)buffer[offset++]) << 24;
+            tindex |= ((int)buffer[offset++]) << 16;
+            tindex |= ((int)buffer[offset++]) << 8;
+            tindex |= ((int)buffer[offset++]);
+            return tindex;
         }
     }
 }

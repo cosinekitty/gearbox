@@ -25,14 +25,15 @@ namespace EndgameTableGen
         private static readonly int[] PawnOffsetTable = MakeOffsetTable('a', 'h', '2', '7');
 
         private readonly MoveList LegalMoveList = new MoveList();
-        private int PlyLevel;   // how many plies in the future are we finding mates for?
+        //private int PlyLevel;   // how many plies in the future are we finding mates for?
         private readonly Stopwatch chrono = new Stopwatch();
         private readonly Dictionary<long, Table> finished = new();
         public bool EnableTableGeneration = true;
-        public long WhiteConfigId;
-        public long BlackConfigId;
+        public long CurrentConfigId;
         private MemoryTable table;
-        private EdgeWriter edgeWriter;
+        private EdgeWriter whiteEdgeWriter;     // table of edges where White has the turn after the move is made
+        private EdgeWriter blackEdgeWriter;     // table of edges where Black has the turn after the move is made
+        private int localEdgeCount, foreignEdgeCount;
 
         public TableGenerator(int max_table_size)
         {
@@ -96,10 +97,10 @@ namespace EndgameTableGen
         {
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
-            WhiteConfigId = GetConfigId(config, false);
-            BlackConfigId = GetConfigId(config, true);
-            Log("WhiteConfigId = {0}, BlackConfigId = {1}", WhiteConfigId.ToString("D10"), BlackConfigId.ToString("D10"));
-            Debug.Assert(ReverseSideConfigId(WhiteConfigId) == BlackConfigId);
+            CurrentConfigId = GetConfigId(config, false);
+            Log("CurrentConfigId = {0}", CurrentConfigId.ToString("D10"));
+            long reverseConfigId = GetConfigId(config, true);
+            Debug.Assert(ReverseSideConfigId(CurrentConfigId) == reverseConfigId);
 
             if (EnableTableGeneration && File.Exists(filename))
             {
@@ -134,39 +135,11 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
-                    string edgeFileName = WhiteConfigId.ToString("D10") + ".edge";
-                    using (edgeWriter = new EdgeWriter(edgeFileName))
-                    {
-                        ForEachPosition(table, config, FindForcedMates);
-                    }
-
-/*
-                    int prev_sum = 1;
-                    int sum = 1;
-                    total = 0;
-
-                    // For the KP vs K table, we don't find immediate checkmates.
-                    // So we can't stop as soon as sum == 0.
-                    // In general, we allow 2 levels to go by without any progress before stopping,
-                    // because we want both Black and White to get another turn.
-                    // More abstractly, there are two colors of nodes: White (to move) and Black (to move).
-                    // The set of white nodes and the set of black nodes connect to each other but not to themselves.
-                    // Therefore, we have to wait until both settle down before we know the job is completed.
-                    for (PlyLevel = 0; sum + prev_sum > 0; ++PlyLevel)
-                    {
-                        prev_sum = sum;
-                        total += sum = ForEachPosition(table, config, FindForcedMates);
-
-                        // There are up to 2 scores per position (one for White, one for Black).
-                        ratio = (double)total / (2.0 * size);
-                        Log("PlyLevel {0}: Added {1} scores for a total of {2}/{3} = {4}.", PlyLevel, sum, total, 2*size, ratio.ToString("F4"));
-
-                        // It should never be possible to even reach table saturation,
-                        // because the table index scheme accomodates putting more than one piece in the same square,
-                        // which never happens in an actual position.
-                        Debug.Assert(total < 2*size);
-                    }
-*/
+                    string whiteEdgeFileName = EdgeFileName(true, CurrentConfigId);
+                    string blackEdgeFileName = EdgeFileName(false, CurrentConfigId);
+                    using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
+                        using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
+                            ForEachPosition(table, config, WriteAllEdges);
 
                     // Save the table to disk.
                     table.Save(filename);
@@ -179,11 +152,20 @@ namespace EndgameTableGen
                 // Migrate the table from high-speed/high-memory to slower/low-memory.
                 var diskTable = new DiskTable(size, filename);
                 diskTable.OpenForRead();
-                finished.Add(WhiteConfigId, diskTable);
+                finished.Add(CurrentConfigId, diskTable);
                 return diskTable;
             }
 
             return null;
+        }
+
+        private static string EdgeFileName(bool white_turn_after_move, long config_id)
+        {
+            string suffix = config_id.ToString("D10") + ".edge";
+            string filename = (white_turn_after_move ? "w" : "b") + suffix;
+            string dir = OutputDirectory();
+            filename = Path.Combine(dir, filename);
+            return filename;
         }
 
         public override void Finish()
@@ -560,8 +542,8 @@ namespace EndgameTableGen
 
             // Verify we are calculating config identifiers consistently.
             long check_id = board.GetEndgameConfigId(false);
-            if (check_id != WhiteConfigId)
-                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_id, WhiteConfigId, board.ForsythEdwardsNotation()));
+            if (check_id != CurrentConfigId)
+                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_id, CurrentConfigId, board.ForsythEdwardsNotation()));
 
             if (board.IsWhiteTurn)
             {
@@ -599,13 +581,8 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private int FindForcedMates(Table table, Board board, int tindex)
+        private int WriteAllEdges(Table table, Board board, int tindex)
         {
-            // If we have already scored a position, don't try to work it again.
-            if (0 != GetScore(table, board.IsWhiteTurn, tindex))
-                return 0;
-
-            // This is the first pass through the table.
             // This function is called twice for each position:
             // once with White to move, the other with Black to move.
             // Pre-generate the list of transitions to other (config_id, table_index)
@@ -622,122 +599,89 @@ namespace EndgameTableGen
                 return 0;   // stalemate
             }
 
-            var edge = new GraphEdge
-            {
-                before = new GraphNode
-                {
-                    config_id = WhiteConfigId,
-                    white_to_move = board.IsWhiteTurn,
-                    table_index = tindex,
-                },
-            };
+            var edge = new GraphEdge();
+            edge.before_tindex = tindex;
+
+            int best_foreign_score = Score.Undefined;
+
+            // Write to blackEdgeWriter if Black has the turn AFTER making the move,
+            // otherwise write to whiteEdgeWriter.
+            EdgeWriter edgeWriter = board.IsWhiteTurn ? blackEdgeWriter : whiteEdgeWriter;
 
             for (int i = 0; i < LegalMoveList.nmoves; ++i)
             {
                 Move move = LegalMoveList.array[i];
                 board.PushMove(move);
-                edge.after.config_id = board.GetEndgameConfigId(false);
-                if (edge.after.config_id == WhiteConfigId)
+                long after_config_id = board.GetEndgameConfigId(false);
+                if (after_config_id == CurrentConfigId)
                 {
                     // The most common case: making a move stays inside the current endgame table.
-                    edge.after.white_to_move = board.IsWhiteTurn;
-                    edge.after.table_index = board.GetEndgameTableIndex(false);
+                    ++localEdgeCount;
+                    edge.after_tindex = board.GetEndgameTableIndex(false);
                     edgeWriter.WriteEdge(edge);
                 }
                 else
                 {
                     // This move transitions out of this endgame configuration and into another.
-                    // Figure out whether the transition should be encoded as a
-                    // normal or inverse (config_id, table_index) pair.
-                    // Sometimes we have to swap sides in order to find a valid table.
-                    // If we can't find a matching table, assume it is a draw by insufficent material.
-                    if (finished.ContainsKey(edge.after.config_id))
+                    // We do not save such edges, because the score of the after-position
+                    // is already decided. We just obtain the correct score, and if it
+                    // is nonzero (forced win or forced loss), we remember that for later.
+                    ++foreignEdgeCount;
+                    int after_score;
+                    int after_tindex;
+                    Table after_table;
+                    if (finished.TryGetValue(after_config_id, out after_table))
                     {
-                        edge.after.white_to_move = board.IsWhiteTurn;
-                        edge.after.table_index = board.GetEndgameTableIndex(false);
-                        edgeWriter.WriteEdge(edge);
+                        after_tindex = board.GetEndgameTableIndex(false);
+                        after_score = GetScore(after_table, board.IsWhiteTurn, after_tindex);
                     }
                     else
                     {
                         // We don't know about that endgame table.
                         // Try swapping White and Black pieces.
-                        edge.after.config_id = board.GetEndgameTableIndex(true);
-                        if (finished.ContainsKey(edge.after.config_id))
+                        after_config_id = board.GetEndgameConfigId(true);
+                        if (finished.TryGetValue(after_config_id, out after_table))
                         {
-                            edge.after.white_to_move = board.IsBlackTurn;
-                            edge.after.table_index = board.GetEndgameTableIndex(true);
-                            edgeWriter.WriteEdge(edge);
+                            after_tindex = board.GetEndgameTableIndex(true);
+                            after_score = GetScore(after_table, board.IsWhiteTurn, after_tindex);
+                        }
+                        else
+                        {
+                            // The move transitions to a configuration we did not calculate.
+                            // We only do that when the configuration is always a draw due to insufficient material.
+                            after_score = 0;
                         }
                     }
+
+                    // Find the "before score" of this move into a foreign table,
+                    // adjusting for negamax and ply delay.
+                    int foreign_score = AdjustScoreForPly(after_score);
+                    if (foreign_score > best_foreign_score)
+                        best_foreign_score = foreign_score;
                 }
                 board.PopMove();
             }
 
-/*
-            bool wturn = board.IsWhiteTurn;
-            bool bturn = !wturn;
-
-            if (PlyLevel == 0)
+            if (best_foreign_score != Score.Undefined)
             {
+                // FIXFIXFIX: figure out what to do with (white_to_move, tindex, best_foreign_score) tuple.
+                // Can't store in the table now, because it will mess up the "leveling" algorithm.
+                // Probably need to store them indexed by score, so that when we get to the correct
+                // ply number, we can include them in the nodes that get added to that level.
             }
-            else
-            {
-                // Negamax search for moves that lead to forced mates in exactly PlyLevel plies.
-                int bestscore = Score.NegInf;
 
-                GraphEdgeList edgeList = gpool.GetList(tindex, wturn);
-                if (edgeList.count == 0)
-                    return 0;   // ignore all checkmates and stalemates as this level of the search
+            return 0;
+        }
 
-                for (int e = 0; e < edgeList.count; ++e)
-                {
-                    GraphEdge edge = gpool.pool[edgeList.front + e];
-                    long w_next_id = UnpackConfigId(edge.packed_config_id);
-                    long b_next_id = UnpackReverseConfigId(edge.packed_config_id);
+        private static int AdjustScoreForPly(int score)
+        {
+            // Adjust for negamax and ply delay.
+            if (score > 0)
+                return -(score - 1);
 
-                    int score;
-                    if (w_next_id == WhiteConfigId)
-                    {
-                        // We are still in the same endgame table (move is not a capture/promotion).
-                        score = GetScore(table, bturn, edge.next_tindex);
-                    }
-                    else
-                    {
-                        // Capture or promotion has moved us to a different table.
+            if (score < 0)
+                return -(score + 1);
 
-                        Table next_table;
-                        if (finished.TryGetValue(w_next_id, out next_table))
-                        {
-                            score = GetScore(next_table, bturn, edge.next_tindex);
-                        }
-                        else if (finished.TryGetValue(b_next_id, out next_table))
-                        {
-                            // We flipped into a mirror image of a previously computed configuration.
-                            score = GetScore(next_table, wturn, edge.reverse_tindex);
-                        }
-                        else
-                        {
-                            // We have wandered into a draw by insufficient material.
-                            // We don't need endgame tables for those!
-                            score = 0;
-                        }
-                    }
-
-                    // Adjust for negamax and ply delay.
-                    if (score > 0)
-                        score = -(score - 1);
-                    else if (score < 0)
-                        score = -(score + 1);
-
-                    if (score > bestscore)
-                        bestscore = score;
-                }
-
-                Debug.Assert(bestscore != Score.NegInf);
-                if (bestscore == FriendMatedScore + PlyLevel || bestscore == EnemyMatedScore - PlyLevel)
-                    return SetScore(table, wturn, tindex, bestscore);
-            }
-*/
             return 0;
         }
 
