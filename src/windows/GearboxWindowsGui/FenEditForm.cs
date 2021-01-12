@@ -25,6 +25,7 @@ namespace GearboxWindowsGui
         {
             if (e.KeyChar == (char)Keys.Return)
             {
+                e.Handled = true;
                 TrySubmit();
             }
         }
