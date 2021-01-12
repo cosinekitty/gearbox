@@ -532,7 +532,7 @@ namespace Gearbox
                 {
                     table_index = board.GetEndgameTableIndex(false);
                     score = table.GetScore(table_index, board.IsWhiteTurn);
-                    return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
+                    return score;   // no need to correct for negamax: endgame tables already use scores relative to turn holder
                 }
 
                 // Try again, swapping Black and White.
@@ -541,7 +541,7 @@ namespace Gearbox
                 {
                     table_index = board.GetEndgameTableIndex(true);
                     score = table.GetScore(table_index, board.IsBlackTurn);
-                    return board.IsBlackTurn ? -score : score;      // correct score for NegaMax.
+                    return score;   // no need to correct for negamax: endgame tables already use scores relative to turn holder
                 }
             }
 

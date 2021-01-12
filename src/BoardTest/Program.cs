@@ -120,10 +120,9 @@ namespace BoardTest
             var board = new Board(fen);
             Move move = thinker.Search(board);
             string scoreFormat = Score.Format(move.score);
-            Console.WriteLine("{0} {1}", move, scoreFormat);
             if (scoreFormat != expectedScore)
             {
-                Console.WriteLine("FAIL(TestEndgamePosition): expected score {0} but found {1} for {2}", expectedScore, scoreFormat, fen);
+                Console.WriteLine("FAIL(TestEndgamePosition): expected score {0} but found {1} [{2}] for {3}", expectedScore, scoreFormat, move, fen);
                 return false;
             }
             Console.WriteLine("PASS: TestEndgamePosition: [{0}] {1}", scoreFormat, fen);
