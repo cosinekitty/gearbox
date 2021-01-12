@@ -91,7 +91,7 @@ namespace BoardTest
                 return true;
             }
 
-            var thinker = new Thinker(1000);
+            var thinker = new Thinker(1000, new NullEvaluator()) { Name = "Endgame Thinker" };
             thinker.SetSearchLimit(1);
             int loadCount = thinker.LoadEndgameTables(dir);
             Console.WriteLine("Loaded {0} endgame tables.", loadCount);
@@ -111,7 +111,172 @@ namespace BoardTest
                 if (!TestEndgamePosition(thinker, t.fen, t.score))
                     return false;
 
+            if (!TestEndgameConfigSearch(thinker, Square.WR))    // KR:k
+                return false;
+
             Console.WriteLine("PASS: TestEndgames");
+            return true;
+        }
+
+        private static readonly int[] WholeBoardOffsetTable = MakeOffsetTable('a', 'h', '1', '8');
+
+        private static int[] MakeOffsetTable(char file1, char file2, char rank1, char rank2)
+        {
+            var table = new List<int>();
+            for (char rank = rank1; rank <= rank2; ++rank)
+                for (char file = file1; file <= file2; ++file)
+                    table.Add(Board.Offset(file, rank));
+            return table.ToArray();
+        }
+
+        private static int KingDistance(int ofs1, int ofs2)
+        {
+            int dx = Math.Abs((ofs1 % 10) - (ofs2 % 10));
+            int dy = Math.Abs((ofs1 / 10) - (ofs2 / 10));
+            return Math.Max(dx, dy);
+        }
+
+        static string ConfigText(Square[] nonKingPieces)
+        {
+            return "[" + string.Join(", ", nonKingPieces) + "]";
+        }
+
+        const int EndgameMaxSearchPlies = 5;
+
+        static bool TestEndgameConfigSearch(Thinker egThinker, params Square[] nonKingPieces)
+        {
+            int nodeCount = 0;
+            var board = new Board(true);    // create an empty board
+            var bfThinker = new Thinker(10000000, new NullEvaluator()) { Name = "Brute Force Thinker" };
+            bfThinker.SetSearchLimit(EndgameMaxSearchPlies);
+
+            // Generate every legal board configuration for this set of pieces.
+            // Do a shallow search using egThinker, which has endgame tables loaded.
+            // If it reports a forced win, and the forced win is within a reasonable
+            // search horizon, repeat the search with a brute force search (bfThinker).
+            // Verify that both scores match.
+
+            foreach (int wkofs in WholeBoardOffsetTable)
+            {
+                board.PlaceWhiteKing(wkofs);
+                foreach (int bkofs in WholeBoardOffsetTable)
+                {
+                    if (KingDistance(wkofs, bkofs) > 1)
+                    {
+                        board.PlaceBlackKing(bkofs);
+                        if (!EndgameSearchDepth(board, egThinker, bfThinker, nonKingPieces, 0, ref nodeCount))
+                            return false;   // FAILURE!
+                    }
+                }
+            }
+
+            Console.WriteLine("PASS TestEndgameConfigSearch{0} : {1} nodes", ConfigText(nonKingPieces), nodeCount);
+            return true;
+        }
+
+        private static bool EndgameSearchDepth(
+            Board board, Thinker egThinker, Thinker bfThinker, Square[] nonKingPieces, int depth, ref int nodeCount)
+        {
+            if (depth == nonKingPieces.Length)
+            {
+                // We have placed all the pieces on the board.
+                // Assess this position with both White and Black to move.
+                board.RefreshAfterDangerousChanges();
+
+                // What if it is White's turn to move?
+                board.SetTurn(true);
+                if (!ValidateEndgameSearch(board, egThinker, bfThinker, nonKingPieces, ref nodeCount))
+                    return false;
+
+                // What if it is Black's turn to move?
+                board.SetTurn(false);
+                if (!ValidateEndgameSearch(board, egThinker, bfThinker, nonKingPieces, ref nodeCount))
+                    return false;
+            }
+            else
+            {
+                // Recurse to put the remaining pieces on the board in every possible configuration.
+                Square[] square = board.GetSquaresArray();
+                foreach (int ofs in WholeBoardOffsetTable)
+                {
+                    if (square[ofs] == Square.Empty)
+                    {
+                        square[ofs] = nonKingPieces[depth];
+                        if (!EndgameSearchDepth(board, egThinker, bfThinker, nonKingPieces, 1 + depth, ref nodeCount))
+                            return false;
+                        square[ofs] = Square.Empty;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        static bool ValidateEndgameSearch(Board board, Thinker egThinker, Thinker bfThinker, Square[] nonKingPieces, ref int nodeCount)
+        {
+            ++nodeCount;
+
+            if (!board.IsValidPosition())
+                return true;        // skip invalid positions (where the side not having the turn is in check)
+
+            if (!board.UncachedPlayerCanMove())
+                return true;        // avoid calling Thinker.Search() when the game is over: it can't find a move!
+
+            // Consult the thinker that knows about endgames.
+            Move egMove = egThinker.Search(board);
+            if (egMove.score == Score.Undefined)
+            {
+                Console.WriteLine("FAIL ValidateEndgameSearch{0} @{1}: Undefined score returned by endgame thinker.", ConfigText(nonKingPieces), nodeCount);
+                return false;
+            }
+
+            int plies;
+            if (egMove.score > Score.WonForFriend)
+            {
+                // This side has a forced win, according to the endgame tables.
+                // Is this within the search horizon we are willing to search with brute force?
+                plies = Score.EnemyMated - egMove.score;
+            }
+            else if (egMove.score < Score.WonForEnemy)
+            {
+                // This side has a forced loss, according to the endgame tables.
+                // Is this within the search horizon we are willing to search with brute force?
+                plies = egMove.score - Score.FriendMated;
+            }
+            else
+            {
+                if (egMove.score != Score.Draw)
+                {
+                    Console.WriteLine("FAIL ValidateEndgameSearch{0} @{1}: Unexpected score {2} from endgame thinker.", ConfigText(nonKingPieces), nodeCount, egMove.score);
+                    return false;
+                }
+                // For drawn positions, we can't figure out the search horizon from the score.
+                // Search these positions to maximum plies, and try to confirm that we find a draw after all.
+                plies = EndgameMaxSearchPlies;
+            }
+
+            if (plies <= EndgameMaxSearchPlies)
+            {
+                // Reproduce the search without using endgame table knowledge.
+                Move bfMove = bfThinker.Search(board);
+
+                // Note: we DO NOT compare the moves, just the scores.
+                // Because of random movelist shuffling, two different moves can be just as good.
+                // But the scores have to match, or something is wrong.
+                // Special case: if there is only one legal move, the score will be undefined.
+                if (bfMove.score != egMove.score && bfMove.score != Score.Undefined)
+                {
+                    Console.WriteLine("FAIL ValidateEndgameSearch{0} @{1}: brute force score = {2}, endgame table score = {3}, for {4}",
+                        ConfigText(nonKingPieces),
+                        nodeCount,
+                        Score.Format(bfMove.score),
+                        Score.Format(egMove.score),
+                        board.ForsythEdwardsNotation());
+
+                    return false;
+                }
+            }
+
             return true;
         }
 
