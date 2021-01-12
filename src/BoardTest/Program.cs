@@ -70,31 +70,63 @@ namespace BoardTest
             ;
         }
 
+        struct EndgamePositionTest
+        {
+            public readonly string fen;
+            public readonly string score;
+            public EndgamePositionTest(string fen, string score)
+            {
+                this.fen = fen;
+                this.score = score;
+            }
+        }
+
         static bool TestEndgames(string[] args)
         {
             const string TableDirVarName = "GEARBOX_TABLEBASE_DIR";
             string dir = Environment.GetEnvironmentVariable(TableDirVarName);
             if (dir == null)
             {
-                Console.WriteLine("(Skipping endgame test because variable not set: {0})", TableDirVarName);
+                Console.WriteLine("Skipping endgame tests because environment variable is not set: {0}", TableDirVarName);
+                return true;
             }
-            else
+
+            var thinker = new Thinker(1000);
+            thinker.SetSearchLimit(1);
+            int loadCount = thinker.LoadEndgameTables(dir);
+            Console.WriteLine("Loaded {0} endgame tables.", loadCount);
+            if (loadCount == 0)
             {
-                var board = new Board("8/8/8/8/5kp1/8/4K3/8 b - - 9 5");
-                var thinker = new Thinker(1000);
-                thinker.SetSearchLimit(1);
-                int loadCount = thinker.LoadEndgameTables(dir);
-                Console.WriteLine("Loaded {0} endgame tables.", loadCount);
-                Move move = thinker.Search(board);
-                string scoreFormat = Score.Format(move.score);
-                Console.WriteLine("{0} {1}", move, scoreFormat);
-                if (scoreFormat != "#11")
-                {
-                    Console.WriteLine("Incorrect score");
-                    return false;
-                }
-                Console.WriteLine("PASS: Endgames");
+                Console.WriteLine("Skipping endgame tests because there are no endgame tables in: {0}", dir);
+                return true;
             }
+
+            var testList = new EndgamePositionTest[]
+            {
+                new EndgamePositionTest("8/8/8/8/5kp1/8/4K3/8 b - - 9 5", "#11"),
+                new EndgamePositionTest("1k6/8/1K6/8/8/1R6/8/8 w - - 1 1", "#2"),
+            };
+
+            foreach (EndgamePositionTest t in testList)
+                if (!TestEndgamePosition(thinker, t.fen, t.score))
+                    return false;
+
+            Console.WriteLine("PASS: TestEndgames");
+            return true;
+        }
+
+        static bool TestEndgamePosition(Thinker thinker, string fen, string expectedScore)
+        {
+            var board = new Board(fen);
+            Move move = thinker.Search(board);
+            string scoreFormat = Score.Format(move.score);
+            Console.WriteLine("{0} {1}", move, scoreFormat);
+            if (scoreFormat != expectedScore)
+            {
+                Console.WriteLine("FAIL(TestEndgamePosition): expected score {0} but found {1} for {2}", expectedScore, scoreFormat, fen);
+                return false;
+            }
+            Console.WriteLine("PASS: TestEndgamePosition: [{0}] {1}", scoreFormat, fen);
             return true;
         }
 
