@@ -351,6 +351,12 @@ namespace Gearbox
             if (depth > 1 && board.RepCount() == 1)
                 return Score.Draw;
 
+            // Check to see if this is a known endgame position.
+            // If so, we can immediately determine the value of the position
+            // without searching any deeper in the tree.
+            if (EndgameEval(board, out int endgameScore))
+                return endgameScore;
+
             // If we have seen this position before, see if we can recycle its value.
             HashValue hash = board.Hash();
             HashEntry entry = xpos.Read(hash);
@@ -513,12 +519,8 @@ namespace Gearbox
             return -1;       // did not find checkmate
         }
 
-        private int Eval(Board board)
+        private bool EndgameEval(Board board, out int score)
         {
-            ++evalCount;
-
-            int score;
-
             if (endgameTableForConfigId.Count > 0)
             {
                 // We have at least one endgame table loaded.
@@ -532,7 +534,7 @@ namespace Gearbox
                 {
                     table_index = board.GetEndgameTableIndex(false);
                     score = table.GetScore(table_index, board.IsWhiteTurn);
-                    return score;   // no need to correct for negamax: endgame tables already use scores relative to turn holder
+                    return true;
                 }
 
                 // Try again, swapping Black and White.
@@ -541,12 +543,20 @@ namespace Gearbox
                 {
                     table_index = board.GetEndgameTableIndex(true);
                     score = table.GetScore(table_index, board.IsBlackTurn);
-                    return score;   // no need to correct for negamax: endgame tables already use scores relative to turn holder
+                    return true;
                 }
             }
 
+            score = Score.Undefined;
+            return false;
+        }
+
+        private int Eval(Board board)
+        {
+            ++evalCount;
+
             // Evaluate the board with scores relative to White.
-            score = evaluator.Eval(board);
+            int score = evaluator.Eval(board);
 
             // Convert the White-relative score to player-relative, negamax score.
             return board.IsBlackTurn ? -score : score;
