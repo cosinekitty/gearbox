@@ -846,7 +846,7 @@ namespace EndgameTableGen
             square[ofs] = piece;
         }
 
-        internal static void DecodePosition(Board board, long config_id, int table_index, bool white_turn)
+        public static void DecodePosition(Board board, long config_id, int table_index, bool white_turn)
         {
             board.Clear(white_turn);
             Square[] square = board.GetSquaresArray();

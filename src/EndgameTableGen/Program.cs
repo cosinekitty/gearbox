@@ -50,6 +50,9 @@ EndgameTableGen decode config_id table_index side_to_move
     config_id    = decimal integer QqRrBbNnPp.
     table_index  = integer offset into the table.
     side_to_move = 'w' or 'b'.
+
+EndgameTableGen diff a.endgame b.endgame
+    Compares the scores in the two endgame table files.
 ";
 
         static int Main(string[] args)
@@ -153,9 +156,67 @@ EndgameTableGen decode config_id table_index side_to_move
                 return 0;
             }
 
+            if (args.Length == 3 && args[0] == "diff")
+            {
+                return DiffEndgameTables(args[1], args[2]);
+            }
+
             Console.WriteLine(UsageText);
             return 1;
         }
+
+        private static int DiffEndgameTables(string filename1, string filename2)
+        {
+            if (!ConfigIdFromFileName(filename1, out long config_id_1))
+                return 1;
+
+            if (!ConfigIdFromFileName(filename2, out long config_id_2))
+                return 1;
+
+            if (config_id_1 != config_id_2)
+            {
+                Console.WriteLine("ERROR: The files have different configuration IDs.");
+                return 1;
+            }
+
+            int[,] config = TableWorker.DecodeConfig(config_id_1);
+            int size = (int)TableWorker.TableSize(config);
+
+            var table1 = MemoryTable.MemoryLoad(filename1, size);
+            var table2 = MemoryTable.MemoryLoad(filename2, size);
+            if (table1.Size != table2.Size)
+            {
+                Console.WriteLine("Tables are different sizes.");
+                return 1;
+            }
+
+            var board = new Board(false);
+            int diffcount = 0;
+            for (int tindex = 0; tindex < table1.Size; ++tindex)
+            {
+                int w1 = table1.GetWhiteScore(tindex);
+                int w2 = table2.GetWhiteScore(tindex);
+                diffcount += PrintDiff(board, config_id_1, tindex, w1, w2, true);
+
+                int b1 = table1.GetBlackScore(tindex);
+                int b2 = table2.GetBlackScore(tindex);
+                diffcount += PrintDiff(board, config_id_1, tindex, b1, b2, false);
+            }
+            return (diffcount == 0) ? 0 : 1;
+        }
+
+        private static int PrintDiff(Board board, long config_id, int tindex, int score1, int score2, bool white_to_move)
+        {
+            if (score1 == score2)
+                return 0;
+
+            TableGenerator.DecodePosition(board, config_id, tindex, white_to_move);
+            string fen = board.ForsythEdwardsNotation();
+
+            Console.WriteLine("{0,10} {1,6} {2,6}  {3}", tindex, score1, score2, fen);
+            return 1;
+        }
+
 
         private static int MaxTableSize(int nonkings)
         {
@@ -194,6 +255,18 @@ EndgameTableGen decode config_id table_index side_to_move
             }
         }
 
+        static bool ConfigIdFromFileName(string filename, out long config_id)
+        {
+            config_id = -1;
+            string config_text = Path.GetFileNameWithoutExtension(filename);
+            if (config_text.Length != 10 || !long.TryParse(config_text, out config_id))
+            {
+                Console.WriteLine("ERROR: Filename does not contain a valid configuration ID: {0}", filename);
+                return false;
+            }
+            return true;
+        }
+
         static int ListTable(string filename)
         {
             if (!File.Exists(filename))
@@ -202,16 +275,12 @@ EndgameTableGen decode config_id table_index side_to_move
                 return 1;
             }
 
-            string config_text = Path.GetFileNameWithoutExtension(filename);
-            if (config_text.Length != 10 || !long.TryParse(config_text, out long config_id))
-            {
-                Console.WriteLine("ERROR: Filename does not contain a valid configuration ID.");
+            if (!ConfigIdFromFileName(filename, out long config_id))
                 return 1;
-            }
 
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
-            Table table = new MemoryTable(size, size);
+            Table table = MemoryTable.MemoryLoad(filename, size);
             var worker = new TableGenerator(0);
             worker.ForEachPosition(table, config, PrintNode);
             return 0;
@@ -241,7 +310,7 @@ EndgameTableGen decode config_id table_index side_to_move
 
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
-            Table table = new MemoryTable(size, size);
+            Table table = MemoryTable.MemoryLoad(filename, size);
             Console.WriteLine(filename);
             Console.WriteLine("{0,12:n0} total position capacity", size);
             int whiteWins=0, whiteLosses=0, blackWins=0, blackLosses=0, occupied=0;
