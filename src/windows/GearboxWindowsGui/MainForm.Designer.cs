@@ -49,6 +49,7 @@ namespace GearboxWindowsGui
             this.panel_BestPath = new System.Windows.Forms.Panel();
             this.panel_RankNumbers = new System.Windows.Forms.Panel();
             this.panel_FileLetters = new System.Windows.Forms.Panel();
+            this.toolStripMenuItem_EditFen = new System.Windows.Forms.ToolStripMenuItem();
             this.mainMenuStrip.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -147,6 +148,8 @@ namespace GearboxWindowsGui
             // 
             // editToolStripMenuItem
             // 
+            this.editToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItem_EditFen});
             this.editToolStripMenuItem.Name = "editToolStripMenuItem";
             this.editToolStripMenuItem.Size = new System.Drawing.Size(49, 24);
             this.editToolStripMenuItem.Text = "&Edit";
@@ -215,6 +218,13 @@ namespace GearboxWindowsGui
             this.panel_FileLetters.TabIndex = 4;
             this.panel_FileLetters.Paint += new System.Windows.Forms.PaintEventHandler(this.panel_FileLetters_Paint);
             // 
+            // toolStripMenuItem_EditFen
+            // 
+            this.toolStripMenuItem_EditFen.Name = "toolStripMenuItem_EditFen";
+            this.toolStripMenuItem_EditFen.Size = new System.Drawing.Size(157, 26);
+            this.toolStripMenuItem_EditFen.Text = "Edit FEN...";
+            this.toolStripMenuItem_EditFen.Click += new System.EventHandler(this.toolStripMenuItem_EditFen_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
@@ -258,6 +268,7 @@ namespace GearboxWindowsGui
         private System.Windows.Forms.Panel panel_BestPath;
         private System.Windows.Forms.Panel panel_RankNumbers;
         private System.Windows.Forms.Panel panel_FileLetters;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem_EditFen;
     }
 }
 
