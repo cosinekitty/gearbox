@@ -167,7 +167,7 @@ namespace Gearbox
                 if (stratum.legal.nmoves == 1)
                 {
                     // There is only one legal move, so return it.
-                    // However, if possible, calculate the exact value of the resulting position.
+                    // However, if possible, calculate the exact value of the starting position.
                     // This way, the endgame tables can still help us report forced mates.
                     // But if we don't know the exact score, return Score.Undefined;
                     // this helps test the code, to find places where we should have found
@@ -412,10 +412,21 @@ namespace Gearbox
             // If we have seen this position before, see if we can recycle its value.
             HashValue hash = board.Hash();
             HashEntry entry = xpos.Read(hash);
+
             if (entry.verify == hash.b)
             {
                 if (entry.height >= limit - depth && entry.alpha <= alpha && entry.beta >= beta)
-                    return entry.move.score;
+                {
+                    // Recycling forced-mate scores was messing up picking moves that lead to forced mates.
+                    // The problem: sometimes Search() receives a partial view of the forced mates
+                    // and stops searching at a small limit, before brute force search has the
+                    // opportunity to find alternative moves that mate even faster.
+                    // Better alternatives not in the hash table require a deeper limit.
+                    // So now we recycle scores only when they can't possibly trigger an early exit.
+
+                    if (entry.move.score > Score.WonForEnemy && entry.move.score < Score.WonForFriend)
+                        return entry.move.score;
+                }
             }
 
             Move bestMove = Move.Null;

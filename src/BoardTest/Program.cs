@@ -145,6 +145,7 @@ namespace BoardTest
 
         static bool TestEndgameConfigSearch(Thinker egThinker, params Square[] nonKingPieces)
         {
+            var chrono = Stopwatch.StartNew();
             int nodeCount = 0;
             var board = new Board(true);    // create an empty board
             var bfThinker = new Thinker(10000000, new NullEvaluator()) { Name = "Brute Force Thinker" };
@@ -170,7 +171,10 @@ namespace BoardTest
                 }
             }
 
-            Console.WriteLine("PASS TestEndgameConfigSearch{0} : {1} nodes", ConfigText(nonKingPieces), nodeCount);
+            chrono.Stop();
+            Console.WriteLine("PASS TestEndgameConfigSearch{0} : {1} nodes in {2} seconds.",
+                ConfigText(nonKingPieces), nodeCount, chrono.Elapsed.TotalSeconds.ToString("F3"));
+
             return true;
         }
 
@@ -266,13 +270,17 @@ namespace BoardTest
                 // Special case: if there is only one legal move, the score will be undefined.
                 if (bfMove.score != egMove.score && bfMove.score != Score.Undefined)
                 {
-                    Console.WriteLine("FAIL ValidateEndgameSearch{0} @{1}: brute force score = {2}, endgame table score = {3}, for {4}",
+                    Console.WriteLine("FAIL ValidateEndgameSearch{0} @{1}: brute force score = {2} ({3}), endgame table score = {4} ({5}), for {6}",
                         ConfigText(nonKingPieces),
                         nodeCount,
                         Score.Format(bfMove.score),
+                        bfMove.score,
                         Score.Format(egMove.score),
+                        egMove.score,
                         board.ForsythEdwardsNotation());
 
+                    Console.WriteLine("brute force move   = {0}", bfMove);
+                    Console.WriteLine("endgame table move = {0}", egMove);
                     return false;
                 }
             }
