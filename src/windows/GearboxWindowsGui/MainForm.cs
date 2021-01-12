@@ -33,6 +33,7 @@ namespace GearboxWindowsGui
         private int animationTotalFrames;
         private Move animationMoveInProgress;
         private BestPath currentBestPath;
+        private FenEditForm fenEditForm;
 
         private int TopMarginPixels()
         {
@@ -54,6 +55,7 @@ namespace GearboxWindowsGui
         public MainForm()
         {
             InitializeComponent();
+            fenEditForm = new FenEditForm();
             EnableDoubleBuffering(panel_ChessBoard);
             EnableDoubleBuffering(panel_BestPath);
             animationTimer.Tick += OnAnimationTimerTick;
@@ -426,6 +428,25 @@ namespace GearboxWindowsGui
                 float y = ((0.5f + i) * boardDisplay.pixelsPerSquare) - 8.0f;
                 string numeral = (boardDisplay.reverse ? (1 + i) : (8 - i)).ToString();
                 graphics.DrawString(numeral, font, brush, x, y);
+            }
+        }
+
+        private void toolStripMenuItem_EditFen_Click(object sender, EventArgs e)
+        {
+            string fen = boardDisplay.board.ForsythEdwardsNotation();
+            fenEditForm.SetFen(fen);
+            DialogResult result = fenEditForm.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                string newFen = fenEditForm.GetFen();
+                if (newFen != fen)
+                {
+                    boardDisplay.board.SetPosition(newFen);
+                    boardDisplay.RefreshMoves();
+                    currentPgnFileName = null;
+                    panel_ChessBoard.Invalidate();
+                    OnTurnChanged();
+                }
             }
         }
     }
