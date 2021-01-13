@@ -46,11 +46,9 @@ namespace BoardTest
                 return false;
             }
 
-            int numMovesPushed = 0;
-            while (board.GetGameResult() == GameResult.InProgress)
+            if (board.GetGameResult() == GameResult.InProgress)
             {
                 Move bestmove = Move.Null;
-                int bestOppScore = Score.PosInf;
 
                 // Verify that all children have a consistent score.
                 board.GenMoves(legalMoveList);
@@ -77,10 +75,7 @@ namespace BoardTest
 
                     move.score = Score.OnePlyDelay(-opponentScore);
                     if (move.score > bestmove.score)
-                    {
                         bestmove = move;
-                        bestOppScore = opponentScore;
-                    }
                 }
 
                 if (bestmove.IsNull())
@@ -100,17 +95,6 @@ namespace BoardTest
 
                     return false;
                 }
-
-                parentScore = bestOppScore;
-                board.PushMove(bestmove);
-                ++numMovesPushed;
-            }
-
-            // Restore the board to how we found it.
-            while (numMovesPushed > 0)
-            {
-                board.PopMove();
-                --numMovesPushed;
             }
 
             return true;
