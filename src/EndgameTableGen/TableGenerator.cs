@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Gearbox;
 
 namespace EndgameTableGen
@@ -40,6 +41,8 @@ namespace EndgameTableGen
         private List<int> blackCurrResolvedIndexList = new();
         private List<int> whiteNextResolvedIndexList = new();
         private List<int> blackNextResolvedIndexList = new();
+        private SortedList<int, HashSet<int>> whiteForeignUnresolvedForPly = new();
+        private SortedList<int, HashSet<int>> blackForeignUnresolvedForPly = new();
 
         public TableGenerator(int max_table_size)
         {
@@ -167,6 +170,12 @@ namespace EndgameTableGen
                     whiteNextResolvedIndexList.Clear();
                     blackNextResolvedIndexList.Clear();
 
+                    // We track unresolved table indexes due to transitions into foreign tables.
+                    // These need to be worked, even though they would be missed by the
+                    // backprop algorithm if we only looked at internal transitions.
+                    whiteForeignUnresolvedForPly.Clear();
+                    blackForeignUnresolvedForPly.Clear();
+
                     string workdir = ConfigWorkDirectory(CurrentConfigId);
                     if (Directory.Exists(workdir))
                         throw new Exception($"Work directory already existed: {workdir}");
@@ -178,6 +187,9 @@ namespace EndgameTableGen
                     using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
                         using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
                             ForEachPosition(table, config, WriteAllEdges);
+
+                    Log("White Foreign = [{0}]", string.Join(", ", whiteForeignUnresolvedForPly.Select(kv => $"{kv.Key}:{kv.Value.Count}")));
+                    Log("Black Foreign = [{0}]", string.Join(", ", blackForeignUnresolvedForPly.Select(kv => $"{kv.Key}:{kv.Value.Count}")));
 
                     string whiteIndexFileName = Path.Combine(workdir, "w.index");
                     string blackIndexFileName = Path.Combine(workdir, "b.index");
@@ -207,6 +219,15 @@ namespace EndgameTableGen
             return null;
         }
 
+        private static HashSet<int> ExtractForeignIndexSet(SortedList<int, HashSet<int>> foreign, int ply)
+        {
+            if (foreign.TryGetValue(ply, out HashSet<int> set))
+                foreign.Remove(ply);
+            else
+                set = new HashSet<int>();
+            return set;
+        }
+
         private void Backpropagate(
             Table table,
             string whiteEdgeFileName,
@@ -218,10 +239,22 @@ namespace EndgameTableGen
             using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
             var before_tindex_list = new List<int>();
 
-            for (int ply = 0; whiteCurrResolvedIndexList.Count + blackCurrResolvedIndexList.Count > 0; ++ply)
+            for (int ply = 0;
+                (whiteForeignUnresolvedForPly.Count + blackForeignUnresolvedForPly.Count > 0) ||
+                (whiteCurrResolvedIndexList.Count + blackCurrResolvedIndexList.Count > 0);
+                ++ply)
             {
                 int targetScore = EnemyMatedScore - (ply+1);
-                Log("Backprop[{0}]: white list = {1}, black list = {2}.", ply, whiteCurrResolvedIndexList.Count, blackCurrResolvedIndexList.Count);
+
+                HashSet<int> whiteForeignIndexSet = ExtractForeignIndexSet(whiteForeignUnresolvedForPly, ply + 1);
+                HashSet<int> blackForeignIndexSet = ExtractForeignIndexSet(blackForeignUnresolvedForPly, ply + 1);
+
+                Log("Backprop[{0}]: white local = {1}, white foreign = {2}, black local = {3}, black foreign = {4}.",
+                    ply,
+                    whiteCurrResolvedIndexList.Count,
+                    whiteForeignIndexSet.Count,
+                    blackCurrResolvedIndexList.Count,
+                    blackForeignIndexSet.Count);
 
                 blackNextResolvedIndexList.Clear();
                 foreach (int after_tindex in whiteCurrResolvedIndexList)
@@ -231,6 +264,7 @@ namespace EndgameTableGen
                     whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                     foreach (int before_tindex in before_tindex_list)
                     {
+                        blackForeignIndexSet.Remove(before_tindex);
                         if (blackUnresolvedChildCount[before_tindex] > 0)
                         {
                             BumpBlackScore(table, before_tindex, adjusted_score);
@@ -243,6 +277,7 @@ namespace EndgameTableGen
                         }
                     }
                 }
+                blackNextResolvedIndexList.AddRange(blackForeignIndexSet);
 
                 whiteNextResolvedIndexList.Clear();
                 foreach (int after_tindex in blackCurrResolvedIndexList)
@@ -252,6 +287,7 @@ namespace EndgameTableGen
                     blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                     foreach (int before_tindex in before_tindex_list)
                     {
+                        whiteForeignIndexSet.Remove(before_tindex);
                         if (whiteUnresolvedChildCount[before_tindex] > 0)
                         {
                             BumpWhiteScore(table, before_tindex, adjusted_score);
@@ -264,6 +300,7 @@ namespace EndgameTableGen
                         }
                     }
                 }
+                whiteNextResolvedIndexList.AddRange(whiteForeignIndexSet);
 
                 var swap = whiteCurrResolvedIndexList;
                 whiteCurrResolvedIndexList = whiteNextResolvedIndexList;
@@ -836,7 +873,7 @@ namespace EndgameTableGen
                         if (finished.TryGetValue(after_config_id, out after_table))
                         {
                             after_tindex = board.GetEndgameTableIndex(true);
-                            after_score = GetScore(after_table, board.IsWhiteTurn, after_tindex);
+                            after_score = GetScore(after_table, board.IsBlackTurn, after_tindex);
                         }
                         else
                         {
@@ -846,7 +883,7 @@ namespace EndgameTableGen
                         }
                     }
 
-                    // Find the "before score" of this move into a foreign table,
+                    // Find the score of this move that takes us into a foreign table,
                     // adjusting for negamax and ply delay.
                     int foreign_score = AdjustScoreForPly(after_score);
                     if (foreign_score > best_foreign_score)
@@ -867,6 +904,22 @@ namespace EndgameTableGen
             else
             {
                 SetUnresolvedChildCount(board.IsWhiteTurn, tindex, unresolved);
+                if (foreignEdgeCount > 0 && best_foreign_score != DrawScore)
+                {
+                    HashSet<int> tindex_set;
+                    int plies = EnemyMatedScore - Math.Abs(best_foreign_score);
+                    if (board.IsWhiteTurn)
+                    {
+                        if (!whiteForeignUnresolvedForPly.TryGetValue(plies, out tindex_set))
+                            whiteForeignUnresolvedForPly.Add(plies, tindex_set = new());
+                    }
+                    else
+                    {
+                        if (!blackForeignUnresolvedForPly.TryGetValue(plies, out tindex_set))
+                            blackForeignUnresolvedForPly.Add(plies, tindex_set = new());
+                    }
+                    tindex_set.Add(tindex);
+                }
             }
 
             if (foreignEdgeCount > 0)
