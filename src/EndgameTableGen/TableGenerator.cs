@@ -27,7 +27,6 @@ namespace EndgameTableGen
         private static readonly int[] PawnOffsetTable = MakeOffsetTable('a', 'h', '2', '7');
 
         private readonly MoveList LegalMoveList = new MoveList();
-        //private int PlyLevel;   // how many plies in the future are we finding mates for?
         private readonly Stopwatch chrono = new Stopwatch();
         private readonly Dictionary<long, Table> finished = new();
         public bool EnableTableGeneration = true;
@@ -35,7 +34,12 @@ namespace EndgameTableGen
         private MemoryTable table;
         private EdgeWriter whiteEdgeWriter;     // table of edges where White has the turn after the move is made
         private EdgeWriter blackEdgeWriter;     // table of edges where Black has the turn after the move is made
-        private int localEdgeCount, foreignEdgeCount;
+        private byte[] whiteUnresolvedChildCount;
+        private byte[] blackUnresolvedChildCount;
+        private List<int> whiteCurrResolvedIndexList = new();
+        private List<int> blackCurrResolvedIndexList = new();
+        private List<int> whiteNextResolvedIndexList = new();
+        private List<int> blackNextResolvedIndexList = new();
 
         public TableGenerator(int max_table_size)
         {
@@ -45,6 +49,13 @@ namespace EndgameTableGen
                 // Start out with size=0, capacity=max_table_size.
                 // We will adjust the effective table size as needed for each configuration.
                 table = new MemoryTable(0, max_table_size);
+
+                // When backpropagating scores, we need to know how many
+                // child nodes emanate from a given parent node.
+                // When the child count reaches zero, we know the parent's score is final.
+                // Before then, the parent's score is just a lower bound.
+                whiteUnresolvedChildCount = new byte[max_table_size];
+                blackUnresolvedChildCount = new byte[max_table_size];
             }
         }
 
@@ -143,6 +154,19 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
+                    // Reset all unresolved child counts to zero.
+                    // They get incremented by WriteAllEdges as legal moves are generated.
+                    // They get decremented as the backpropagator feeds scores backwards through the graph.
+                    Array.Clear(whiteUnresolvedChildCount, 0, whiteUnresolvedChildCount.Length);
+                    Array.Clear(blackUnresolvedChildCount, 0, blackUnresolvedChildCount.Length);
+
+                    // Empty out the lists of table indexes that are known to be freshly resolved.
+                    // These lists are primed in WriteAllEdges, refluxed in Backpropagate.
+                    whiteCurrResolvedIndexList.Clear();
+                    blackCurrResolvedIndexList.Clear();
+                    whiteNextResolvedIndexList.Clear();
+                    blackNextResolvedIndexList.Clear();
+
                     string workdir = ConfigWorkDirectory(CurrentConfigId);
                     if (Directory.Exists(workdir))
                         throw new Exception($"Work directory already existed: {workdir}");
@@ -192,43 +216,65 @@ namespace EndgameTableGen
         {
             using var whiteIndexer = new EdgeIndexer(whiteIndexFileName, whiteEdgeFileName);
             using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
-
-            int prev_changes = 1;
-            int curr_changes = 0;
             var before_tindex_list = new List<int>();
-            for (int ply = 0; prev_changes + curr_changes > 0; ++ply)
+
+            for (int ply = 0; whiteCurrResolvedIndexList.Count + blackCurrResolvedIndexList.Count > 0; ++ply)
             {
-                prev_changes = curr_changes;
-                int target_losing_score = FriendMatedScore + ply;
-                int target_winning_score = EnemyMatedScore - ply;
-                int white_changes = 0;
-                int black_changes = 0;
+                int targetScore = EnemyMatedScore - (ply+1);
+                Log("Backprop[{0}]: white list = {1}, black list = {2}.", ply, whiteCurrResolvedIndexList.Count, blackCurrResolvedIndexList.Count);
 
-                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
+                blackNextResolvedIndexList.Clear();
+                foreach (int after_tindex in whiteCurrResolvedIndexList)
                 {
-                    int wscore = table.GetWhiteScore(after_tindex);
-                    if (wscore == target_losing_score || wscore == target_winning_score)
+                    int score = table.GetWhiteScore(after_tindex);
+                    int adjusted_score = AdjustScoreForPly(score);
+                    whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                    foreach (int before_tindex in before_tindex_list)
                     {
-                        int adjusted_score = AdjustScoreForPly(wscore);
-                        whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                        foreach (int before_tindex in before_tindex_list)
-                            black_changes += BumpBlackScore(table, before_tindex, adjusted_score);
-                    }
-
-                    int bscore = table.GetBlackScore(after_tindex);
-                    if (bscore == target_losing_score || bscore == target_winning_score)
-                    {
-                        int adjusted_score = AdjustScoreForPly(bscore);
-                        blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                        foreach (int before_tindex in before_tindex_list)
-                            white_changes += BumpWhiteScore(table, before_tindex, adjusted_score);
+                        if (blackUnresolvedChildCount[before_tindex] > 0)
+                        {
+                            BumpBlackScore(table, before_tindex, adjusted_score);
+                            int remaining = --blackUnresolvedChildCount[before_tindex];
+                            if (remaining == 0 || adjusted_score == targetScore)
+                            {
+                                blackUnresolvedChildCount[before_tindex] = 0;
+                                blackNextResolvedIndexList.Add(before_tindex);
+                            }
+                        }
                     }
                 }
 
-                curr_changes = white_changes + black_changes;
-                Log("Backprop[{0}]: white changes = {1}, black changes = {2}, total = {3}, prev = {4}",
-                    ply, white_changes, black_changes, curr_changes, prev_changes);
+                whiteNextResolvedIndexList.Clear();
+                foreach (int after_tindex in blackCurrResolvedIndexList)
+                {
+                    int score = table.GetBlackScore(after_tindex);
+                    int adjusted_score = AdjustScoreForPly(score);
+                    blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                    foreach (int before_tindex in before_tindex_list)
+                    {
+                        if (whiteUnresolvedChildCount[before_tindex] > 0)
+                        {
+                            BumpWhiteScore(table, before_tindex, adjusted_score);
+                            int remaining = --whiteUnresolvedChildCount[before_tindex];
+                            if (remaining == 0 || adjusted_score == targetScore)
+                            {
+                                whiteUnresolvedChildCount[before_tindex] = 0;
+                                whiteNextResolvedIndexList.Add(before_tindex);
+                            }
+                        }
+                    }
+                }
+
+                var swap = whiteCurrResolvedIndexList;
+                whiteCurrResolvedIndexList = whiteNextResolvedIndexList;
+                whiteNextResolvedIndexList = swap;
+
+                swap = blackCurrResolvedIndexList;
+                blackCurrResolvedIndexList = blackNextResolvedIndexList;
+                blackNextResolvedIndexList = swap;
             }
+
+            Log("Backprop finished.");
         }
 
         private static string ConfigWorkDirectory(long config_id)
@@ -711,6 +757,17 @@ namespace EndgameTableGen
             return 0;   // nothing changed
         }
 
+        private void SetUnresolvedChildCount(bool white_turn, int tindex, int childCount)
+        {
+            if (childCount < 0 || childCount > 255)
+                throw new ArgumentException($"Invalid child count = {childCount}");
+
+            if (white_turn)
+                whiteUnresolvedChildCount[tindex] = (byte)childCount;
+            else
+                blackUnresolvedChildCount[tindex] = (byte)childCount;
+        }
+
         private int WriteAllEdges(Table table, Board board, int tindex)
         {
             // This function is called twice for each position:
@@ -719,14 +776,18 @@ namespace EndgameTableGen
             // pairs based on the legal moves available to the side with the turn.
             // These graph edges will be recycled for all the subsequent passes.
             board.GenMoves(LegalMoveList);
+
             if (LegalMoveList.nmoves == 0)
             {
                 // This is either stalemate or checkmate.
-                // Set the score for this position accordingly.
-                // We call SetScore instead of BumpScore, because this is the certain score,
-                // not a lower limit; this score cannot change later because there
-                // are no legal moves emanating from this position.
 
+                // Put this into the list of after-indexes to be worked by the backpropagator.
+                if (board.IsWhiteTurn)
+                    whiteCurrResolvedIndexList.Add(tindex);
+                else
+                    blackCurrResolvedIndexList.Add(tindex);
+
+                // Set the score for this position accordingly.
                 int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
@@ -735,6 +796,7 @@ namespace EndgameTableGen
             edge.before_tindex = tindex;
 
             int best_foreign_score = UndefinedScore;
+            int foreignEdgeCount = 0;
 
             // Write to blackEdgeWriter if Black has the turn AFTER making the move,
             // otherwise write to whiteEdgeWriter.
@@ -748,7 +810,6 @@ namespace EndgameTableGen
                 if (after_config_id == CurrentConfigId)
                 {
                     // The most common case: making a move stays inside the current endgame table.
-                    ++localEdgeCount;
                     edge.after_tindex = board.GetEndgameTableIndex(false);
                     edgeWriter.WriteEdge(edge);
                 }
@@ -794,7 +855,21 @@ namespace EndgameTableGen
                 board.PopMove();
             }
 
-            if (best_foreign_score != UndefinedScore)
+            int unresolved = LegalMoveList.nmoves - foreignEdgeCount;
+            if (unresolved == 0)
+            {
+                // Put this into the list of after-indexes to be worked by the backpropagator.
+                if (board.IsWhiteTurn)
+                    whiteCurrResolvedIndexList.Add(tindex);
+                else
+                    blackCurrResolvedIndexList.Add(tindex);
+            }
+            else
+            {
+                SetUnresolvedChildCount(board.IsWhiteTurn, tindex, unresolved);
+            }
+
+            if (foreignEdgeCount > 0)
                 return BumpScore(table, board.IsWhiteTurn, tindex, best_foreign_score);
 
             return 0;
