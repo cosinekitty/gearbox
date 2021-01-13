@@ -91,7 +91,7 @@ namespace BoardTest
                 return true;
             }
 
-            var thinker = new Thinker(1000);
+            var thinker = new Thinker(1000, new NullEvaluator()) { Name = "Endgame Thinker" };
             thinker.SetSearchLimit(1);
             int loadCount = thinker.LoadEndgameTables(dir);
             Console.WriteLine("Loaded {0} endgame tables.", loadCount);
@@ -111,7 +111,51 @@ namespace BoardTest
                 if (!TestEndgamePosition(thinker, t.fen, t.score))
                     return false;
 
+            if (!TestEndgameWalk(thinker, Square.WQ))
+                return false;
+
+            if (!TestEndgameConfigSearch(thinker, Square.WR))
+                return false;
+
             Console.WriteLine("PASS: TestEndgames");
+            return true;
+        }
+
+
+        static string ConfigText(Square[] nonKingPieces)
+        {
+            return "[" + string.Join(", ", nonKingPieces) + "]";
+        }
+
+        static bool TestEndgameWalk(Thinker egThinker, params Square[] nonKingPieces)
+        {
+            var chrono = Stopwatch.StartNew();
+
+            var visitor = new EndgameWalker(egThinker);
+            var searcher = new EndgameSearcher();
+            if (!searcher.Search(nonKingPieces, visitor))
+                return false;
+
+            chrono.Stop();
+            Console.WriteLine("PASS TestEndgameWalk{0} : {1} nodes in {2} seconds.",
+                ConfigText(nonKingPieces), visitor.NodeCount, chrono.Elapsed.TotalSeconds.ToString("F3"));
+
+            return true;
+        }
+
+        static bool TestEndgameConfigSearch(Thinker egThinker, params Square[] nonKingPieces)
+        {
+            var chrono = Stopwatch.StartNew();
+
+            var visitor = new EndgamePositionValidator(egThinker);
+            var searcher = new EndgameSearcher();
+            if (!searcher.Search(nonKingPieces, visitor))
+                return false;
+
+            chrono.Stop();
+            Console.WriteLine("PASS TestEndgameConfigSearch{0} : {1} nodes in {2} seconds.",
+                ConfigText(nonKingPieces), visitor.NodeCount, chrono.Elapsed.TotalSeconds.ToString("F3"));
+
             return true;
         }
 
