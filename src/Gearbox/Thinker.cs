@@ -335,6 +335,38 @@ namespace Gearbox
             return bestMove;
         }
 
+        public bool EndgameEval(out int score, Board board)
+        {
+            if (endgameTableForConfigId.Count > 0)
+            {
+                // We have at least one endgame table loaded.
+                // Check to see if we can use an endgame table in this position.
+                // How many non-king pieces exist on the board?
+                int table_index;
+                IEndgameTable table;
+
+                long config_id = board.GetEndgameConfigId(false);
+                if (endgameTableForConfigId.TryGetValue(config_id, out table))
+                {
+                    table_index = board.GetEndgameTableIndex(false);
+                    score = table.GetScore(table_index, board.IsWhiteTurn);
+                    return true;
+                }
+
+                // Try again, swapping Black and White.
+                config_id = board.GetEndgameConfigId(true);
+                if (endgameTableForConfigId.TryGetValue(config_id, out table))
+                {
+                    table_index = board.GetEndgameTableIndex(true);
+                    score = table.GetScore(table_index, board.IsBlackTurn);
+                    return true;
+                }
+            }
+
+            score = Score.Undefined;
+            return false;
+        }
+
         private bool TerminalEval(out int score, Board board, int depth)
         {
             // Is the game over? Score immediately if so.
@@ -364,34 +396,7 @@ namespace Gearbox
             // Check to see if this is a known endgame position.
             // If so, we can immediately determine the value of the position
             // without searching any deeper in the tree.
-            if (endgameTableForConfigId.Count > 0)
-            {
-                // We have at least one endgame table loaded.
-                // Check to see if we can use an endgame table in this position.
-                // How many non-king pieces exist on the board?
-                int table_index;
-                IEndgameTable table;
-
-                long config_id = board.GetEndgameConfigId(false);
-                if (endgameTableForConfigId.TryGetValue(config_id, out table))
-                {
-                    table_index = board.GetEndgameTableIndex(false);
-                    score = table.GetScore(table_index, board.IsWhiteTurn);
-                    return true;
-                }
-
-                // Try again, swapping Black and White.
-                config_id = board.GetEndgameConfigId(true);
-                if (endgameTableForConfigId.TryGetValue(config_id, out table))
-                {
-                    table_index = board.GetEndgameTableIndex(true);
-                    score = table.GetScore(table_index, board.IsBlackTurn);
-                    return true;
-                }
-            }
-
-            score = Score.Undefined;
-            return false;
+            return EndgameEval(out score, board);
         }
 
         private int NegaMax(Board board, int depth, int limit, int alpha, int beta, int checkCount)
