@@ -234,16 +234,15 @@ namespace EndgameTableGen
                 {
                     if (whiteUnresolvedChildCount[after_tindex] == 0)
                     {
+                        ++curr_progress;
+                        whiteUnresolvedChildCount[after_tindex] = 255;      // spend this child node: never visit again
                         int score = table.GetWhiteScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                         foreach (int before_tindex in before_tindex_list)
                         {
-                            if (blackUnresolvedChildCount[before_tindex] > 0)
+                            if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] != 255)
                             {
-                                if (blackUnresolvedChildCount[before_tindex] == 255)
-                                    throw new Exception($"Reached black before_tindex marked unreachable: {before_tindex}");
-                                ++curr_progress;
                                 BumpBlackScore(table, before_tindex, adjusted_score);
                                 int remaining = --blackUnresolvedChildCount[before_tindex];
                                 if (remaining == 0 || adjusted_score == before_win_score)
@@ -257,16 +256,15 @@ namespace EndgameTableGen
                 {
                     if (blackUnresolvedChildCount[after_tindex] == 0)
                     {
+                        ++curr_progress;
+                        blackUnresolvedChildCount[after_tindex] = 255;      // spend this child node: never visit again
                         int score = table.GetBlackScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                         foreach (int before_tindex in before_tindex_list)
                         {
-                            if (whiteUnresolvedChildCount[before_tindex] > 0)
+                            if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] != 255)
                             {
-                                if (whiteUnresolvedChildCount[before_tindex] == 255)
-                                    throw new Exception($"Reached white before_tindex marked unreachable: {before_tindex}");
-                                ++curr_progress;
                                 BumpWhiteScore(table, before_tindex, adjusted_score);
                                 int remaining = --whiteUnresolvedChildCount[before_tindex];
                                 if (remaining == 0 || adjusted_score == before_win_score)
@@ -772,6 +770,8 @@ namespace EndgameTableGen
                 blackUnresolvedChildCount[tindex] = (byte)childCount;
         }
 
+        private readonly HashSet<int> LocalAfterTableIndexes = new();   // re-used at every call of WriteAllEdges()
+
         private int WriteAllEdges(Table table, Board board, int tindex)
         {
             // This function is called twice for each position:
@@ -789,6 +789,8 @@ namespace EndgameTableGen
                 int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
+
+            LocalAfterTableIndexes.Clear();
 
             var edge = new GraphEdge();
             edge.before_tindex = tindex;
@@ -808,8 +810,10 @@ namespace EndgameTableGen
                 if (after_config_id == CurrentConfigId)
                 {
                     // The most common case: making a move stays inside the current endgame table.
+                    // But eliminate duplicate transitions caused by symmetry.
                     edge.after_tindex = board.GetEndgameTableIndex(false);
-                    edgeWriter.WriteEdge(edge);
+                    if (LocalAfterTableIndexes.Add(edge.after_tindex))
+                        edgeWriter.WriteEdge(edge);
                 }
                 else
                 {
@@ -853,9 +857,10 @@ namespace EndgameTableGen
                 board.PopMove();
             }
 
-            int unresolved = LegalMoveList.nmoves - foreignEdgeCount;
-            SetUnresolvedChildCount(board.IsWhiteTurn, tindex, unresolved);
+            // Record the number of unique edges we wrote as the unresolved child count.
+            SetUnresolvedChildCount(board.IsWhiteTurn, tindex, LocalAfterTableIndexes.Count);
 
+            // Remember the best-so-far score of any transitions into foreign tables.
             if (foreignEdgeCount > 0)
                 return BumpScore(table, board.IsWhiteTurn, tindex, best_foreign_score);
 
