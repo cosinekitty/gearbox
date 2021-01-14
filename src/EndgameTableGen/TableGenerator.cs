@@ -37,12 +37,6 @@ namespace EndgameTableGen
         private EdgeWriter blackEdgeWriter;     // table of edges where Black has the turn after the move is made
         private byte[] whiteUnresolvedChildCount;
         private byte[] blackUnresolvedChildCount;
-        private List<int> whiteCurrResolvedIndexList = new();
-        private List<int> blackCurrResolvedIndexList = new();
-        private List<int> whiteNextResolvedIndexList = new();
-        private List<int> blackNextResolvedIndexList = new();
-        private SortedList<int, HashSet<int>> whiteForeignUnresolvedForPly = new();
-        private SortedList<int, HashSet<int>> blackForeignUnresolvedForPly = new();
 
         public TableGenerator(int max_table_size)
         {
@@ -157,24 +151,14 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
-                    // Reset all unresolved child counts to zero.
-                    // They get incremented by WriteAllEdges as legal moves are generated.
-                    // They get decremented as the backpropagator feeds scores backwards through the graph.
-                    Array.Clear(whiteUnresolvedChildCount, 0, whiteUnresolvedChildCount.Length);
-                    Array.Clear(blackUnresolvedChildCount, 0, blackUnresolvedChildCount.Length);
-
-                    // Empty out the lists of table indexes that are known to be freshly resolved.
-                    // These lists are primed in WriteAllEdges, refluxed in Backpropagate.
-                    whiteCurrResolvedIndexList.Clear();
-                    blackCurrResolvedIndexList.Clear();
-                    whiteNextResolvedIndexList.Clear();
-                    blackNextResolvedIndexList.Clear();
-
-                    // We track unresolved table indexes due to transitions into foreign tables.
-                    // These need to be worked, even though they would be missed by the
-                    // backprop algorithm if we only looked at internal transitions.
-                    whiteForeignUnresolvedForPly.Clear();
-                    blackForeignUnresolvedForPly.Clear();
+                    // Mark all unresolved child counts with 255, which is a special
+                    // marker that presumes every position to be unreachable,
+                    // unless it is reached and proven to have no unresolved children later.
+                    for (int i = 0; i < whiteUnresolvedChildCount.Length; ++i)
+                    {
+                        whiteUnresolvedChildCount[i] = 255;
+                        blackUnresolvedChildCount[i] = 255;
+                    }
 
                     string workdir = ConfigWorkDirectory(CurrentConfigId);
                     if (Directory.Exists(workdir))
@@ -187,9 +171,6 @@ namespace EndgameTableGen
                     using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
                         using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
                             ForEachPosition(table, config, WriteAllEdges);
-
-                    Log("White Foreign = [{0}]", string.Join(", ", whiteForeignUnresolvedForPly.Select(kv => $"{kv.Key}:{kv.Value.Count}")));
-                    Log("Black Foreign = [{0}]", string.Join(", ", blackForeignUnresolvedForPly.Select(kv => $"{kv.Key}:{kv.Value.Count}")));
 
                     string whiteIndexFileName = Path.Combine(workdir, "w.index");
                     string blackIndexFileName = Path.Combine(workdir, "b.index");
@@ -239,76 +220,62 @@ namespace EndgameTableGen
             using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
             var before_tindex_list = new List<int>();
 
-            for (int ply = 0;
-                (whiteForeignUnresolvedForPly.Count + blackForeignUnresolvedForPly.Count > 0) ||
-                (whiteCurrResolvedIndexList.Count + blackCurrResolvedIndexList.Count > 0);
-                ++ply)
+            int prev_progress = 1;
+            int curr_progress = 0;
+
+            for (int ply = 0; curr_progress + prev_progress > 0; ++ply)
             {
-                int targetScore = EnemyMatedScore - (ply+1);
+                prev_progress = curr_progress;
+                curr_progress = 0;
 
-                HashSet<int> whiteForeignIndexSet = ExtractForeignIndexSet(whiteForeignUnresolvedForPly, ply + 1);
-                HashSet<int> blackForeignIndexSet = ExtractForeignIndexSet(blackForeignUnresolvedForPly, ply + 1);
+                int before_win_score = EnemyMatedScore - (ply+1);
 
-                Log("Backprop[{0}]: white local = {1}, white foreign = {2}, black local = {3}, black foreign = {4}.",
-                    ply,
-                    whiteCurrResolvedIndexList.Count,
-                    whiteForeignIndexSet.Count,
-                    blackCurrResolvedIndexList.Count,
-                    blackForeignIndexSet.Count);
-
-                blackNextResolvedIndexList.Clear();
-                foreach (int after_tindex in whiteCurrResolvedIndexList)
+                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
                 {
-                    int score = table.GetWhiteScore(after_tindex);
-                    int adjusted_score = AdjustScoreForPly(score);
-                    whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                    foreach (int before_tindex in before_tindex_list)
+                    if (whiteUnresolvedChildCount[after_tindex] == 0)
                     {
-                        blackForeignIndexSet.Remove(before_tindex);
-                        if (blackUnresolvedChildCount[before_tindex] > 0)
+                        int score = table.GetWhiteScore(after_tindex);
+                        int adjusted_score = AdjustScoreForPly(score);
+                        whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                        foreach (int before_tindex in before_tindex_list)
                         {
-                            BumpBlackScore(table, before_tindex, adjusted_score);
-                            int remaining = --blackUnresolvedChildCount[before_tindex];
-                            if (remaining == 0 || adjusted_score == targetScore)
+                            if (blackUnresolvedChildCount[before_tindex] > 0)
                             {
-                                blackUnresolvedChildCount[before_tindex] = 0;
-                                blackNextResolvedIndexList.Add(before_tindex);
+                                if (blackUnresolvedChildCount[before_tindex] == 255)
+                                    throw new Exception($"Reached black before_tindex marked unreachable: {before_tindex}");
+                                ++curr_progress;
+                                BumpBlackScore(table, before_tindex, adjusted_score);
+                                int remaining = --blackUnresolvedChildCount[before_tindex];
+                                if (remaining == 0 || adjusted_score == before_win_score)
+                                    blackUnresolvedChildCount[before_tindex] = 0;
                             }
                         }
                     }
                 }
-                blackNextResolvedIndexList.AddRange(blackForeignIndexSet);
 
-                whiteNextResolvedIndexList.Clear();
-                foreach (int after_tindex in blackCurrResolvedIndexList)
+                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
                 {
-                    int score = table.GetBlackScore(after_tindex);
-                    int adjusted_score = AdjustScoreForPly(score);
-                    blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                    foreach (int before_tindex in before_tindex_list)
+                    if (blackUnresolvedChildCount[after_tindex] == 0)
                     {
-                        whiteForeignIndexSet.Remove(before_tindex);
-                        if (whiteUnresolvedChildCount[before_tindex] > 0)
+                        int score = table.GetBlackScore(after_tindex);
+                        int adjusted_score = AdjustScoreForPly(score);
+                        blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
+                        foreach (int before_tindex in before_tindex_list)
                         {
-                            BumpWhiteScore(table, before_tindex, adjusted_score);
-                            int remaining = --whiteUnresolvedChildCount[before_tindex];
-                            if (remaining == 0 || adjusted_score == targetScore)
+                            if (whiteUnresolvedChildCount[before_tindex] > 0)
                             {
-                                whiteUnresolvedChildCount[before_tindex] = 0;
-                                whiteNextResolvedIndexList.Add(before_tindex);
+                                if (whiteUnresolvedChildCount[before_tindex] == 255)
+                                    throw new Exception($"Reached white before_tindex marked unreachable: {before_tindex}");
+                                ++curr_progress;
+                                BumpWhiteScore(table, before_tindex, adjusted_score);
+                                int remaining = --whiteUnresolvedChildCount[before_tindex];
+                                if (remaining == 0 || adjusted_score == before_win_score)
+                                    whiteUnresolvedChildCount[before_tindex] = 0;
                             }
                         }
                     }
                 }
-                whiteNextResolvedIndexList.AddRange(whiteForeignIndexSet);
-
-                var swap = whiteCurrResolvedIndexList;
-                whiteCurrResolvedIndexList = whiteNextResolvedIndexList;
-                whiteNextResolvedIndexList = swap;
-
-                swap = blackCurrResolvedIndexList;
-                blackCurrResolvedIndexList = blackNextResolvedIndexList;
-                blackNextResolvedIndexList = swap;
+                Log("Backprop[{0}]: curr_progress = {1}", ply, curr_progress);
             }
 
             Log("Backprop finished.");
@@ -796,7 +763,7 @@ namespace EndgameTableGen
 
         private void SetUnresolvedChildCount(bool white_turn, int tindex, int childCount)
         {
-            if (childCount < 0 || childCount > 255)
+            if (childCount < 0 || childCount > 254)     // reserve 255 as a special marker value
                 throw new ArgumentException($"Invalid child count = {childCount}");
 
             if (white_turn)
@@ -817,14 +784,8 @@ namespace EndgameTableGen
             if (LegalMoveList.nmoves == 0)
             {
                 // This is either stalemate or checkmate.
-
-                // Put this into the list of after-indexes to be worked by the backpropagator.
-                if (board.IsWhiteTurn)
-                    whiteCurrResolvedIndexList.Add(tindex);
-                else
-                    blackCurrResolvedIndexList.Add(tindex);
-
                 // Set the score for this position accordingly.
+                SetUnresolvedChildCount(board.IsWhiteTurn, tindex, 0);
                 int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
@@ -893,34 +854,7 @@ namespace EndgameTableGen
             }
 
             int unresolved = LegalMoveList.nmoves - foreignEdgeCount;
-            if (unresolved == 0)
-            {
-                // Put this into the list of after-indexes to be worked by the backpropagator.
-                if (board.IsWhiteTurn)
-                    whiteCurrResolvedIndexList.Add(tindex);
-                else
-                    blackCurrResolvedIndexList.Add(tindex);
-            }
-            else
-            {
-                SetUnresolvedChildCount(board.IsWhiteTurn, tindex, unresolved);
-                if (foreignEdgeCount > 0 && best_foreign_score != DrawScore)
-                {
-                    HashSet<int> tindex_set;
-                    int plies = EnemyMatedScore - Math.Abs(best_foreign_score);
-                    if (board.IsWhiteTurn)
-                    {
-                        if (!whiteForeignUnresolvedForPly.TryGetValue(plies, out tindex_set))
-                            whiteForeignUnresolvedForPly.Add(plies, tindex_set = new());
-                    }
-                    else
-                    {
-                        if (!blackForeignUnresolvedForPly.TryGetValue(plies, out tindex_set))
-                            blackForeignUnresolvedForPly.Add(plies, tindex_set = new());
-                    }
-                    tindex_set.Add(tindex);
-                }
-            }
+            SetUnresolvedChildCount(board.IsWhiteTurn, tindex, unresolved);
 
             if (foreignEdgeCount > 0)
                 return BumpScore(table, board.IsWhiteTurn, tindex, best_foreign_score);
