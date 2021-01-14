@@ -231,14 +231,10 @@ namespace EndgameTableGen
                 prev_progress = curr_progress;
                 curr_progress = 0;
 
-                int before_win_score = EnemyMatedScore - (ply+1);
-
                 for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
                 {
                     if (whiteUnresolvedChildCount[after_tindex] == 0)
                     {
-                        ++curr_progress;
-                        whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
                         int score = table.GetWhiteScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
@@ -246,10 +242,10 @@ namespace EndgameTableGen
                         {
                             if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] < SPENT)
                             {
+                                ++curr_progress;
+                                whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
                                 BumpBlackScore(table, before_tindex, adjusted_score);
-                                int remaining = --blackUnresolvedChildCount[before_tindex];
-                                if (remaining == 0 || adjusted_score == before_win_score)
-                                    blackUnresolvedChildCount[before_tindex] = 0;
+                                --blackUnresolvedChildCount[before_tindex];
                             }
                         }
                     }
@@ -259,8 +255,6 @@ namespace EndgameTableGen
                 {
                     if (blackUnresolvedChildCount[after_tindex] == 0)
                     {
-                        ++curr_progress;
-                        blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
                         int score = table.GetBlackScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
@@ -268,18 +262,47 @@ namespace EndgameTableGen
                         {
                             if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] < SPENT)
                             {
+                                ++curr_progress;
+                                blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
                                 BumpWhiteScore(table, before_tindex, adjusted_score);
-                                int remaining = --whiteUnresolvedChildCount[before_tindex];
-                                if (remaining == 0 || adjusted_score == before_win_score)
-                                    whiteUnresolvedChildCount[before_tindex] = 0;
+                                --whiteUnresolvedChildCount[before_tindex];
                             }
                         }
                     }
                 }
+
+                if (curr_progress == 0)
+                {
+                    // Any unresolved scores that are forced wins are resolvable now.
+                    for (int tindex = 0; tindex < table.Size; ++tindex)
+                    {
+                        if (whiteUnresolvedChildCount[tindex] > 0 && whiteUnresolvedChildCount[tindex] < SPENT)
+                        {
+                            int score = table.GetWhiteScore(tindex);
+                            if (score > 0)
+                            {
+                                whiteUnresolvedChildCount[tindex] = 0;
+                                ++curr_progress;
+                            }
+                        }
+
+                        if (blackUnresolvedChildCount[tindex] > 0 && blackUnresolvedChildCount[tindex] < SPENT)
+                        {
+                            int score = table.GetBlackScore(tindex);
+                            if (score > 0)
+                            {
+                                blackUnresolvedChildCount[tindex] = 0;
+                                ++curr_progress;
+                            }
+                        }
+                    }
+                    Log("Unstuck[{0}]: {1}", ply, curr_progress);
+                }
+
                 Log("Backprop[{0}]: curr_progress = {1}", ply, curr_progress);
-                CoreDump($"{CurrentConfigId:D10}_{ply:D3}.dump");
             }
 
+            CoreDump($"{CurrentConfigId:D10}.dump");
             Log("Backprop finished.");
         }
 
