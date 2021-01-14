@@ -16,6 +16,9 @@ namespace EndgameTableGen
         internal const int FriendMatedScore = -2000;
         internal const int DrawScore = 0;
 
+        private const byte UNREACHABLE = 255;
+        private const byte SPENT = 254;
+
         private static readonly int[] EightfoldSymmetryTable = new int[]
         {
             21, 22, 23, 24,
@@ -151,13 +154,13 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
-                    // Mark all unresolved child counts with 255, which is a special
+                    // Mark all unresolved child counts with a special
                     // marker that presumes every position to be unreachable,
                     // unless it is reached and proven to have no unresolved children later.
                     for (int i = 0; i < whiteUnresolvedChildCount.Length; ++i)
                     {
-                        whiteUnresolvedChildCount[i] = 255;
-                        blackUnresolvedChildCount[i] = 255;
+                        whiteUnresolvedChildCount[i] = UNREACHABLE;
+                        blackUnresolvedChildCount[i] = UNREACHABLE;
                     }
 
                     string workdir = ConfigWorkDirectory(CurrentConfigId);
@@ -235,13 +238,13 @@ namespace EndgameTableGen
                     if (whiteUnresolvedChildCount[after_tindex] == 0)
                     {
                         ++curr_progress;
-                        whiteUnresolvedChildCount[after_tindex] = 255;      // spend this child node: never visit again
+                        whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
                         int score = table.GetWhiteScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                         foreach (int before_tindex in before_tindex_list)
                         {
-                            if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] != 255)
+                            if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] < SPENT)
                             {
                                 BumpBlackScore(table, before_tindex, adjusted_score);
                                 int remaining = --blackUnresolvedChildCount[before_tindex];
@@ -257,13 +260,13 @@ namespace EndgameTableGen
                     if (blackUnresolvedChildCount[after_tindex] == 0)
                     {
                         ++curr_progress;
-                        blackUnresolvedChildCount[after_tindex] = 255;      // spend this child node: never visit again
+                        blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
                         int score = table.GetBlackScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
                         foreach (int before_tindex in before_tindex_list)
                         {
-                            if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] != 255)
+                            if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] < SPENT)
                             {
                                 BumpWhiteScore(table, before_tindex, adjusted_score);
                                 int remaining = --whiteUnresolvedChildCount[before_tindex];
@@ -289,12 +292,12 @@ namespace EndgameTableGen
                 for (int tindex = 0; tindex < table.Size; ++tindex)
                 {
                     string fen;
-                    try
+                    if (whiteUnresolvedChildCount[tindex] != UNREACHABLE || blackUnresolvedChildCount[tindex] != UNREACHABLE)
                     {
                         DecodePosition(board, CurrentConfigId, tindex, true);
                         fen = " " + board.ForsythEdwardsNotation();
                     }
-                    catch (Exception)
+                    else
                     {
                         fen = "";
                     }
@@ -795,7 +798,7 @@ namespace EndgameTableGen
 
         private void SetUnresolvedChildCount(bool white_turn, int tindex, int childCount)
         {
-            if (childCount < 0 || childCount > 254)     // reserve 255 as a special marker value
+            if (childCount < 0 || childCount >= SPENT)
                 throw new ArgumentException($"Invalid child count = {childCount}");
 
             if (white_turn)
