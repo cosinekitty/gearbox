@@ -274,9 +274,43 @@ namespace EndgameTableGen
                     }
                 }
                 Log("Backprop[{0}]: curr_progress = {1}", ply, curr_progress);
+                CoreDump($"{CurrentConfigId:D10}_{ply:D3}.dump");
             }
 
             Log("Backprop finished.");
+        }
+
+        private void CoreDump(string outFileName)
+        {
+            var board = new Board(false);
+            using (StreamWriter output = File.CreateText(outFileName))
+            {
+                output.WriteLine("{0,12} {1,6} {2,6} {3,6} {4,6} FEN", "tindex", "wscore", "wunres", "bscore", "bunres");
+                for (int tindex = 0; tindex < table.Size; ++tindex)
+                {
+                    string fen;
+                    try
+                    {
+                        DecodePosition(board, CurrentConfigId, tindex, true);
+                        fen = " " + board.ForsythEdwardsNotation();
+                    }
+                    catch (Exception)
+                    {
+                        fen = "";
+                    }
+
+                    int white_score = table.GetWhiteScore(tindex);
+                    int black_score = table.GetBlackScore(tindex);
+                    output.WriteLine("{0,12} {1,6} {2,6} {3,6} {4,6}{5}",
+                        tindex,
+                        white_score,
+                        whiteUnresolvedChildCount[tindex],
+                        black_score,
+                        blackUnresolvedChildCount[tindex],
+                        fen);
+                }
+            }
+            Log("CoreDump: {0}", outFileName);
         }
 
         private static string ConfigWorkDirectory(long config_id)
