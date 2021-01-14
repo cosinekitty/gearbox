@@ -28,6 +28,8 @@ namespace EndgameTableGen
     {
         public int  before_tindex;
         public int  after_tindex;
+
+        public override string ToString() => $"{before_tindex}:{after_tindex}";
     }
 
     internal class EdgeWriter : IDisposable

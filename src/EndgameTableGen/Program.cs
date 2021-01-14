@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Gearbox;
 
@@ -8,9 +10,11 @@ namespace EndgameTableGen
     // See notes in document:
     // https://docs.google.com/document/d/1oe3dbQlsrfpdWhEvbcRAmaDjr0vOFTpFWAfDFGgTfes
 
-    class Program
+    static class Program
     {
-        const string UsageText = @"
+        const int MaxNonKings = 9;
+        const int MaxThreads = 32;
+        static readonly string UsageText = string.Format(@"
 Endgame tablebase generator for the Gearbox chess engine.
 
 USAGE:
@@ -18,13 +22,17 @@ USAGE:
 EndgameTableGen plan N
     Prints the series of endgame database tables to be generated,
     in dependency order, for all possible configurations of
-    up to N non-king pieces/pawns, where N = 1..9.
+    up to N non-king pieces/pawns, where N = 1..{0}.
 
 EndgameTableGen gen N
     Generates all tables for up to N non-king movers.
     If the program is interrupted and resumed, will
     load all the tables that were completed and resume
     at the first unwritten table.
+
+EndgameTableGen pgen N T
+    Like 'gen N', only runs the generator in parallel
+    using T = 1..{1} threads.
 
 EndgameTableGen test N
     Perform a self-test on generating distinct positions
@@ -53,7 +61,10 @@ EndgameTableGen decode config_id table_index side_to_move
 
 EndgameTableGen diff a.endgame b.endgame
     Compares the scores in the two endgame table files.
-";
+
+EndgameTableGen edge_check
+    Runs unit tests on edge/index file generator, sorter, reader.
+", MaxNonKings, MaxThreads);
 
         static int Main(string[] args)
         {
@@ -95,7 +106,7 @@ EndgameTableGen diff a.endgame b.endgame
 
             if (args.Length == 2)       // must handle all other 2-arg commands before here
             {
-                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > 9))
+                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > MaxNonKings))
                 {
                     Console.WriteLine("Invalid number of non-kings: {0}", args[1]);
                     return 1;
@@ -134,13 +145,12 @@ EndgameTableGen diff a.endgame b.endgame
 
             if (args.Length == 3 && args[0] == "pgen")
             {
-                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > 9))
+                if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > MaxNonKings))
                 {
                     Console.WriteLine("Invalid number of non-kings: {0}", args[1]);
                     return 1;
                 }
 
-                const int MaxThreads = 32;
                 if (!int.TryParse(args[2], out int num_threads) || (num_threads < 1) || (num_threads > MaxThreads))
                 {
                     Console.WriteLine("Invalid number of threads: {0}. Must be 1..{1}.", args[2], MaxThreads);
@@ -159,6 +169,15 @@ EndgameTableGen diff a.endgame b.endgame
             if (args.Length == 3 && args[0] == "diff")
             {
                 return DiffEndgameTables(args[1], args[2]);
+            }
+
+            if (args.Length == 1)
+            {
+                switch (args[0])
+                {
+                    case "edge_check":
+                        return EdgeCheck();
+                }
             }
 
             Console.WriteLine(UsageText);
@@ -354,6 +373,261 @@ EndgameTableGen diff a.endgame b.endgame
             Console.WriteLine();
 
             return 0;
+        }
+
+        private class UniqueRandomGenerator
+        {
+            private readonly HashSet<int> used = new();
+            private readonly Random rand = new(8675309);    // Ask Jenny for the pseudorandom numbers.
+
+            public int Next(int denom)
+            {
+                while (true)
+                {
+                    int r = rand.Next(denom);
+                    if (used.Add(r))
+                        return r;
+                }
+            }
+        }
+
+        private static void Shuffle<T>(int seed, T[] array)
+        {
+            var shuffle = new Random(seed);
+            for (int i = 1; i < array.Length; ++i)
+            {
+                int r = shuffle.Next(i+1);
+                if (r < i)
+                {
+                    T swap = array[i];
+                    array[i] = array[r];
+                    array[r] = swap;
+                }
+            }
+        }
+
+        private static int EdgeCheck()
+        {
+            // We want to create a list of edges where
+            // each after_tindex is referenced by multiple before_index,
+            // to verify that the sorting and batching work properly.
+            const int BatchSize = 10;     // how many before_tindex map to each after_tindex
+            const int NumBatches = 10000;
+            const int NumEdges = BatchSize * NumBatches;
+            const int TableSize = 4000000;
+            const string EdgeFileName = "test.edge";
+            const string IndexFileName = "test.index";
+
+            int i, b, n;
+            var urand = new UniqueRandomGenerator();
+            var edgeList = new GraphEdge[NumEdges];
+            for (b = n = 0; b < NumBatches; ++b)
+            {
+                int after_tindex = urand.Next(TableSize);
+                for (i = 0; i < BatchSize; ++i)
+                {
+                    edgeList[n].before_tindex = urand.Next(TableSize);
+                    edgeList[n].after_tindex = after_tindex;
+                    ++n;
+                }
+            }
+            if (n != NumEdges)
+            {
+                Console.WriteLine($"FAIL EdgeCheck: internal error -- n={n}, NumEdges={NumEdges}");
+                return 1;
+            }
+
+            // Shuffle the edgelist so the matching after_tindex values are no longer contiguous.
+            Shuffle(1740417, edgeList);
+
+            // Write the list of edges to the output file.
+            using (var writer = new EdgeWriter(EdgeFileName))
+            {
+                for (i = 0; i < NumEdges; ++i)
+                    writer.WriteEdge(edgeList[i]);
+            }
+
+            if (!VerifyEdgeReader(EdgeFileName, edgeList))
+                return 1;
+
+            // Sort the edge file.
+            string WorkDir = Directory.GetCurrentDirectory();
+            const int Radix = 16;
+            using (var sorter = new EdgeFileSorter(WorkDir, Radix, TableSize))
+            {
+                sorter.Sort(EdgeFileName, IndexFileName);
+            }
+
+            if (!VerifyEdgeSort(EdgeFileName, edgeList, NumBatches, BatchSize))
+                return 1;
+
+            if (!VerifyEdgeIndex(EdgeFileName, IndexFileName, edgeList, BatchSize))
+                return 1;
+
+            File.Delete(EdgeFileName);
+            File.Delete(IndexFileName);
+
+            Console.WriteLine("PASS: EdgeCheck");
+            return 0;
+        }
+
+        static bool VerifyEdgeReader(string edgeFileName, GraphEdge[] list)
+        {
+            using (var reader = new EdgeReader(edgeFileName))
+            {
+                int i;
+                for (i = 0; reader.ReadEdge(out GraphEdge edge); ++i)
+                {
+                    if (list[i].before_tindex != edge.before_tindex || list[i].after_tindex != edge.after_tindex)
+                    {
+                        Console.WriteLine($"FAIL VerifyEdges: edgeList[{i}]={list[i]}, but read edge={edge}");
+                        return false;
+                    }
+                }
+                if (i != list.Length)
+                {
+                    Console.WriteLine($"FAIL VerifyEdges: expected to read {list.Length} edges, but found {i}");
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        static bool VerifyEdgeSort(string edgeFileName, GraphEdge[] list, int numBatches, int batchSize)
+        {
+            if (list.Length != numBatches * batchSize)
+            {
+                Console.WriteLine($"FAIL VerifyEdgeSort: list.Length={list.Length} but {numBatches}*{batchSize} = {numBatches*batchSize}");
+                return false;
+            }
+
+            // Confirm that the edge file is sorted by after_tindex.
+            // Compute the expected series of after_tindex values.
+            // Each one should occur 'batchSize' times, but the before_tindex can be any order.
+            var after_set = new HashSet<int>(list.Select(e => e.after_tindex));
+            var after_list = after_set.OrderBy(a => a).ToArray();
+            if (after_list.Length != numBatches)
+            {
+                Console.WriteLine($"FAIL VerifyEdgeSort: after_list.Length should have been {numBatches}, but is {after_list.Length}");
+                return false;
+            }
+
+            var dict = new Dictionary<int, SortedSet<int>>();
+            foreach (GraphEdge e in list)
+            {
+                if (!dict.TryGetValue(e.after_tindex, out var before_list))
+                    dict.Add(e.after_tindex, before_list = new());
+
+                if (!before_list.Add(e.before_tindex))
+                {
+                    Console.WriteLine($"FAIL VerifyEdgeSort: could not add {e} to dictionary.");
+                    return false;
+                }
+            }
+
+            using (var reader = new EdgeReader(edgeFileName))
+            {
+                var before_list = new List<int>();
+                for (int n = 0; n < numBatches; ++n)
+                {
+                    before_list.Clear();
+                    for (int b = 0; b < batchSize; ++b)
+                    {
+                        if (!reader.ReadEdge(out GraphEdge edge))
+                        {
+                            Console.WriteLine($"FAIL VerifyEdgeSort: could not read edge for n={n}, b={b}");
+                            return false;
+                        }
+                        if (edge.after_tindex != after_list[n])
+                        {
+                            Console.WriteLine($"FAIL VerifyEdgeSort: Expected after_tindex={after_list[n]}, but found {edge}");
+                            return false;
+                        }
+                        before_list.Add(edge.before_tindex);
+                    }
+
+                    int[] before_sort = before_list.OrderBy(x => x).ToArray();
+                    if (before_sort.Length != batchSize)
+                    {
+                        Console.WriteLine($"FAIL VerifyEdgeSort: expected before_sort.Length to be {batchSize}, but found {before_sort.Length}");
+                        return false;
+                    }
+
+                    int[] before_check = dict[after_list[n]].ToArray();
+                    if (before_check.Length != before_sort.Length)
+                    {
+                        Console.WriteLine($"FAIL VerifyEdgeSort: before_check.Length={before_check.Length}, but before_sort.Length={before_sort.Length}");
+                        return false;
+                    }
+
+                    for (int k = 0; k < batchSize; ++k)
+                    {
+                        if (before_sort[k] != before_check[k])
+                        {
+                            Console.WriteLine($"FAIL VerifyEdgeSort: before_sort[{k}]={before_sort[k]}, but before_check[{k}]={before_check[k]}.");
+                            return false;
+                        }
+                    }
+                }
+
+                if (reader.ReadEdge(out GraphEdge trash))
+                {
+                    Console.WriteLine($"FAIL VerifyEdgeSort: should have exhausted edges, but found {trash}");
+                    return false;
+                }
+            }
+
+            Console.WriteLine("PASS: VerifyEdgeSort");
+            return true;
+        }
+
+        struct EdgeBatch
+        {
+            public int after_tindex;
+            public int[] before_list;
+        }
+
+        static bool VerifyEdgeIndex(string edgeFileName, string indexFileName, GraphEdge[] list, int batchSize)
+        {
+            var batchList = new List<EdgeBatch>();
+            foreach (var group in list.GroupBy(edge => edge.after_tindex))
+            {
+                int after_tindex = group.Key;
+                int[] before_list = group.Select(edge => edge.before_tindex).OrderBy(b => b).ToArray();
+                batchList.Add(new EdgeBatch{after_tindex = after_tindex, before_list = before_list});
+            }
+            EdgeBatch[] batchArray = batchList.ToArray();
+
+            // Shuffle the list to make sure we can access the batches in random after_tindex order.
+            Shuffle(57346385, batchArray);
+
+            // Exercise the indexer.
+            using (var indexer = new EdgeIndexer(indexFileName, edgeFileName))
+            {
+                var before_list = new List<int>();
+                foreach (EdgeBatch batch in batchArray)
+                {
+                    //Console.WriteLine("BATCH {0} => [{1}]", batch.after_tindex, string.Join(", ", batch.before_list));
+                    indexer.GetBeforeTableIndexes(before_list, batch.after_tindex);
+                    if (before_list.Count != batch.before_list.Length || before_list.Count != batchSize)
+                    {
+                        Console.WriteLine($"FAIL VerifyEdgeIndex: before_list.Count={before_list.Count}, batch length=${batch.before_list.Length}, expected {batchSize}");
+                        return false;
+                    }
+                    before_list.Sort();
+                    for (int i=0; i < batchSize; ++i)
+                    {
+                        if (before_list[i] != batch.before_list[i])
+                        {
+                            Console.WriteLine($"FAIL VerifyEdgeIndex: before_list[{i}]={before_list[i]}, but expected {batch.before_list[i]}");
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine("PASS: VerifyEdgeIndex");
+            return true;
         }
     }
 }
