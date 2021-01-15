@@ -86,11 +86,14 @@ namespace BoardTest
 
                 if (bestmove.score != parentScore)
                 {
-                    Console.WriteLine("EndgameWalker{0} @ {1}: best score {2} does not match parent score {3} in {4}",
+                    Console.WriteLine("EndgameWalker{0} @ {1}: best score {2} ({3}) [{4}] does not match parent score {5} ({6}) in {7}",
                         ConfigText(nonKingPieces),
                         nodeCount,
                         bestmove.score,
+                        Score.Format(bestmove.score),
+                        bestmove,
                         parentScore,
+                        Score.Format(parentScore),
                         board.ForsythEdwardsNotation());
 
                     return false;

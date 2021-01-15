@@ -18,6 +18,7 @@ namespace BoardTest
         private Board board = new Board(true);      // create an empty board
 
         private static readonly int[] WholeBoardOffsetTable = MakeOffsetTable('a', 'h', '1', '8');
+        private static readonly int[] PawnOffsetTable = MakeOffsetTable('a', 'h', '2', '7');
 
         public EndgameSearcher()
         {
@@ -78,12 +79,16 @@ namespace BoardTest
             else
             {
                 // Recurse to put the remaining pieces on the board in every possible configuration.
+                Square piece = nonKingPieces[depth];
+                int[] offsetTable = (Square.Pawn == (piece & Square.PieceMask)) ? PawnOffsetTable : WholeBoardOffsetTable;
+
+                // FIXFIXFIX: does not exercise en passant when there are opposing pawns!
                 Square[] square = board.GetSquaresArray();
-                foreach (int ofs in WholeBoardOffsetTable)
+                foreach (int ofs in offsetTable)
                 {
                     if (square[ofs] == Square.Empty)
                     {
-                        square[ofs] = nonKingPieces[depth];
+                        square[ofs] = piece;
                         if (!EndgameSearchDepth(1 + depth))
                             return false;
                         square[ofs] = Square.Empty;
