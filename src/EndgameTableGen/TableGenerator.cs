@@ -154,9 +154,9 @@ namespace EndgameTableGen
                     // set them back to 0 (draw).
                     table.SetAllScores(UndefinedScore);
 
-                    // Mark all unresolved child counts with a special
-                    // marker that presumes every position to be unreachable,
-                    // unless it is reached and proven to have no unresolved children later.
+                    // Mark all positions as unreachable.
+                    // These get set to actual unresolved child counts by WriteAllEdges
+                    // for the positions that can be reached.
                     for (int i = 0; i < whiteUnresolvedChildCount.Length; ++i)
                     {
                         whiteUnresolvedChildCount[i] = UNREACHABLE;
@@ -223,20 +223,17 @@ namespace EndgameTableGen
             using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
             var before_tindex_list = new List<int>();
 
-            int prev_progress = 1;
-            int curr_progress = 0;
-
-            for (int count = 0; curr_progress + prev_progress > 0; ++count)
+            int progress = 1;
+            for (int count = 0; progress > 0; ++count)
             {
-                prev_progress = curr_progress;
-                curr_progress = 0;
+                progress = 0;
 
-                int max_score = UndefinedScore;
-
+                // Finalize the scores of all nodes that no longer have unresolved children.
                 for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
                 {
                     if (whiteUnresolvedChildCount[after_tindex] == 0)
                     {
+                        whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
                         int score = table.GetWhiteScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
@@ -244,21 +241,16 @@ namespace EndgameTableGen
                         {
                             if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] < SPENT)
                             {
-                                ++curr_progress;
-                                whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
+                                ++progress;
                                 BumpBlackScore(table, before_tindex, adjusted_score);
                                 --blackUnresolvedChildCount[before_tindex];
-                                if (adjusted_score > max_score)
-                                    max_score = adjusted_score;
                             }
                         }
                     }
-                }
 
-                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
-                {
                     if (blackUnresolvedChildCount[after_tindex] == 0)
                     {
+                        blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
                         int score = table.GetBlackScore(after_tindex);
                         int adjusted_score = AdjustScoreForPly(score);
                         blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
@@ -266,46 +258,66 @@ namespace EndgameTableGen
                         {
                             if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] < SPENT)
                             {
-                                ++curr_progress;
-                                blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
+                                ++progress;
                                 BumpWhiteScore(table, before_tindex, adjusted_score);
                                 --whiteUnresolvedChildCount[before_tindex];
-                                if (adjusted_score > max_score)
-                                    max_score = adjusted_score;
                             }
                         }
                     }
                 }
 
                 int sweep_count = 0;
-                if (max_score > 0)
+                int max_score = UndefinedScore;
+                if (progress == 0)
                 {
+                    // Find the maximum value of any unspent node.
                     for (int tindex = 0; tindex < table.Size; ++tindex)
                     {
-                        if (whiteUnresolvedChildCount[tindex] > 0 && whiteUnresolvedChildCount[tindex] < SPENT)
+                        if (whiteUnresolvedChildCount[tindex] < SPENT)
                         {
                             int score = table.GetWhiteScore(tindex);
-                            if (score == max_score)
-                            {
-                                whiteUnresolvedChildCount[tindex] = 0;
-                                ++sweep_count;
-                            }
+                            if (score > max_score)
+                                max_score = score;
                         }
-
-                        if (blackUnresolvedChildCount[tindex] > 0 && blackUnresolvedChildCount[tindex] < SPENT)
+                        if (blackUnresolvedChildCount[tindex] < SPENT)
                         {
                             int score = table.GetBlackScore(tindex);
-                            if (score == max_score)
+                            if (score > max_score)
+                                max_score = score;
+                        }
+                    }
+
+                    // Sweep all nodes whose best-so-far value matches the max value.
+                    // But only do this for forced wins.
+                    if (max_score > 0)
+                    {
+                        for (int tindex = 0; tindex < table.Size; ++tindex)
+                        {
+                            if (whiteUnresolvedChildCount[tindex] < SPENT && whiteUnresolvedChildCount[tindex] > 0)
                             {
-                                blackUnresolvedChildCount[tindex] = 0;
-                                ++sweep_count;
+                                int score = table.GetWhiteScore(tindex);
+                                if (score == max_score)
+                                {
+                                    whiteUnresolvedChildCount[tindex] = 0;
+                                    ++sweep_count;
+                                }
+                            }
+
+                            if (blackUnresolvedChildCount[tindex] < SPENT && blackUnresolvedChildCount[tindex] > 0)
+                            {
+                                int score = table.GetBlackScore(tindex);
+                                if (score == max_score)
+                                {
+                                    blackUnresolvedChildCount[tindex] = 0;
+                                    ++sweep_count;
+                                }
                             }
                         }
                     }
                 }
 
-                Log("Backprop[{0}]: curr_progress = {1}, sweep_count = {2}, max_score = {3}", count, curr_progress, sweep_count, max_score);
-                curr_progress += sweep_count;
+                Log("Backprop[{0}]: progress = {1}, sweep_count = {2}, max_score = {3}", count, progress, sweep_count, max_score);
+                progress += sweep_count;
             }
 
             CoreDump($"{CurrentConfigId:D10}.dump");

@@ -1,0 +1,195 @@
+=========================================================================================
+2021-01-14 Thu
+
+1. Diff old, new tables. Who says old ones are correct?
+   Maybe new tables are correct and old ones are wrong!
+
+2. Expand endgame unit tests to cover the new tables that are different.
+   Are there obvious things wrong?
+
+3. Try waiting until curr_progress == 0 before doing the sweep.
+   In other words, wait until as much "obvious" progress can be made
+   using nodes with all their children resolved, before assuming
+   that the max score can be swept upward.
+
+4. How can this happen?
+2021-01-15T03:24:11.67Z  [03]  Backprop[44]: curr_progress = 7, sweep_count = 0, max_score = 1983
+   If we found a max score, why did nothing get swept?
+
+5. This is weird: multiple passes with the same max_score. Seems wrong.
+2021-01-15T03:28:01.77Z  [03]  Backprop[67]: curr_progress = 3320, sweep_count = 140, max_score = 1927
+2021-01-15T03:28:02.63Z  [03]  Backprop[68]: curr_progress = 1370, sweep_count = 456, max_score = 1925
+2021-01-15T03:28:03.49Z  [03]  Backprop[69]: curr_progress = 3376, sweep_count = 158, max_score = 1925
+2021-01-15T03:28:04.35Z  [03]  Backprop[70]: curr_progress = 1272, sweep_count = 384, max_score = 1923
+2021-01-15T03:28:05.21Z  [03]  Backprop[71]: curr_progress = 2890, sweep_count = 108, max_score = 1923
+
+6. Study all the core dumps???
+
+-----------
+
+2021-01-15T03:29:04.67Z  Finished after 00:29:31.5404644 = 1771.5404644 seconds.
+0000000010.endgame: FAILED
+0000000011.endgame: FAILED
+0000000020.endgame: FAILED
+0000001001.endgame: FAILED
+0000001010.endgame: FAILED
+0000100001.endgame: FAILED
+0000100010.endgame: FAILED
+0000101000.endgame: OK
+0000200000.endgame: FAILED
+0010000000.endgame: OK
+0010000001.endgame: FAILED
+0010000010.endgame: FAILED
+0010000100.endgame: FAILED
+0010001000.endgame: OK
+0010010000.endgame: FAILED
+0010100000.endgame: OK
+0011000000.endgame: FAILED
+0020000000.endgame: FAILED
+1000000000.endgame: OK
+1000000001.endgame: FAILED
+1000000010.endgame: FAILED
+1000000100.endgame: OK
+1000001000.endgame: OK
+1000010000.endgame: OK
+1000100000.endgame: OK
+1001000000.endgame: FAILED
+1010000000.endgame: OK
+1100000000.endgame: FAILED
+2000000000.endgame: FAILED
+sha256sum: WARNING: 19 computed checksums did NOT match
+
+=========================================================================================
+2021-01-15 Fri
+
+I'm going to add the following to my existing endgame unit tests:
+0011000000.endgame: FAILED
+It is a simpler one in terms of transitions, and it exercises
+special cases with draws and both sides getting checkmated.
+
+I should probably also do this one, since only Black can be checkmated:
+0020000000.endgame: FAILED
+(What if one works and the other doesn't? That would be a good clue.)
+
+Fri 06:33
+I had to comment out the TestEndgamePosition calls because they fail.
+But these work:
+don@spearmint:~/github/gearbox/src/BoardTest $ dotnet run -- endgame
+Loaded 29 endgame tables.
+PASS TestEndgameWalk[WQ] : 368452 nodes in 20.218 seconds.
+PASS TestEndgameConfigSearch[WR] : 399112 nodes in 49.929 seconds.
+PASS: TestEndgames
+
+don@spearmint:~/github/gearbox/src/BoardTest $ dotnet run --configuration Release -- endgame
+Loaded 29 endgame tables.
+EndgameWalker[WR, WR] @ 36843: best score 1099999997 does not match parent score 1099999995 in 8/8/8/8/3R4/8/2k5/KR6 w - - 0 1
+
+don@spearmint:~/github/gearbox/src/BoardTest $ dotnet run --configuration Release -- endgame
+Loaded 29 endgame tables.
+EndgameWalker[WR, BR] @ 81: best score 1099999987 does not match parent score 1099999981 in 8/8/8/2r5/8/8/8/K1kR4 b - - 0 1
+
+Fri 06:48
+Running the tests again, pointing GEARBOX_TABLEBASE_DIR at the older files.
+
+Interesting: it looks like one of the old tables has a bug too!
+
+don@spearmint:~/github/gearbox/src/BoardTest $ GEARBOX_TABLEBASE_DIR=$GEARBOX_TABLEBASE_DIR/reference dotnet run --configuration Release -- endgame
+Loaded 29 endgame tables from: /home/don/github/gearbox/tables//reference
+PASS TestEndgameWalk[WR, BR] : 21561456 nodes in 501.488 seconds.
+EndgameWalker[WR, WR] @ 73046: best score 1099999997 does not match parent score 1099999999 in 8/8/8/8/8/k7/1R6/KR6 w - - 0 1
+
+XXX  *** The old pawn table is flawed too?
+XXX  don@spearmint:~/github/gearbox/src/BoardTest $ GEARBOX_TABLEBASE_DIR=$GEARBOX_TABLEBASE_DIR/reference dotnet run --configuration Release -- endgame
+XXX  Loaded 29 endgame tables from: /home/don/github/gearbox/tables//reference
+XXX  EndgameWalker[WP] @ 1: best score 1099999971 does not match parent score 0 in 8/8/8/8/8/8/8/KPk5 w - - 0 1
+
+Oh... silly me... that has the white pawn on the first rank!  Fixing the test.
+
+don@spearmint:~/github/gearbox/src/BoardTest $ GEARBOX_TABLEBASE_DIR=$GEARBOX_TABLEBASE_DIR/reference dotnet run --configuration Release -- endgame
+Loaded 29 endgame tables from: /home/don/github/gearbox/tables//reference
+PASS TestEndgameWalk[WP] : 331352 nodes in 3.156 seconds.
+PASS TestEndgameWalk[WR, BR] : 21561456 nodes in 506.174 seconds.
+EndgameWalker[WR, WR] @ 73046: best score 1099999997 does not match parent score 1099999999 in 8/8/8/8/8/k7/1R6/KR6 w - - 0 1
+
+********** Back to the new tables, since I can't trust the old tables anyway:
+
+don@spearmint:~/github/gearbox/src/BoardTest $ dotnet run --configuration Release -- endgame
+Loaded 29 endgame tables from: /home/don/github/gearbox/tables/
+EndgameWalker[WR, BR] @ 81: best score 1099999987 (#7) [c1c2] does not match parent score 1099999981 (#10) in 8/8/8/2r5/8/8/8/K1kR4 b - - 0 1
+
+>>> According to lichess/Stockfish, the #7 is the correct score.
+Guess: for some reason, in this position, we did not backpropagate the #7 up to the parent node.
+This is an interesting position because Black has only two legal moves: Kxd1, Kc2.
+Amusingly, the second one, not capturing the White Rook, is the better move!
+Idea: see if the Kxd1 position has score #10.
+No, Stockfish rates it #9.
+
+-------------------------------------------------
+Fri 14:14
+The smallest test that fails is KP:K (0000000010).
+
+don@spearmint:~/github/gearbox/src/BoardTest $ bin/Release/net5.0/BoardTest endgame P
+Loaded 29 endgame tables from: /home/don/github/gearbox/tables/
+EndgameWalker[WP] @ 82: best score -1099999982 (#-9) [c1d2] does not match parent score 0 (0.000) in 8/P7/8/8/8/8/8/K1k5 b - - 0 1
+
+The dump file shows that this node still has an undefined black score (-2048), which later got converted to 0:
+
+      tindex wscore wunres bscore bunres FEN
+         136   1989      1  -2048      3 8/P7/8/8/8/8/8/K1k5 w - - 0 1
+                                  ^^^^^^
+
+The list of Black's legal moves from this parent position:
+
+1.  Kd1
+      tindex wscore wunres bscore bunres FEN
+         184   1983      3  -2048      5 8/P7/8/8/8/8/8/K2k4 w - - 0 1
+               ^^^^^^^^^^^
+2.  Kd2
+         568   1983      3  -2048      8 8/P7/8/8/8/8/3k4/K7 w - - 0 1
+               ^^^^^^^^^^^
+3.  Kc2
+         520   1985      1  -2048      6 8/P7/8/8/8/8/2k5/K7 w - - 0 1
+               ^^^^^^^^^^^
+
+----------------------------
+
+Let's keep recursing to the grandchild nodes.
+Stockfish says this position has the score #9 for White.
+
+1.Kd1 has the following children (and yes, 3 are unresolved):
+
+1.1. Kb1    (Stockfish  #8)     8/P7/8/8/8/8/8/1K1k4 b - - 1 1
+        tindex wscore wunres bscore bunres FEN
+        3256   1985      3  -2048      3 8/P7/8/8/8/8/8/1K1k4 w - - 0 1
+                            ^^^^^^^^^^^^
+
+1.2. Kb2    (Stockfish  #8)     8/P7/8/8/8/8/1K6/3k4 b - - 1 1
+       15544   1985      6  -2048      3 8/P7/8/8/8/8/1K6/3k4 w - - 0 1
+                            ^^^^^^^^^^^^
+
+1.3. Ka2    (Stockfish #10)     8/P7/8/8/8/8/K7/3k4 b - - 1 1
+       12472   1985      5  -2048      5 8/P7/8/8/8/8/K7/3k4 w - - 0 1
+                            ^^^^^^^^^^^^
+
+1.4. a8=Q   (Stockfish  #8)     Q7/8/8/8/8/8/8/K2k4 b - - 0 1
+        248   1991    254  -1984      0 Q7/8/8/8/8/8/8/K2k4 w - - 0 1
+                           ^^^^^^^^^^^^
+                                #-8
+
+1.5. a8=R   (Stockfish #12)     R7/8/8/8/8/8/8/K2k4 b - - 0 1
+        248   1983    254  -1976      0 R7/8/8/8/8/8/8/K2k4 w - - 0 1
+                           ^^^^^^^^^^^^
+                                #-12
+
+1.6. a8=B   (0)                 B7/8/8/8/8/8/8/K2k4 b - - 0 1
+1.7. a8=N   (0)                 N7/8/8/8/8/8/8/K2k4 b - - 0 1
+
+----------------------------
+
+Here is a fun test case for 3 nonking pieces:
+https://qph.fs.quoracdn.net/main-qimg-93c9d1378207cd9b2826e9ad90b0cfe8
+
+6Q1/K7/8/8/4b3/6b1/5k2/8 w - - 0 1
+
+Theory #1: there are cycles in the move graph that prevent all children from being resolved.
+Theory #2: there are positions that can't actually be reached, so they never get resolved?
