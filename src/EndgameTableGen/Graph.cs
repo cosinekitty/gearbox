@@ -4,26 +4,6 @@ using System.IO;
 
 namespace EndgameTableGen
 {
-    /*
-        We need an memory-conserving inverse lookup:
-        Given an "after move" position, find all "before move"
-        positions that have legal moves leading to that "after move" position.
-        In graph theory terms, positions are nodes and legal moves are edges.
-
-        Strategy:
-        We generate all legal positions.
-        For each position, generate all legal moves.
-        For each legal move, write the tuple
-        (white_to_move, before_tindex, after_tindex)
-        to disk.
-        Sort and index the resulting list by the "after" tuple.
-        Therefore, given any after-position, we can find a list of before-positions
-        that precede it by one ply.
-        If one side is checkmated in the after-position, then all the corresponding
-        before-positions can be marked as mate-in-one positions.
-        Iterating one ply at a time, we can work backwards and fill in the whole table.
-    */
-
     internal struct GraphEdge
     {
         public int  before_tindex;
@@ -157,22 +137,22 @@ namespace EndgameTableGen
             }
         }
 
-        public void GetBeforeTableIndexes(List<int> outlist, int after_table_index)
+        public void GetAfterTableIndexes(List<int> outlist, int before_table_index)
         {
             outlist.Clear();
-            int position = EdgeFileOffset(after_table_index);
+            int position = EdgeFileOffset(before_table_index);
             if (position >= 0)
             {
                 edgeFile.Seek(8L * position, SeekOrigin.Begin);
                 if (ReadEdge(out GraphEdge edge))
                 {
-                    // The very first edge should have a matching after_tindex.
-                    if (edge.after_tindex != after_table_index)
-                        throw new Exception($"Expected after_tindex={after_table_index}, but found {edge.after_tindex} in file: {edgeFileName}");
+                    // The very first edge should have a matching before_tindex.
+                    if (edge.before_tindex != before_table_index)
+                        throw new Exception($"Expected before_tindex={before_table_index}, but found {edge.before_tindex} in file: {edgeFileName}");
 
                     outlist.Add(edge.before_tindex);
-                    while (ReadEdge(out edge) && (edge.after_tindex == after_table_index))
-                        outlist.Add(edge.before_tindex);
+                    while (ReadEdge(out edge) && (edge.before_tindex == before_table_index))
+                        outlist.Add(edge.after_tindex);
                 }
             }
         }
@@ -197,11 +177,11 @@ namespace EndgameTableGen
             return true;
         }
 
-        private int EdgeFileOffset(int after_table_index)
+        private int EdgeFileOffset(int before_table_index)
         {
-            if (after_table_index < 0 || after_table_index >= indexLength)
-                throw new ArgumentException($"Invalid after_table_index={after_table_index}");
-            indexFile.Seek(4L * after_table_index, SeekOrigin.Begin);
+            if (before_table_index < 0 || before_table_index >= indexLength)
+                throw new ArgumentException($"Invalid before_table_index={before_table_index}");
+            indexFile.Seek(4L * before_table_index, SeekOrigin.Begin);
             int nread = indexFile.Read(buffer, 0, 4);
             if (nread != 4)
                 throw new Exception($"Read incorrect number of bytes: {nread}");
@@ -212,181 +192,53 @@ namespace EndgameTableGen
 
     }
 
-    internal class EdgeFileSorter : IDisposable
+    internal static class IndexWriter
     {
-        private readonly string work_dir;
-        private readonly int radix;
-        private readonly int table_size;     // the number of entries in the table, NOT the size in bytes.
-        private readonly EdgeReader[] readerForDigit;
-        private readonly EdgeWriter[] writerForDigit;
-
-        public EdgeFileSorter(string work_dir, int radix, int table_size)
+        public static void MakeIndex(int table_size, string edgeFileName, string outIndexFileName)
         {
-            this.work_dir = work_dir;
-            this.radix = radix;
-            this.table_size = table_size;
-            this.readerForDigit = new EdgeReader[radix];
-            this.writerForDigit = new EdgeWriter[radix];
-        }
-
-        public void Dispose()
-        {
-            CloseOutputFiles();
-            CloseInputFiles();
-        }
-
-        public void Sort(string edgeFileName, string outIndexFileName)
-        {
-            // This is a radix sort, so that we can sort efficiently without using a lot of memory.
-
-            // Spread the one input files into 'radix' piles, based on the final digit.
-            using (var reader = new EdgeReader(edgeFileName))
-            {
-                OpenOutputFiles();
-                Spread(reader, 1);
-                CloseOutputFiles();
-            }
-
-            // Keep respreading to the next pile.
-            int residue = table_size / radix;
-            for (int power = radix; residue > 0; power *= radix, residue /= radix)
-            {
-                MoveFilesForNextGeneration();
-                OpenInputFiles();
-                OpenOutputFiles();
-
-                for (int inDigit = 0; inDigit < radix; ++inDigit)
-                    Spread(readerForDigit[inDigit], power);
-
-                CloseOutputFiles();
-                CloseInputFiles();
-            }
-
             // Pack the spread files back into the original single file.
-            MoveFilesForNextGeneration();
-            OpenInputFiles();
+            using (var edgeReader = new EdgeReader(edgeFileName))
             using (var indexWriter = File.OpenWrite(outIndexFileName))
             {
                 int prev_tindex = -1;
-                using (var edgeWriter = new EdgeWriter(edgeFileName))
+                int offset = 0;
+                while (edgeReader.ReadEdge(out GraphEdge edge))
                 {
-                    int offset = 0;         // number of edges written to the sorted output edge file
-                    for (int inDigit = 0; inDigit < radix; ++inDigit)
+                    if (edge.before_tindex != prev_tindex)
                     {
-                        while (readerForDigit[inDigit].ReadEdge(out GraphEdge edge))
-                        {
-                            if (edge.after_tindex != prev_tindex)
-                            {
-                                // Verify that we really have sorted!
-                                // There are multiple edges with the same after_tindex,
-                                // and we leave before_tindex in whatever random order they settle.
-                                if (edge.after_tindex < prev_tindex)
-                                    throw new Exception($"Sort failure in {edgeFileName}");
+                        // Verify that we really have sorted!
+                        // There are multiple edges with the same before_tindex,
+                        // and we leave before_tindex in whatever random order they settle.
+                        if (edge.before_tindex < prev_tindex)
+                            throw new Exception($"Sort failure in {edgeFileName}");
 
-                                // Time to write another index record.
-                                // Pad with -1 values to fill invalid/unused slots.
-                                for (int tindex = prev_tindex + 1; tindex < edge.after_tindex; ++tindex)
-                                    WriteIndex(indexWriter, -1);
+                        // Time to write another index record.
+                        // Pad with -1 values to fill invalid/unused slots.
+                        for (int tindex = prev_tindex + 1; tindex < edge.before_tindex; ++tindex)
+                            WriteIndex(indexWriter, -1);
 
-                                WriteIndex(indexWriter, offset);
-                            }
-
-                            edgeWriter.WriteEdge(edge);
-                            prev_tindex = edge.after_tindex;
-                            ++offset;
-                        }
+                        WriteIndex(indexWriter, offset);
+                        prev_tindex = edge.before_tindex;
                     }
+
+                    ++offset;
                 }
 
                 // Pad out the index file so that any valid table_index has a placeholder (-1) entry.
                 for (int tindex = prev_tindex + 1; tindex < table_size; ++tindex)
                     WriteIndex(indexWriter, -1);
             }
-            CloseInputFiles();
-            DeleteInputFiles();
         }
 
-        private readonly byte[] IndexBuffer = new byte[4];
+        private static readonly byte[] IndexBuffer = new byte[4];
 
-        private void WriteIndex(FileStream indexWriter, int offset)
+        private static void WriteIndex(FileStream indexWriter, int offset)
         {
             IndexBuffer[0] = (byte)(offset >> 24);
             IndexBuffer[1] = (byte)(offset >> 16);
             IndexBuffer[2] = (byte)(offset >> 8);
             IndexBuffer[3] = (byte)(offset);
             indexWriter.Write(IndexBuffer, 0, 4);
-        }
-
-        private void DisposeArray<T>(T[] array) where T : class, IDisposable
-        {
-            for (int i = 0; i < array.Length; ++i)
-            {
-                if (array[i] != null)
-                {
-                    array[i].Dispose();
-                    array[i] = null;
-                }
-            }
-        }
-
-        private string InWorkFileName(int digit)
-        {
-            return Path.Combine(work_dir, digit.ToString("D2") + ".in");
-        }
-
-        private string OutWorkFileName(int digit)
-        {
-            return Path.Combine(work_dir, digit.ToString("D2") + ".out");
-        }
-
-        private void OpenInputFiles()
-        {
-            for (int digit = 0; digit < radix; ++digit)
-                readerForDigit[digit] = new EdgeReader(InWorkFileName(digit));
-        }
-
-        private void OpenOutputFiles()
-        {
-            for (int digit = 0; digit < radix; ++digit)
-                writerForDigit[digit] = new EdgeWriter(OutWorkFileName(digit));
-        }
-
-        private void CloseInputFiles()
-        {
-            DisposeArray(readerForDigit);
-        }
-
-        private void CloseOutputFiles()
-        {
-            DisposeArray(writerForDigit);
-        }
-
-        private void Spread(EdgeReader reader, int power)
-        {
-            while (reader.ReadEdge(out GraphEdge edge))
-            {
-                int outDigit = (edge.after_tindex / power) % radix;
-                writerForDigit[outDigit].WriteEdge(edge);
-            }
-        }
-
-        private void MoveFilesForNextGeneration()
-        {
-            for (int digit = 0; digit < radix; ++digit)
-            {
-                string inFileName = InWorkFileName(digit);
-                string outFileName = OutWorkFileName(digit);
-                File.Move(outFileName, inFileName, true);
-            }
-        }
-
-        private void DeleteInputFiles()
-        {
-            for (int digit = 0; digit < radix; ++digit)
-            {
-                string inFileName = InWorkFileName(digit);
-                File.Delete(inFileName);
-            }
         }
     }
 }

@@ -450,20 +450,6 @@ EndgameTableGen edge_check
             if (!VerifyEdgeReader(EdgeFileName, edgeList))
                 return 1;
 
-            // Sort the edge file.
-            string WorkDir = Directory.GetCurrentDirectory();
-            const int Radix = 16;
-            using (var sorter = new EdgeFileSorter(WorkDir, Radix, TableSize))
-            {
-                sorter.Sort(EdgeFileName, IndexFileName);
-            }
-
-            if (!VerifyEdgeSort(EdgeFileName, edgeList, NumBatches, BatchSize))
-                return 1;
-
-            if (!VerifyEdgeIndex(EdgeFileName, IndexFileName, edgeList, BatchSize))
-                return 1;
-
             File.Delete(EdgeFileName);
             File.Delete(IndexFileName);
 
@@ -578,55 +564,6 @@ EndgameTableGen edge_check
             }
 
             Console.WriteLine("PASS: VerifyEdgeSort");
-            return true;
-        }
-
-        struct EdgeBatch
-        {
-            public int after_tindex;
-            public int[] before_list;
-        }
-
-        static bool VerifyEdgeIndex(string edgeFileName, string indexFileName, GraphEdge[] list, int batchSize)
-        {
-            var batchList = new List<EdgeBatch>();
-            foreach (var group in list.GroupBy(edge => edge.after_tindex))
-            {
-                int after_tindex = group.Key;
-                int[] before_list = group.Select(edge => edge.before_tindex).OrderBy(b => b).ToArray();
-                batchList.Add(new EdgeBatch{after_tindex = after_tindex, before_list = before_list});
-            }
-            EdgeBatch[] batchArray = batchList.ToArray();
-
-            // Shuffle the list to make sure we can access the batches in random after_tindex order.
-            Shuffle(57346385, batchArray);
-
-            // Exercise the indexer.
-            using (var indexer = new EdgeIndexer(indexFileName, edgeFileName))
-            {
-                var before_list = new List<int>();
-                foreach (EdgeBatch batch in batchArray)
-                {
-                    //Console.WriteLine("BATCH {0} => [{1}]", batch.after_tindex, string.Join(", ", batch.before_list));
-                    indexer.GetBeforeTableIndexes(before_list, batch.after_tindex);
-                    if (before_list.Count != batch.before_list.Length || before_list.Count != batchSize)
-                    {
-                        Console.WriteLine($"FAIL VerifyEdgeIndex: before_list.Count={before_list.Count}, batch length=${batch.before_list.Length}, expected {batchSize}");
-                        return false;
-                    }
-                    before_list.Sort();
-                    for (int i=0; i < batchSize; ++i)
-                    {
-                        if (before_list[i] != batch.before_list[i])
-                        {
-                            Console.WriteLine($"FAIL VerifyEdgeIndex: before_list[{i}]={before_list[i]}, but expected {batch.before_list[i]}");
-                            return false;
-                        }
-                    }
-                }
-            }
-
-            Console.WriteLine("PASS: VerifyEdgeIndex");
             return true;
         }
     }

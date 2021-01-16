@@ -177,10 +177,10 @@ namespace EndgameTableGen
 
                     string whiteIndexFileName = Path.Combine(workdir, "w.index");
                     string blackIndexFileName = Path.Combine(workdir, "b.index");
-                    SortEdges(whiteEdgeFileName, whiteIndexFileName, size);
-                    SortEdges(blackEdgeFileName, blackIndexFileName, size);
-                    Backpropagate(table, whiteEdgeFileName, whiteIndexFileName, blackEdgeFileName, blackIndexFileName);
-                    Directory.Delete(workdir, true);
+                    IndexWriter.MakeIndex(size, whiteEdgeFileName, whiteIndexFileName);
+                    IndexWriter.MakeIndex(size, blackEdgeFileName, blackIndexFileName);
+                    ForwardPropagate(table, whiteEdgeFileName, whiteIndexFileName, blackEdgeFileName, blackIndexFileName);
+                    //Directory.Delete(workdir, true);
 
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
@@ -212,6 +212,18 @@ namespace EndgameTableGen
             return set;
         }
 
+        private void ForwardPropagate(
+            Table  table,
+            string whiteEdgeFileName,
+            string whiteIndexFileName,
+            string blackEdgeFileName,
+            string blackIndexFileName)
+        {
+            using var whiteIndexer = new EdgeIndexer(whiteIndexFileName, whiteEdgeFileName);
+            using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
+        }
+
+/*
         private void Backpropagate(
             Table table,
             string whiteEdgeFileName,
@@ -323,6 +335,7 @@ namespace EndgameTableGen
             CoreDump($"{CurrentConfigId:D10}.dump");
             Log("Backprop finished.");
         }
+*/
 
         private void CoreDump(string outFileName)
         {
@@ -360,19 +373,6 @@ namespace EndgameTableGen
         private static string ConfigWorkDirectory(long config_id)
         {
             return Path.Combine(OutputDirectory(), "work_" + config_id.ToString("D10"));
-        }
-
-        private void SortEdges(string edgeFileName, string outIndexFileName, int table_size)
-        {
-            // Sort the edges in ascending order of after_table_index.
-
-            const int SortRadix = 16;
-            string sort_dir = ConfigWorkDirectory(CurrentConfigId);
-
-            using (var sorter = new EdgeFileSorter(sort_dir, SortRadix, table_size))
-                sorter.Sort(edgeFileName, outIndexFileName);
-
-            Log("Sorted: {0}", edgeFileName);
         }
 
         public override void Finish()
