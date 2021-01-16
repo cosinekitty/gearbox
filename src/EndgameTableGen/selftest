@@ -1,4 +1,4 @@
 #!/bin/bash
-dotnet run -- edge_check || exit $?
+dotnet run -- child_test || exit $?
 dotnet run -- test 2 || exit $?
 exit 0

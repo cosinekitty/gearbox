@@ -12,12 +12,10 @@ namespace EndgameTableGen
     internal class TableGenerator : TableWorker
     {
         internal const int UndefinedScore   = Table.MinScore;
+        internal const int UnreachablePos   = Table.MinScore + 1;
         internal const int EnemyMatedScore  = +2000;
         internal const int FriendMatedScore = -2000;
         internal const int DrawScore = 0;
-
-        private const byte UNREACHABLE = 255;
-        private const byte SPENT = 254;
 
         private static readonly int[] EightfoldSymmetryTable = new int[]
         {
@@ -36,10 +34,8 @@ namespace EndgameTableGen
         public bool EnableTableGeneration = true;
         public long CurrentConfigId;
         private MemoryTable table;
-        private EdgeWriter whiteEdgeWriter;     // table of edges where White has the turn after the move is made
-        private EdgeWriter blackEdgeWriter;     // table of edges where Black has the turn after the move is made
-        private byte[] whiteUnresolvedChildCount;
-        private byte[] blackUnresolvedChildCount;
+        private ChildWriter whiteChildWriter;
+        private ChildWriter blackChildWriter;
 
         public TableGenerator(int max_table_size)
         {
@@ -49,13 +45,6 @@ namespace EndgameTableGen
                 // Start out with size=0, capacity=max_table_size.
                 // We will adjust the effective table size as needed for each configuration.
                 table = new MemoryTable(0, max_table_size);
-
-                // When backpropagating scores, we need to know how many
-                // child nodes emanate from a given parent node.
-                // When the child count reaches zero, we know the parent's score is final.
-                // Before then, the parent's score is just a lower bound.
-                whiteUnresolvedChildCount = new byte[max_table_size];
-                blackUnresolvedChildCount = new byte[max_table_size];
             }
         }
 
@@ -111,7 +100,8 @@ namespace EndgameTableGen
             string filename = ConfigFileName(config);
             int size = (int)TableSize(config);
             CurrentConfigId = GetConfigId(config, false);
-            Log("CurrentConfigId = {0}", CurrentConfigId.ToString("D10"));
+            string configIdText = CurrentConfigId.ToString("D10");
+            Log("CurrentConfigId = {0}", configIdText);
             long reverseConfigId = GetConfigId(config, true);
             Debug.Assert(ReverseSideConfigId(CurrentConfigId) == reverseConfigId);
 
@@ -147,40 +137,36 @@ namespace EndgameTableGen
 
                 if (EnableTableGeneration)
                 {
-                    // We start out with every score in the table set to UndefinedScore,
-                    // which is smaller than any valid score.
-                    // As valid scores are backpropagated, scores will grow upward from there.
-                    // At the very end, we need to search for all UndefinedScore values and
-                    // set them back to 0 (draw).
-                    table.SetAllScores(UndefinedScore);
+                    table.SetAllScores(UnreachablePos);
 
-                    // Mark all positions as unreachable.
-                    // These get set to actual unresolved child counts by WriteAllEdges
-                    // for the positions that can be reached.
-                    for (int i = 0; i < whiteUnresolvedChildCount.Length; ++i)
+                    string whiteChildFileName = Path.Combine(OutputDirectory(), configIdText + "_wc.temp");
+                    string whiteIndexFileName = Path.Combine(OutputDirectory(), configIdText + "_wx.temp");
+                    string blackChildFileName = Path.Combine(OutputDirectory(), configIdText + "_bc.temp");
+                    string blackIndexFileName = Path.Combine(OutputDirectory(), configIdText + "_bx.temp");
+
+                    using (whiteChildWriter = new ChildWriter(whiteChildFileName, whiteIndexFileName))
                     {
-                        whiteUnresolvedChildCount[i] = UNREACHABLE;
-                        blackUnresolvedChildCount[i] = UNREACHABLE;
+                        using (blackChildWriter = new ChildWriter(blackChildFileName, blackIndexFileName))
+                        {
+                            ForEachPosition(table, config, WriteChildren);
+                            blackChildWriter.BeginParent(size);     // pad the end of the index file
+                        }
+                        whiteChildWriter.BeginParent(size);         // pad the end of the index file
                     }
 
-                    string workdir = ConfigWorkDirectory(CurrentConfigId);
-                    if (Directory.Exists(workdir))
-                        throw new Exception($"Work directory already existed: {workdir}");
+                    using (var whiteChildReader = new ChildReader(whiteChildFileName, whiteIndexFileName))
+                    {
+                        using (var blackChildReader = new ChildReader(blackChildFileName, blackIndexFileName))
+                        {
+                            ForwardPropagate(table, whiteChildReader, blackChildReader);
+                        }
+                    }
 
-                    Directory.CreateDirectory(workdir);
-
-                    string whiteEdgeFileName = Path.Combine(workdir, "w.edge");
-                    string blackEdgeFileName = Path.Combine(workdir, "b.edge");
-                    using (blackEdgeWriter = new EdgeWriter(blackEdgeFileName))
-                        using (whiteEdgeWriter = new EdgeWriter(whiteEdgeFileName))
-                            ForEachPosition(table, config, WriteAllEdges);
-
-                    string whiteIndexFileName = Path.Combine(workdir, "w.index");
-                    string blackIndexFileName = Path.Combine(workdir, "b.index");
-                    IndexWriter.MakeIndex(size, whiteEdgeFileName, whiteIndexFileName);
-                    IndexWriter.MakeIndex(size, blackEdgeFileName, blackIndexFileName);
-                    ForwardPropagate(table, whiteEdgeFileName, whiteIndexFileName, blackEdgeFileName, blackIndexFileName);
-                    //Directory.Delete(workdir, true);
+                    // Clean up temporary files... they are large and we don't want them to fill up the hard disk!
+                    File.Delete(whiteChildFileName);
+                    File.Delete(whiteIndexFileName);
+                    File.Delete(blackChildFileName);
+                    File.Delete(blackIndexFileName);
 
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
@@ -203,176 +189,139 @@ namespace EndgameTableGen
             return null;
         }
 
-        private static HashSet<int> ExtractForeignIndexSet(SortedList<int, HashSet<int>> foreign, int ply)
+        private void ForwardPropagate(Table table, ChildReader whiteChildReader, ChildReader blackChildReader)
         {
-            if (foreign.TryGetValue(ply, out HashSet<int> set))
-                foreign.Remove(ply);
-            else
-                set = new HashSet<int>();
-            return set;
-        }
+            // WriteChildren() has already initialized the score of all immediate checkmates with -2000.
+            // These are considered ply=0, and thus they are even plies.
+            // All losing positions are therefore even plies, and all winning positions are odd plies.
+            // Start with ply 1 to find all moves that lead immediately to checkmate.
+            // We have to find forced wins and losses for both White and Black, because
+            // both sides have mating material in some configurations.
 
-        private void ForwardPropagate(
-            Table  table,
-            string whiteEdgeFileName,
-            string whiteIndexFileName,
-            string blackEdgeFileName,
-            string blackIndexFileName)
-        {
-            using var whiteIndexer = new EdgeIndexer(whiteIndexFileName, whiteEdgeFileName);
-            using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
-        }
-
-/*
-        private void Backpropagate(
-            Table table,
-            string whiteEdgeFileName,
-            string whiteIndexFileName,
-            string blackEdgeFileName,
-            string blackIndexFileName)
-        {
-            using var whiteIndexer = new EdgeIndexer(whiteIndexFileName, whiteEdgeFileName);
-            using var blackIndexer = new EdgeIndexer(blackIndexFileName, blackEdgeFileName);
-            var before_tindex_list = new List<int>();
-
-            int progress = 1;
-            for (int count = 0; progress > 0; ++count)
+            var child_tindex_list = new List<int>();
+            int size = table.Size;
+            int prev_progress = 1;
+            int curr_progress = 0;
+            for (int ply = 1; prev_progress + curr_progress > 0; ++ply)
             {
-                progress = 0;
-
-                // Finalize the scores of all nodes that no longer have unresolved children.
-                for (int after_tindex = 0; after_tindex < table.Size; ++after_tindex)
+                prev_progress = curr_progress;
+                int white_changes = 0;
+                int black_changes = 0;
+                if (0 != (ply & 1))
                 {
-                    if (whiteUnresolvedChildCount[after_tindex] == 0)
+                    // On odd plies, we look for parent nodes with forced wins for the side to move.
+                    // A forced win occurs when at least one child node has the winning score
+                    // corresponding to this odd ply value.
+                    int winning_score = EnemyMatedScore - ply;
+                    for (int parent_tindex = 0; parent_tindex < size; ++parent_tindex)
                     {
-                        whiteUnresolvedChildCount[after_tindex] = SPENT;    // never visit this white node again
-                        int score = table.GetWhiteScore(after_tindex);
-                        int adjusted_score = AdjustScoreForPly(score);
-                        whiteIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                        foreach (int before_tindex in before_tindex_list)
+                        // Check for winning position for White to move.
+                        int parent_score = table.GetWhiteScore(parent_tindex);
+                        if (parent_score == UndefinedScore)
                         {
-                            if (blackUnresolvedChildCount[before_tindex] > 0 && blackUnresolvedChildCount[before_tindex] < SPENT)
+                            int best_score = whiteChildReader.Read(child_tindex_list, parent_tindex);
+                            foreach (int child_tindex in child_tindex_list)
                             {
-                                ++progress;
-                                BumpBlackScore(table, before_tindex, adjusted_score);
-                                --blackUnresolvedChildCount[before_tindex];
-                            }
-                        }
-                    }
-
-                    if (blackUnresolvedChildCount[after_tindex] == 0)
-                    {
-                        blackUnresolvedChildCount[after_tindex] = SPENT;    // never visit this black node again
-                        int score = table.GetBlackScore(after_tindex);
-                        int adjusted_score = AdjustScoreForPly(score);
-                        blackIndexer.GetBeforeTableIndexes(before_tindex_list, after_tindex);
-                        foreach (int before_tindex in before_tindex_list)
-                        {
-                            if (whiteUnresolvedChildCount[before_tindex] > 0 && whiteUnresolvedChildCount[before_tindex] < SPENT)
-                            {
-                                ++progress;
-                                BumpWhiteScore(table, before_tindex, adjusted_score);
-                                --whiteUnresolvedChildCount[before_tindex];
-                            }
-                        }
-                    }
-                }
-
-                int sweep_count = 0;
-                int max_score = UndefinedScore;
-                if (progress == 0)
-                {
-                    // Find the maximum value of any unspent node.
-                    for (int tindex = 0; tindex < table.Size; ++tindex)
-                    {
-                        if (whiteUnresolvedChildCount[tindex] < SPENT)
-                        {
-                            int score = table.GetWhiteScore(tindex);
-                            if (score > max_score)
-                                max_score = score;
-                        }
-                        if (blackUnresolvedChildCount[tindex] < SPENT)
-                        {
-                            int score = table.GetBlackScore(tindex);
-                            if (score > max_score)
-                                max_score = score;
-                        }
-                    }
-
-                    // Sweep all nodes whose best-so-far value matches the max value.
-                    // But only do this for forced wins.
-                    if (max_score > 0)
-                    {
-                        for (int tindex = 0; tindex < table.Size; ++tindex)
-                        {
-                            if (whiteUnresolvedChildCount[tindex] < SPENT && whiteUnresolvedChildCount[tindex] > 0)
-                            {
-                                int score = table.GetWhiteScore(tindex);
-                                if (score == max_score)
+                                int child_score = table.GetBlackScore(child_tindex);
+                                if (child_score != UndefinedScore)
                                 {
-                                    whiteUnresolvedChildCount[tindex] = 0;
-                                    ++sweep_count;
+                                    parent_score = AdjustScoreForPly(child_score);
+                                    if (parent_score > best_score)
+                                        best_score = parent_score;
                                 }
                             }
-
-                            if (blackUnresolvedChildCount[tindex] < SPENT && blackUnresolvedChildCount[tindex] > 0)
+                            if (best_score == winning_score)
                             {
-                                int score = table.GetBlackScore(tindex);
-                                if (score == max_score)
+                                table.SetWhiteScore(parent_tindex, best_score);
+                                ++white_changes;
+                            }
+                        }
+
+                        // Check for winning position for Black to move.
+                        parent_score = table.GetBlackScore(parent_tindex);
+                        if (parent_score == UndefinedScore)
+                        {
+                            int best_score = blackChildReader.Read(child_tindex_list, parent_tindex);
+                            foreach (int child_tindex in child_tindex_list)
+                            {
+                                int child_score = table.GetWhiteScore(child_tindex);
+                                if (child_score != UndefinedScore)
                                 {
-                                    blackUnresolvedChildCount[tindex] = 0;
-                                    ++sweep_count;
+                                    parent_score = AdjustScoreForPly(child_score);
+                                    if (parent_score > best_score)
+                                        best_score = parent_score;
                                 }
+                            }
+                            if (best_score == winning_score)
+                            {
+                                table.SetBlackScore(parent_tindex, best_score);
+                                ++black_changes;
                             }
                         }
                     }
                 }
-
-                Log("Backprop[{0}]: progress = {1}, sweep_count = {2}, max_score = {3}", count, progress, sweep_count, max_score);
-                progress += sweep_count;
-            }
-
-            CoreDump($"{CurrentConfigId:D10}.dump");
-            Log("Backprop finished.");
-        }
-*/
-
-        private void CoreDump(string outFileName)
-        {
-            var board = new Board(false);
-            using (StreamWriter output = File.CreateText(outFileName))
-            {
-                output.WriteLine("{0,12} {1,6} {2,6} {3,6} {4,6} FEN", "tindex", "wscore", "wunres", "bscore", "bunres");
-                for (int tindex = 0; tindex < table.Size; ++tindex)
+                else
                 {
-                    string fen;
-                    if (whiteUnresolvedChildCount[tindex] != UNREACHABLE || blackUnresolvedChildCount[tindex] != UNREACHABLE)
+                    // On even plies, we look for parent nodes with forced losses for the side to move.
+                    // A forced loss occurs when ALL children have known scores, and the score
+                    // is the exact score we expect for losing at the specified ply level.
+                    int losing_score = FriendMatedScore + ply;
+                    for (int parent_tindex = 0; parent_tindex < size; ++parent_tindex)
                     {
-                        DecodePosition(board, CurrentConfigId, tindex, true);
-                        fen = " " + board.ForsythEdwardsNotation();
-                    }
-                    else
-                    {
-                        fen = "";
-                    }
+                        // Check for losing position for White to move.
+                        int parent_score = table.GetWhiteScore(parent_tindex);
+                        if (parent_score == UndefinedScore)
+                        {
+                            bool all_children_valid = true;
+                            int best_score = whiteChildReader.Read(child_tindex_list, parent_tindex);
+                            foreach (int child_tindex in child_tindex_list)
+                            {
+                                int child_score = table.GetBlackScore(child_tindex);
+                                if (child_score == UndefinedScore)
+                                {
+                                    all_children_valid = false;
+                                    break;
+                                }
+                                parent_score = AdjustScoreForPly(child_score);
+                                if (parent_score > best_score)
+                                    best_score = parent_score;
+                            }
+                            if (all_children_valid && best_score == losing_score)
+                            {
+                                table.SetWhiteScore(parent_tindex, best_score);
+                                ++white_changes;
+                            }
+                        }
 
-                    int white_score = table.GetWhiteScore(tindex);
-                    int black_score = table.GetBlackScore(tindex);
-                    output.WriteLine("{0,12} {1,6} {2,6} {3,6} {4,6}{5}",
-                        tindex,
-                        white_score,
-                        whiteUnresolvedChildCount[tindex],
-                        black_score,
-                        blackUnresolvedChildCount[tindex],
-                        fen);
+                        // Check for losing position for Black to move.
+                        parent_score = table.GetBlackScore(parent_tindex);
+                        if (parent_score == UndefinedScore)
+                        {
+                            bool all_children_valid = true;
+                            int best_score = blackChildReader.Read(child_tindex_list, parent_tindex);
+                            foreach (int child_tindex in child_tindex_list)
+                            {
+                                int child_score = table.GetWhiteScore(child_tindex);
+                                if (child_score == UndefinedScore)
+                                {
+                                    all_children_valid = false;
+                                    break;
+                                }
+                                parent_score = AdjustScoreForPly(child_score);
+                                if (parent_score > best_score)
+                                    best_score = parent_score;
+                            }
+                            if (all_children_valid && best_score == losing_score)
+                            {
+                                table.SetBlackScore(parent_tindex, best_score);
+                                ++black_changes;
+                            }
+                        }
+                    }
                 }
+                Log("ForwardPropagate({0}): white={1}, black={2}", ply, white_changes, black_changes);
+                curr_progress = white_changes + black_changes;
             }
-            Log("CoreDump: {0}", outFileName);
-        }
-
-        private static string ConfigWorkDirectory(long config_id)
-        {
-            return Path.Combine(OutputDirectory(), "work_" + config_id.ToString("D10"));
         }
 
         public override void Finish()
@@ -788,97 +737,29 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private int BumpWhiteScore(Table table, int tindex, int score)
-        {
-            int bestscore = table.GetWhiteScore(tindex);
-            if (score > bestscore)
-            {
-                table.SetWhiteScore(tindex, score);
-                return 1;   // updated 1 score
-            }
-            return 0;
-        }
-
-        private int BumpBlackScore(Table table, int tindex, int score)
-        {
-            int bestscore = table.GetBlackScore(tindex);
-            if (score > bestscore)
-            {
-                table.SetBlackScore(tindex, score);
-                return 1;   // updated 1 score
-            }
-            return 0;
-        }
-
-        private int BumpScore(Table table, bool isWhiteTurn, int tindex, int score)
-        {
-            // Incremental negamax assistance:
-            // If the provided score is better than the best-so-far score stored in the table,
-            // update the score in the table with the provided score.
-            int bestscore;
-            if (isWhiteTurn)
-            {
-                bestscore = table.GetWhiteScore(tindex);
-                if (score > bestscore)
-                {
-                    table.SetWhiteScore(tindex, score);
-                    return 1;   // updated 1 score
-                }
-            }
-            else
-            {
-                bestscore = table.GetBlackScore(tindex);
-                if (score > bestscore)
-                {
-                    table.SetBlackScore(tindex, score);
-                    return 1;   // updated 1 score
-                }
-            }
-            return 0;   // nothing changed
-        }
-
-        private void SetUnresolvedChildCount(bool white_turn, int tindex, int childCount)
-        {
-            if (childCount < 0 || childCount >= SPENT)
-                throw new ArgumentException($"Invalid child count = {childCount}");
-
-            if (white_turn)
-                whiteUnresolvedChildCount[tindex] = (byte)childCount;
-            else
-                blackUnresolvedChildCount[tindex] = (byte)childCount;
-        }
-
-        private readonly HashSet<int> LocalAfterTableIndexes = new();   // re-used at every call of WriteAllEdges()
-
-        private int WriteAllEdges(Table table, Board board, int tindex)
+        private int WriteChildren(Table table, Board board, int tindex)
         {
             // This function is called twice for each position:
             // once with White to move, the other with Black to move.
-            // Pre-generate the list of transitions to other (config_id, table_index)
-            // pairs based on the legal moves available to the side with the turn.
-            // These graph edges will be recycled for all the subsequent passes.
+
             board.GenMoves(LegalMoveList);
 
             if (LegalMoveList.nmoves == 0)
             {
                 // This is either stalemate or checkmate.
                 // Set the score for this position accordingly.
-                SetUnresolvedChildCount(board.IsWhiteTurn, tindex, 0);
+                // We don't need to write anything to the child table because the score is settled.
                 int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
 
-            LocalAfterTableIndexes.Clear();
+            // Indicate that we did reach this as a valid position.
+            SetScore(table, board.IsWhiteTurn, tindex, UndefinedScore);
 
-            var edge = new GraphEdge();
-            edge.before_tindex = tindex;
+            var writer = board.IsWhiteTurn ? whiteChildWriter : blackChildWriter;
+            writer.BeginParent(tindex);
 
             int best_foreign_score = UndefinedScore;
-            int foreignEdgeCount = 0;
-
-            // Write to blackEdgeWriter if Black has the turn AFTER making the move,
-            // otherwise write to whiteEdgeWriter.
-            EdgeWriter edgeWriter = board.IsWhiteTurn ? blackEdgeWriter : whiteEdgeWriter;
 
             for (int i = 0; i < LegalMoveList.nmoves; ++i)
             {
@@ -888,24 +769,20 @@ namespace EndgameTableGen
                 if (after_config_id == CurrentConfigId)
                 {
                     // The most common case: making a move stays inside the current endgame table.
-                    // But eliminate duplicate transitions caused by symmetry.
-                    edge.after_tindex = board.GetEndgameTableIndex(false);
-                    if (LocalAfterTableIndexes.Add(edge.after_tindex))
-                        edgeWriter.WriteEdge(edge);
+                    int after_tindex = board.GetEndgameTableIndex(false);
+                    writer.AppendChild(after_tindex);
                 }
                 else
                 {
                     // This move transitions out of this endgame configuration and into another.
-                    // We do not save such edges, because the score of the after-position
+                    // We do not save such children, because the score of the after-position
                     // is already decided. We just remember the best of these "foreign" scores
-                    // and bump the table position as needed below.
-                    ++foreignEdgeCount;
+                    // and submit it below to the child writer, to close out this batch of children.
                     int after_score;
-                    int after_tindex;
                     Table after_table;
                     if (finished.TryGetValue(after_config_id, out after_table))
                     {
-                        after_tindex = board.GetEndgameTableIndex(false);
+                        int after_tindex = board.GetEndgameTableIndex(false);
                         after_score = GetScore(after_table, board.IsWhiteTurn, after_tindex);
                     }
                     else
@@ -915,7 +792,7 @@ namespace EndgameTableGen
                         after_config_id = board.GetEndgameConfigId(true);
                         if (finished.TryGetValue(after_config_id, out after_table))
                         {
-                            after_tindex = board.GetEndgameTableIndex(true);
+                            int after_tindex = board.GetEndgameTableIndex(true);
                             after_score = GetScore(after_table, board.IsBlackTurn, after_tindex);
                         }
                         else
@@ -935,18 +812,20 @@ namespace EndgameTableGen
                 board.PopMove();
             }
 
-            // Record the number of unique edges we wrote as the unresolved child count.
-            SetUnresolvedChildCount(board.IsWhiteTurn, tindex, LocalAfterTableIndexes.Count);
-
-            // Remember the best-so-far score of any transitions into foreign tables.
-            if (foreignEdgeCount > 0)
-                return BumpScore(table, board.IsWhiteTurn, tindex, best_foreign_score);
-
+            // Remember the best-so-far score of any transitions into foreign tables
+            // and commit this parent/children set.
+            writer.FinishParent(best_foreign_score);
             return 0;
         }
 
         private static int AdjustScoreForPly(int score)
         {
+            if (score == UndefinedScore)
+                throw new ArgumentException("Attempt to adjust an undefined score.");
+
+            if (score == UnreachablePos)
+                throw new ArgumentException("Attempt to adjust score for an unreachable position.");
+
             // Adjust for negamax and ply delay.
             if (score > 0)
                 return -(score - 1);
