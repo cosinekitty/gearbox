@@ -94,31 +94,88 @@ namespace BoardTest
             var thinker = new Thinker(1000, new NullEvaluator()) { Name = "Endgame Thinker" };
             thinker.SetSearchLimit(1);
             int loadCount = thinker.LoadEndgameTables(dir);
-            Console.WriteLine("Loaded {0} endgame tables.", loadCount);
+            Console.WriteLine("Loaded {0} endgame tables from: {1}", loadCount, dir);
             if (loadCount == 0)
             {
                 Console.WriteLine("Skipping endgame tests because there are no endgame tables in: {0}", dir);
                 return true;
             }
 
-            var testList = new EndgamePositionTest[]
+            if (args.Length == 0)
             {
-                new EndgamePositionTest("8/8/8/8/5kp1/8/4K3/8 b - - 9 5", "#11"),
-                new EndgamePositionTest("1k6/8/1K6/8/8/1R6/8/8 w - - 1 1", "#2"),
-            };
-
-            foreach (EndgamePositionTest t in testList)
-                if (!TestEndgamePosition(thinker, t.fen, t.score))
+                if (!TestEndgameWalk(thinker, Square.WQ))
                     return false;
 
-            if (!TestEndgameWalk(thinker, Square.WQ))
-                return false;
+                if (!TestEndgameWalk(thinker, Square.WR))
+                    return false;
 
-            if (!TestEndgameConfigSearch(thinker, Square.WR))
-                return false;
+                if (!TestEndgameWalk(thinker, Square.WP))
+                    return false;
 
-            Console.WriteLine("PASS: TestEndgames");
-            return true;
+                if (!TestEndgameWalk(thinker, Square.WR, Square.BR))
+                    return false;
+
+                if (!TestEndgameWalk(thinker, Square.WR, Square.WR))
+                    return false;
+
+                // Actual min-max of the board...
+
+                if (!TestEndgameConfigSearch(thinker, Square.WR))
+                    return false;
+
+                // "Canned" tests...
+
+                var testList = new EndgamePositionTest[]
+                {
+                    new EndgamePositionTest("8/8/8/8/5kp1/8/4K3/8 b - - 9 5", "#11"),
+                    new EndgamePositionTest("1k6/8/1K6/8/8/1R6/8/8 w - - 1 1", "#2"),
+                };
+
+                foreach (EndgamePositionTest t in testList)
+                    if (!TestEndgamePosition(thinker, t.fen, t.score))
+                        return false;
+
+                Console.WriteLine("PASS: TestEndgames");
+                return true;
+            }
+
+            if (args.Length == 1)
+            {
+                // Convert a string like "QRbb" to an array like [WQ, WR, BB, BB].
+                string pattern = args[0];
+                const int MaxNonKings = 3;
+                if (pattern.Length < 1 || pattern.Length > MaxNonKings)
+                {
+                    Console.WriteLine("Pattern contains an illegal number of nonking pieces. Must be 1..{0}", MaxNonKings);
+                    return false;
+                }
+
+                var nonKingPieces = new Square[pattern.Length];
+                for (int i = 0; i < pattern.Length; ++i)
+                {
+                    switch (pattern[i])
+                    {
+                        case 'Q': nonKingPieces[i] = Square.WQ; break;
+                        case 'q': nonKingPieces[i] = Square.BQ; break;
+                        case 'R': nonKingPieces[i] = Square.WR; break;
+                        case 'r': nonKingPieces[i] = Square.BR; break;
+                        case 'B': nonKingPieces[i] = Square.WB; break;
+                        case 'b': nonKingPieces[i] = Square.BB; break;
+                        case 'N': nonKingPieces[i] = Square.WN; break;
+                        case 'n': nonKingPieces[i] = Square.BN; break;
+                        case 'P': nonKingPieces[i] = Square.WP; break;
+                        case 'p': nonKingPieces[i] = Square.BP; break;
+                        default:
+                            Console.WriteLine("ERROR(TestEndgames): Invalid piece character '{0}'", pattern[i]);
+                            return false;
+                    }
+                }
+
+                return TestEndgameWalk(thinker, nonKingPieces);
+            }
+
+            Console.WriteLine("ERROR(TestEndgames): Invalid command line arguments.");
+            return false;
         }
 
 
