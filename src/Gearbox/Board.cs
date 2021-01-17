@@ -1649,6 +1649,17 @@ namespace Gearbox
                     }
                 }
             }
+
+            // *** WARNING ***
+            // For efficiency, we do not call pos.Sort() here,
+            // because the only place that calls this function
+            // proceeds to transform it, which causes the post-transformed
+            // version to be sorted. The sort is necessary for eliminating
+            // redundancy due to more than one piece of the same kind.
+            // For example, [WP, WP, WP] allows 6 different ways to represent
+            // the same position.
+            // If any code in the future calls this function, it may need
+            // to call pos.Sort() afterward.
         }
 
         public int GetEndgameTableIndex(bool reverseSides)

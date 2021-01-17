@@ -94,13 +94,30 @@ namespace Gearbox
         {
             foreach (PieceLocationList list in PieceList)
             {
+                // Redundancy elimination: when there are multiple pieces of
+                // the same kind on the board, we have to always consider them
+                // in ascending order of their post-transformed indexes.
+                // Therefore, if there is more than one piece of the same type
+                // off the diagonal a1..h8, pick the one with the lowest
+                // post-transformed index.
+                // This tricky bit of logic makes it unnecessary to transform
+                // and sort the entire data structure first, which would
+                // be more time-consuming for a relatively rare special case.
+
+                int bestFlip = int.MaxValue;
+                int bestHeight = 0;
                 for (int i = 0; i < list.Count; ++i)
                 {
                     int flip = Symmetry.ForwardTransform(list.Array[i].Index, transform);
                     int height = DiagonalHeight(flip);
-                    if (height != 0)
-                        return height;
+                    if (height != 0 && flip < bestFlip)
+                    {
+                        bestFlip = flip;
+                        bestHeight = height;
+                    }
                 }
+                if (bestHeight != 0)
+                    return bestHeight;
             }
             return 0;       // Everything is on the a1..h8 diagonal.
         }
@@ -188,6 +205,7 @@ namespace Gearbox
                 // When there are no pawns, we get the most symmetry benefit
                 // from forcing the white king from a realm of 64 squares
                 // int a realm of 10 squares.
+                int foundCount = 0;
                 for (int t = 0; t < 8; ++t)
                 {
                     Transform transform = (Transform)t;
@@ -212,15 +230,30 @@ namespace Gearbox
                                 continue;   // Eliminate this redundant transform... try the next one.
                         }
 
-                        // We have found the best transform.
-                        wkflip = try_wkflip;
-                        bkflip = try_bkflip;
-                        best_transform = transform;
+                        // If there is at least one piece off the diagonal, we have found the unique solution.
+                        // If all pieces are on the diagonal, there will be two identical solutions:
+                        // [Identity, Diagonal].
+                        if (++foundCount == 1)
+                        {
+                            wkflip = try_wkflip;
+                            bkflip = try_bkflip;
+                            best_transform = transform;
+                        }
                     }
                 }
 
-                if (wkflip == -1)
-                    throw new Exception("Did not find a solution.");
+                switch (foundCount)
+                {
+                    case 0:
+                        throw new Exception("Did not find a transform solution.");
+
+                    case 1:
+                    case 2:
+                        break;
+
+                    default:
+                        throw new Exception($"Found unexpected number of transforms: {foundCount}");
+                }
 
                 tindex = 64*EightfoldSymmetryLookup[wkflip] + bkflip;
             }
@@ -308,6 +341,13 @@ namespace Gearbox
 
             return tindex;
         }
+
+        internal void Sort()
+        {
+            for (int p = 0; p < NumPieceTypes; ++p)
+                if (PieceList[p].Count >= 2)
+                    PieceList[p].Sort();
+        }
     }
 
     public class PieceLocationList
@@ -335,6 +375,35 @@ namespace Gearbox
             // Transform the 0..63 indexes, but NOT the 21..91 offsets (we need the original offsets for en passant).
             for (int i=0; i < Count; ++i)
                 Array[i].Index = Symmetry.ForwardTransform(Array[i].Index, transform);
+
+            Sort();
+        }
+
+        internal void Sort()
+        {
+            // We have to keep the index values in sorted order, to match
+            // redundancy elimination logic in the endgame table generator:
+            // When there are multiple identical pieces on the board, swapping
+            // any pair of them creates different table indexes.
+            // To eliminate the redundancy, we keep the smallest of all the
+            // N! table indexes created by having N identical pieces on the board.
+            // Because I will probably never have more than 4 identical pieces on the board,
+            // an O(n^2) selection sort is probably the fastest approach.
+
+            for (int i=0; i+1 < Count; ++i)
+            {
+                int b = i;
+                for (int k=i+1; k < Count; ++k)
+                    if (Array[k].Index < Array[b].Index)
+                        b = k;
+
+                if (b != i)
+                {
+                    var swap = Array[i];
+                    Array[i] = Array[b];
+                    Array[b] = swap;
+                }
+            }
         }
     }
 
