@@ -118,6 +118,9 @@ namespace BoardTest
                 if (!TestEndgameWalk(thinker, Square.WR, Square.WR))
                     return false;
 
+                if (!TestEndgameWalk(thinker, Square.WP, Square.BP))
+                    return false;
+
                 // Actual min-max of the board...
 
                 if (!TestEndgameConfigSearch(thinker, Square.WR))
