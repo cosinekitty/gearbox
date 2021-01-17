@@ -68,7 +68,7 @@ namespace EndgameTableGen
         public void BeginParent(int parent_tindex)
         {
             if (parent_tindex < indexFileOffset)
-                throw new ArgumentException($"parent_tindex = {parent_tindex} comes before most recent index {indexFileOffset}. Should have been in sorted order.");
+                throw new ArgumentException($"parent_tindex = {parent_tindex} comes before most recent index {indexFileOffset-1}. Should have been in sorted order.");
 
             // Pad the index file with filler slots so that
             // the ChildReader can seek directly to the correct location in it.

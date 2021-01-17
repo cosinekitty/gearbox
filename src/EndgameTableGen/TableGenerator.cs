@@ -36,6 +36,7 @@ namespace EndgameTableGen
         private MemoryTable table;
         private ChildWriter whiteChildWriter;
         private ChildWriter blackChildWriter;
+        private int prevTableIndex;     // detects generating table indexes out of order
 
         public TableGenerator(int max_table_size)
         {
@@ -334,6 +335,8 @@ namespace EndgameTableGen
         {
             int sum = 0;
 
+            prevTableIndex = 0;
+
             var board = new Board(false);       // start with a completely empty chess board
 
             int[] wkOffsetTable;
@@ -499,6 +502,9 @@ namespace EndgameTableGen
                 if (whiteRemaining > 0)
                 {
                     // Try putting the next White pawn everywhere it can go.
+                    // We need to generate table indexes in strictly increasing order,
+                    // and because of the way en passant is encoded, we must generate
+                    // all non-en-passant placements before all en-passant placements.
                     for (int i = startIndex; i < PawnOffsetTable.Length; ++i)
                     {
                         int ofs = PawnOffsetTable[i];
@@ -530,34 +536,50 @@ namespace EndgameTableGen
                                 false,     // we don't need diag filter when there are pawns
                                 (whiteRemaining > 1) ? (i + 1) : 0);
 
-                            if (isEnPassantPossible && RankNumber(ofs) == 4 && ep == 0)
-                            {
-                                // A White pawn on the fourth rank could have just moved two squares to get there,
-                                // but only if the two squares behind it are empty!
-                                if (square[ofs + Direction.S] == Square.Empty && square[ofs + 2*Direction.S] == Square.Empty)
-                                {
-                                    board.SetEpTarget(ofs + Direction.S);
-
-                                    sum += PositionSearch(
-                                        func, table, config, board,
-                                        (pawnFactor * tableIndex) + (i + 32),
-                                        pieceIndex,
-                                        whiteRemaining - 1,
-                                        blackRemaining,
-                                        false,     // we don't need diag filter when there are pawns
-                                        (whiteRemaining > 1) ? (i + 1) : 0);
-
-                                    board.SetEpTarget(0);
-                                }
-                            }
-
                             square[ofs] = Square.Empty;
+                        }
+                    }
+
+                    // Check for en passant placements of this white pawn, but only if
+                    // there are black pawns on the board too (isEnPassantPossible),
+                    // and we haven't already put another pawn in the en passant state.
+                    // "There can be only one!" -- Highlander.
+                    if (isEnPassantPossible && (0 == board.GetEpTarget()))
+                    {
+                        for (int i = 16; i < 24; ++i)
+                        {
+                            int ofs = PawnOffsetTable[i];
+
+                            // A white pawn on the fourth rank could have just moved two squares to get there,
+                            // but only if the two squares behind it are empty!
+                            if (square[ofs] == Square.Empty &&
+                                square[ofs + Direction.S] == Square.Empty &&
+                                square[ofs + 2*Direction.S] == Square.Empty)
+                            {
+                                square[ofs] = Square.WP;
+                                board.SetEpTarget(ofs + Direction.S);
+
+                                sum += PositionSearch(
+                                    func, table, config, board,
+                                    (pawnFactor * tableIndex) + (i + 32),   // encode white pawn as if on rank 8 instead of rank 4
+                                    pieceIndex,
+                                    whiteRemaining - 1,
+                                    blackRemaining,
+                                    false,     // we don't need diag filter when there are pawns
+                                    (whiteRemaining > 1) ? (i + 1) : 0);
+
+                                board.SetEpTarget(0);
+                                square[ofs] = Square.Empty;
+                            }
                         }
                     }
                 }
                 else // blackRemaining > 0
                 {
                     // Try putting the next Black pawn everywhere it can go.
+                    // We need to generate table indexes in strictly increasing order,
+                    // and because of the way en passant is encoded, we must generate
+                    // all non-en-passant placements before all en-passant placements.
                     for (int i=0; i < PawnOffsetTable.Length; ++i)
                     {
                         int ofs = PawnOffsetTable[i];
@@ -589,28 +611,41 @@ namespace EndgameTableGen
                                 false,     // we don't need diag filter when there are pawns
                                 (blackRemaining > 1) ? (i + 1) : 0);
 
-                            if (isEnPassantPossible && RankNumber(ofs) == 5 && ep == 0)
-                            {
-                                // A White pawn on the fifth rank could have just moved two squares to get there,
-                                // but only if the two squares behind it are empty!
-                                if (square[ofs + Direction.N] == Square.Empty && square[ofs + 2*Direction.N] == Square.Empty)
-                                {
-                                    board.SetEpTarget(ofs + Direction.N);
-
-                                    sum += PositionSearch(
-                                        func, table, config, board,
-                                        (pawnFactor * tableIndex) + (i + 24),   // note we use a different adjustment than for White Pawns, because Black Pawns on on a different rank
-                                        pieceIndex,
-                                        whiteRemaining,
-                                        blackRemaining - 1,
-                                        false,     // we don't need diag filter when there are pawns
-                                        (blackRemaining > 1) ? (i + 1) : 0);
-
-                                    board.SetEpTarget(0);
-                                }
-                            }
-
                             square[ofs] = Square.Empty;
+                        }
+                    }
+
+                    // Check for en passant placements of this black pawn, but only if
+                    // there are white pawns on the board too (isEnPassantPossible),
+                    // and we haven't already put another pawn in the en passant state.
+                    // "There can be only one!" -- Highlander.
+                    if (isEnPassantPossible && (0 == board.GetEpTarget()))
+                    {
+                        for (int i = 24; i < 32; ++i)
+                        {
+                            int ofs = PawnOffsetTable[i];
+
+                            // A Black pawn on the fifth rank could have just moved two squares to get there,
+                            // but only if the two squares behind it are empty!
+                            if (square[ofs] == Square.Empty &&
+                                square[ofs + Direction.N] == Square.Empty &&
+                                square[ofs + 2*Direction.N] == Square.Empty)
+                            {
+                                square[ofs] = Square.BP;
+                                board.SetEpTarget(ofs + Direction.N);
+
+                                sum += PositionSearch(
+                                    func, table, config, board,
+                                    (pawnFactor * tableIndex) + (i + 24),   // encode black pawn as if on rank 8 instead of rank 5
+                                    pieceIndex,
+                                    whiteRemaining,
+                                    blackRemaining - 1,
+                                    false,     // we don't need diag filter when there are pawns
+                                    (blackRemaining > 1) ? (i + 1) : 0);
+
+                                board.SetEpTarget(0);
+                                square[ofs] = Square.Empty;
+                            }
                         }
                     }
                 }
@@ -618,6 +653,13 @@ namespace EndgameTableGen
             else
             {
                 // We have placed all the pieces on the board!
+                // Make sure we are generating table indexes in strictly increasing order.
+                if (tableIndex <= prevTableIndex)
+                    throw new Exception($"Generated table indexes out of order: prev={prevTableIndex}, curr={tableIndex}");
+
+                prevTableIndex = tableIndex;
+
+                // Update board inventory after having poked and prodded the board.
                 board.RefreshAfterDangerousChanges();
 
                 // Visit the resulting position from both points of view: White's and Black's.
