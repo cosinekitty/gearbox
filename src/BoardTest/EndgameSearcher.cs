@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Gearbox;
 
 namespace BoardTest
@@ -16,6 +17,7 @@ namespace BoardTest
         private Square[] nonKingPieces;
         private IEndgamePositionVisitor visitor;
         private Board board = new Board(true);      // create an empty board
+        private bool isEnPassantPossible;
 
         private static readonly int[] WholeBoardOffsetTable = MakeOffsetTable('a', 'h', '1', '8');
         private static readonly int[] PawnOffsetTable = MakeOffsetTable('a', 'h', '2', '7');
@@ -29,6 +31,9 @@ namespace BoardTest
             this.nonKingPieces = nonKingPieces;
             this.visitor = visitor;
             board.Clear(true);
+
+            // En passant captures are possible when both sides have at least one pawn.
+            isEnPassantPossible = nonKingPieces.Contains(Square.WP) && nonKingPieces.Contains(Square.BP);
 
             if (!visitor.Start(nonKingPieces))
                 return false;
@@ -79,19 +84,69 @@ namespace BoardTest
             else
             {
                 // Recurse to put the remaining pieces on the board in every possible configuration.
-                Square piece = nonKingPieces[depth];
-                int[] offsetTable = (Square.Pawn == (piece & Square.PieceMask)) ? PawnOffsetTable : WholeBoardOffsetTable;
-
-                // FIXFIXFIX: does not exercise en passant when there are opposing pawns!
                 Square[] square = board.GetSquaresArray();
-                foreach (int ofs in offsetTable)
+                Square piece = nonKingPieces[depth];
+                if (Square.Pawn == (piece & Square.PieceMask))
                 {
-                    if (square[ofs] == Square.Empty)
+                    // Pawns can go in 48 squares on the board.
+                    foreach (int ofs in PawnOffsetTable)
                     {
-                        square[ofs] = piece;
-                        if (!EndgameSearchDepth(1 + depth))
-                            return false;
-                        square[ofs] = Square.Empty;
+                        if (square[ofs] == Square.Empty)
+                        {
+                            // Never put anything in the 2 squares behind a pawn that is in the en passant state.
+                            int ep = board.GetEpTarget();
+                            if (ofs == ep || ofs == ep + Direction.N || ofs == ep + Direction.S)
+                                continue;
+
+                            square[ofs] = piece;
+
+                            // Regular pawn placement.
+                            if (!EndgameSearchDepth(1 + depth))
+                                return false;
+
+                            if (isEnPassantPossible && (ep == 0))
+                            {
+                                // En passant pawn placement.
+                                if (piece == Square.WP && Board.Rank(ofs) == '4')
+                                {
+                                    // The two squares behind the white pawn must be empty for en passant to be possible.
+                                    if (square[ofs + Direction.S] == Square.Empty && square[ofs + 2*Direction.S] == Square.Empty)
+                                    {
+                                        board.SetEpTarget(ofs + Direction.S);
+                                        if (!EndgameSearchDepth(1 + depth))
+                                            return false;
+                                        board.SetEpTarget(0);
+                                    }
+                                }
+                                else if (piece == Square.BP && Board.Rank(ofs) == '5')
+                                {
+                                    // The two squares behind the black pawn must be empty for en passant to be possible.
+                                    if (square[ofs + Direction.N] == Square.Empty && square[ofs + 2*Direction.N] == Square.Empty)
+                                    {
+                                        board.SetEpTarget(ofs + Direction.N);
+                                        if (!EndgameSearchDepth(1 + depth))
+                                            return false;
+                                        board.SetEpTarget(0);
+                                    }
+                                }
+                            }
+
+                            square[ofs] = Square.Empty;
+                        }
+                    }
+                }
+                else
+                {
+                    // Any piece that is not a pawn can go in any of the 64 squares.
+                    foreach (int ofs in WholeBoardOffsetTable)
+                    {
+                        if (square[ofs] == Square.Empty)
+                        {
+                            square[ofs] = piece;
+                            if (!EndgameSearchDepth(1 + depth))
+                                return false;
+                            square[ofs] = Square.Empty;
+                        }
                     }
                 }
             }

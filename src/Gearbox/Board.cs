@@ -307,6 +307,18 @@ namespace Gearbox
                 throw new ArgumentException("Offset is outside the board.");
         }
 
+        public static char Rank(int offset)
+        {
+            Algebraic(offset, out char file, out char rank);
+            return rank;
+        }
+
+        public static char File(int offset)
+        {
+            Algebraic(offset, out char file, out char rank);
+            return file;
+        }
+
         public static string Algebraic(int offset)
         {
             char file, rank;
