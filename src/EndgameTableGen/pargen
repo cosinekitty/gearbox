@@ -8,8 +8,8 @@ NTHREADS=4
 rm -rf ../../tables/*.endgame ../../tables/work_*
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} || exit $?
-#if [[ -f ../../tables/reference/endgame.sha256 ]]; then
-#    cd ../../tables/
-#    sha256sum -c reference/endgame.sha256 || exit $?
-#fi
+if [[ -f ../../tables/reference/endgame.sha256 ]]; then
+    cd ../../tables/
+    sha256sum -c reference/endgame.sha256 || exit $?
+fi
 exit 0
