@@ -519,15 +519,36 @@ namespace EndgameTableGen
 
                 // Visit the resulting position from both points of view: White's and Black's.
 
-                // What if it is White's turn to move?
-                board.SetTurn(true);
-                if (board.IsValidPosition())
-                    sum += func(table, board, tableIndex);
+                // En passant states limit whether White or Black could possibly have the turn.
+                switch (board.GetEpTarget() / 10)
+                {
+                    case 0:     // no en passant: either side could have the turn.
+                        // What if it is White's turn to move?
+                        board.SetTurn(true);
+                        if (board.IsValidPosition())
+                            sum += func(table, board, tableIndex);
 
-                // What if it is Black's turn to move?
-                board.SetTurn(false);
-                if (board.IsValidPosition())
-                    sum += func(table, board, tableIndex);
+                        // What if it is Black's turn to move?
+                        board.SetTurn(false);
+                        if (board.IsValidPosition())
+                            sum += func(table, board, tableIndex);
+                        break;
+
+                    case 4:     // A white pawn is in the en passant state. Therefore, it can only be Black's turn.
+                        board.SetTurn(false);
+                        if (board.IsValidPosition())
+                            sum += func(table, board, tableIndex);
+                        break;
+
+                    case 7:     // A black pawn is in the en passant state. Therefore, it can only be White's turn.
+                        board.SetTurn(true);
+                        if (board.IsValidPosition())
+                            sum += func(table, board, tableIndex);
+                        break;
+
+                    default:
+                        throw new Exception($"Invalid en passant target {board.GetEpTarget()} in position: {board.ForsythEdwardsNotation()}");
+                }
             }
 
             return sum;

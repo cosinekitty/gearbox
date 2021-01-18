@@ -69,17 +69,43 @@ namespace BoardTest
                 // Assess this position with both White and Black to move.
                 board.RefreshAfterDangerousChanges();
 
-                // What if it is White's turn to move?
-                board.SetTurn(true);
-                if (board.IsValidPosition())
-                    if (!visitor.Visit(board))
-                        return false;
+                // If there is a pawn in the en passant state,
+                // it implies the side that moved that pawn
+                // no longer has the turn.
 
-                // What if it is Black's turn to move?
-                board.SetTurn(false);
-                if (board.IsValidPosition())
-                    if (!visitor.Visit(board))
-                        return false;
+                switch (board.GetEpTarget() / 10)
+                {
+                    case 0:     // no en passant: either side could have the turn
+                        // What if it is White's turn to move?
+                        board.SetTurn(true);
+                        if (board.IsValidPosition())
+                            if (!visitor.Visit(board))
+                                return false;
+
+                        // What if it is Black's turn to move?
+                        board.SetTurn(false);
+                        if (board.IsValidPosition())
+                            if (!visitor.Visit(board))
+                                return false;
+                        break;
+
+                    case 4:     // A white pawn just moved two squares. Therefore, it can only be Black's turn.
+                        board.SetTurn(false);
+                        if (board.IsValidPosition())
+                            if (!visitor.Visit(board))
+                                return false;
+                        break;
+
+                    case 7:     // A black pawn just moved two squares. Therefore, it can only be White's turn.
+                        board.SetTurn(true);
+                        if (board.IsValidPosition())
+                            if (!visitor.Visit(board))
+                                return false;
+                        break;
+
+                    default:
+                        throw new Exception($"Invalid en passant target {board.GetEpTarget()} in position: {board.ForsythEdwardsNotation()}");
+                }
             }
             else
             {
