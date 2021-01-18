@@ -46,34 +46,18 @@ namespace EndgameTableGen
             Directory.Delete(work_dir, true);
         }
 
-        private int UnresolvedWhiteParents(int table_size)
-        {
-            int total = 0;
-            for (int tindex = 0; tindex < table_size; ++tindex)
-                if (whiteUnresolvedChildren[tindex] > 0)
-                    ++total;
-            return total;
-        }
-
-        private int UnresolvedBlackParents(int table_size)
-        {
-            int total = 0;
-            for (int tindex = 0; tindex < table_size; ++tindex)
-                if (blackUnresolvedChildren[tindex] > 0)
-                    ++total;
-            return total;
-        }
-
         private void BackPropagate(TableGenerator generator, Table table, EdgeIndexer whiteIndexer, EdgeIndexer blackIndexer)
         {
             int table_size = table.Size;
             var parent_list = new List<int>();
-            int whiteUnresolvedParents = UnresolvedWhiteParents(table_size);
-            int blackUnresolvedParents = UnresolvedBlackParents(table_size);
-            generator.Log("BackPropagate: starting {0:D10} with unresolved {1:N0} white, {2:N0} black.", generator.CurrentConfigId, whiteUnresolvedParents, blackUnresolvedParents);
+
+            // Find farthest ply from mate inherited from foreign tables.
+            int ply_limit = PlyLimit(table);
+
+            generator.Log("BackPropagate: starting {0:D10} with ply limit {1}", generator.CurrentConfigId, ply_limit);
 
             int progress = 1;
-            for (int child_ply = 0; progress > 0; ++child_ply)
+            for (int child_ply = 0; child_ply <= ply_limit || progress > 0; ++child_ply)
             {
                 int parent_ply = child_ply + 1;
                 int white_progress = 0;
@@ -221,19 +205,52 @@ namespace EndgameTableGen
                     }
                 }
 
-                whiteUnresolvedParents = UnresolvedWhiteParents(table_size);
-                blackUnresolvedParents = UnresolvedBlackParents(table_size);
+                ply_limit = FarthestPly(bestScoreSoFar);
 
-                generator.Log("BackPropagate[{0:D10}:{1:D2}]:  progress(white={2:N0}  black={3:N0})  unresolved=(white={4:N0}  black={5:N0})",
+                generator.Log("BackPropagate[{0:D10}:{1:D2}:{4:D2}]:  white={2:N0}  black={3:N0}",
                     generator.CurrentConfigId,
                     parent_ply,
                     white_progress,
                     black_progress,
-                    whiteUnresolvedParents,
-                    blackUnresolvedParents);
+                    ply_limit);
 
                 progress = white_progress + black_progress;
             }
+        }
+
+        private int PlyLimit(Table table)
+        {
+            return Math.Max(FarthestPly(bestScoreSoFar), FarthestPly(table));
+        }
+
+        private static int FarthestPly(Table table)
+        {
+            // Scan through the given table to find the node that has a forced win/loss
+            // with the largest ply count. Return that ply count.
+            // This is an indicator of how many plies we need to scan to make sure
+            // we have finished all the work we need to do in this endgame configuration.
+
+            int table_size = table.Size;
+            int max_ply = -1;
+            for (int tindex = 0; tindex < table_size; ++tindex)
+            {
+                int score = Math.Abs(table.GetWhiteScore(tindex));
+                if (score > 0 && score <= TableGenerator.EnemyMatedScore)
+                {
+                    int ply = TableGenerator.EnemyMatedScore - score;
+                    if (max_ply < ply)
+                        max_ply = ply;
+                }
+
+                score = Math.Abs(table.GetBlackScore(tindex));
+                if (score > 0 && score <= TableGenerator.EnemyMatedScore)
+                {
+                    int ply = TableGenerator.EnemyMatedScore - score;
+                    if (max_ply < ply)
+                        max_ply = ply;
+                }
+            }
+            return max_ply;
         }
 
         private EdgeIndexer Sort(
