@@ -71,7 +71,7 @@ namespace EndgameTableGen
             return config;
         }
 
-        protected static string OutputDirectory()
+        public static string OutputDirectory()
         {
             string dir = Environment.GetEnvironmentVariable("GEARBOX_TABLEBASE_DIR") ?? Environment.CurrentDirectory;
             return dir;

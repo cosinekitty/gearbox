@@ -30,7 +30,6 @@ namespace EndgameTableGen
                 throw new ArgumentException($"Cannot set new size to {size}; existing capacity is {Capacity}");
 
             size = newsize;
-            Clear();
         }
 
         public static MemoryTable MemoryLoad(string filename, int size)

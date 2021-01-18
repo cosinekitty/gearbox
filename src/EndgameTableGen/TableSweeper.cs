@@ -2,6 +2,8 @@ namespace EndgameTableGen
 {
     internal abstract class TableSweeper
     {
+        public abstract void Init(int max_table_size);
+
         public abstract void Sweep(
             TableGenerator generator,
             Table table,

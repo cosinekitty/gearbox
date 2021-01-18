@@ -49,6 +49,9 @@ namespace EndgameTableGen
             }
 
             this.sweeper = sweeper;
+
+            if (sweeper != null)
+                sweeper.Init(max_table_size);
         }
 
         public override void Dispose()
@@ -123,6 +126,7 @@ namespace EndgameTableGen
                 {
                     Log("GenerateTable: Resizing existing table with capacity {0} to {1}", table.Capacity, size);
                     table.Resize(size);
+                    table.Clear();
                 }
                 else
                 {

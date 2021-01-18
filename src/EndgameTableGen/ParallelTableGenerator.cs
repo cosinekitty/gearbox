@@ -16,16 +16,19 @@ namespace EndgameTableGen
         private readonly HashSet<long> allConfigIds = new();
         private readonly Stopwatch chrono = new();
         private readonly AutoResetEvent[] waiters;
-        private readonly TableSweeper sweeper;
+        private readonly TableSweeper[] sweeperForThread;
 
-        public ParallelTableGenerator(int max_table_size, int num_threads, TableSweeper sweeper)
+        public ParallelTableGenerator(int max_table_size, int num_threads, Func<TableSweeper> sweeperFactory)
         {
-            this.sweeper = sweeper;
             this.max_table_size = max_table_size;
             this.num_threads = num_threads;
             waiters = new AutoResetEvent[num_threads];
+            sweeperForThread = new TableSweeper[num_threads];
             for (int i = 0; i < num_threads; ++i)
+            {
                 waiters[i] = new AutoResetEvent(false);
+                sweeperForThread[i] = sweeperFactory();
+            }
         }
 
         public override void Dispose()
@@ -139,7 +142,7 @@ namespace EndgameTableGen
         private void ThreadFunc(object arg)
         {
             int thread_number = (int)arg;
-            var worker = new TableGenerator(max_table_size, sweeper)
+            var worker = new TableGenerator(max_table_size, sweeperForThread[thread_number])
             {
                 LogTag = thread_number.ToString("00"),
             };

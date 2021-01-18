@@ -115,6 +115,22 @@ EndgameTableGen child_test
                     return 1;
                 }
 
+                TableSweeper sweeper;
+                switch (args[0])
+                {
+                    case "gen_forward":
+                        sweeper = new TableSweeper_Forward();
+                        break;
+
+                    case "gen_backward":
+                        sweeper = new TableSweeper_Backward();
+                        break;
+
+                    default:
+                        sweeper = null;
+                        break;
+                }
+
                 ITableWorker worker;
                 switch (args[0])
                 {
@@ -123,17 +139,13 @@ EndgameTableGen child_test
                         break;
 
                     case "gen_forward":
+                    case "gen_backward":
                         // Figure out the maximum possible table size up front.
                         int max_table_size = MaxTableSize(nonkings);
 
                         // Now the generator can pre-allocate the worst-case memory usage.
-                        var sweeper = new TableSweeper_Forward();
                         worker = new TableGenerator(max_table_size, sweeper);
                         break;
-
-                    case "gen_backward":
-                        Console.WriteLine("ERROR: gen_backward not yet implemented.");
-                        return 1;
 
                     case "test":
                         worker = new TableGenerator(0, null);
@@ -165,16 +177,16 @@ EndgameTableGen child_test
                     return 1;
                 }
 
-                TableSweeper sweeper;
+                Func<TableSweeper> sweeperFactory;
                 switch (args[3])
                 {
                     case "forward":
-                        sweeper = new TableSweeper_Forward();
+                        sweeperFactory = (() => new TableSweeper_Forward());
                         break;
 
                     case "backward":
-                        Console.WriteLine("ERROR: Backward propagation not yet implemented.");
-                        return 1;
+                        sweeperFactory = (() => new TableSweeper_Backward());
+                        break;
 
                     default:
                         Console.WriteLine("ERROR: Invalid propagation type: {0}", args[3]);
@@ -182,7 +194,7 @@ EndgameTableGen child_test
                 }
 
                 int max_table_size = MaxTableSize(nonkings);
-                var worker = new ParallelTableGenerator(max_table_size, num_threads, sweeper);
+                var worker = new ParallelTableGenerator(max_table_size, num_threads, sweeperFactory);
                 using (var planner = new WorkPlanner(worker))
                 {
                     planner.Plan(nonkings);

@@ -5,6 +5,10 @@ namespace EndgameTableGen
 {
     internal class TableSweeper_Forward : TableSweeper
     {
+        public override void Init(int max_table_size)
+        {
+        }
+
         public override void Sweep(
             TableGenerator generator,
             Table table,
