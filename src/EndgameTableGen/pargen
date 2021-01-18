@@ -1,13 +1,14 @@
 #!/bin/bash
 if [[ -z "$1" ]]; then
-    CONFIG=Release
+    SWEEPER=forward
 else
-    CONFIG=$1
+    SWEEPER=$1
 fi
+CONFIG=Release
 NTHREADS=4
 rm -rf ../../tables/*.endgame ../../tables/work_*
 dotnet build --configuration ${CONFIG} || exit $?
-bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} || exit $?
+bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} || exit $?
 if [[ -f ../../tables/reference/endgame.sha256 ]]; then
     cd ../../tables/
     sha256sum -c reference/endgame.sha256 || exit $?

@@ -24,15 +24,17 @@ EndgameTableGen plan N
     in dependency order, for all possible configurations of
     up to N non-king pieces/pawns, where N = 1..{0}.
 
-EndgameTableGen gen N
+EndgameTableGen gen_forward N
+EndgameTableGen gen_backward N
     Generates all tables for up to N non-king movers.
     If the program is interrupted and resumed, will
     load all the tables that were completed and resume
     at the first unwritten table.
 
-EndgameTableGen pgen N T
+EndgameTableGen pgen N T [forward|backward]
     Like 'gen N', only runs the generator in parallel
     using T = 1..{1} threads.
+    The final parameter specifies which propagation type to use.
 
 EndgameTableGen test N
     Perform a self-test on generating distinct positions
@@ -120,16 +122,21 @@ EndgameTableGen child_test
                         worker = new TablePrinter();
                         break;
 
-                    case "gen":
+                    case "gen_forward":
                         // Figure out the maximum possible table size up front.
                         int max_table_size = MaxTableSize(nonkings);
 
                         // Now the generator can pre-allocate the worst-case memory usage.
-                        worker = new TableGenerator(max_table_size) { EnableTableGeneration = true };
+                        var sweeper = new TableSweeper_Forward();
+                        worker = new TableGenerator(max_table_size, sweeper);
                         break;
 
+                    case "gen_backward":
+                        Console.WriteLine("ERROR: gen_backward not yet implemented.");
+                        return 1;
+
                     case "test":
-                        worker = new TableGenerator(0) { EnableTableGeneration = false };
+                        worker = new TableGenerator(0, null);
                         break;
 
                     default:
@@ -144,7 +151,7 @@ EndgameTableGen child_test
                 return 0;
             }
 
-            if (args.Length == 3 && args[0] == "pgen")
+            if (args.Length == 4 && args[0] == "pgen")
             {
                 if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > MaxNonKings))
                 {
@@ -158,8 +165,24 @@ EndgameTableGen child_test
                     return 1;
                 }
 
+                TableSweeper sweeper;
+                switch (args[3])
+                {
+                    case "forward":
+                        sweeper = new TableSweeper_Forward();
+                        break;
+
+                    case "backward":
+                        Console.WriteLine("ERROR: Backward propagation not yet implemented.");
+                        return 1;
+
+                    default:
+                        Console.WriteLine("ERROR: Invalid propagation type: {0}", args[3]);
+                        return 1;
+                }
+
                 int max_table_size = MaxTableSize(nonkings);
-                var worker = new ParallelTableGenerator(max_table_size, num_threads);
+                var worker = new ParallelTableGenerator(max_table_size, num_threads, sweeper);
                 using (var planner = new WorkPlanner(worker))
                 {
                     planner.Plan(nonkings);
@@ -402,7 +425,7 @@ EndgameTableGen child_test
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
             Table table = MemoryTable.MemoryLoad(filename, size);
-            var worker = new TableGenerator(0);
+            var worker = new TableGenerator(0, null);
             worker.ForEachPosition(table, config, PrintNode);
             return 0;
         }
