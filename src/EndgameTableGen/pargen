@@ -1,12 +1,12 @@
 #!/bin/bash
 if [[ -z "$1" ]]; then
-    SWEEPER=forward
+    SWEEPER=backward
 else
     SWEEPER=$1
 fi
 CONFIG=Release
 NTHREADS=4
-rm -rf ../../tables/*.endgame ../../tables/work_*
+rm -rf ../../tables/*.endgame ../../tables/*.temp ../../tables/work_*
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} || exit $?
 if [[ -f ../../tables/reference/endgame.sha256 ]]; then
