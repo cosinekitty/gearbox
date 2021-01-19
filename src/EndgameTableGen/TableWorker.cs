@@ -131,7 +131,7 @@ namespace EndgameTableGen
 
         internal string LogTag;     // needed for tagging the threads in multithreaded workloads
 
-        private readonly object LogMutex = new object();
+        private static readonly object LogMutex = new object();
 
         internal void Log(string format, params object[] args)
         {
