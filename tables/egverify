@@ -1,8 +1,10 @@
 #!/bin/bash
-dotnet build -c Release -p ../src/BoardTest
+dotnet build ../src/BoardTest/BoardTest.csproj -c Release || exit $?
 for nonkings in Q r P QQ Qq QR Qr QB Qb QN Qn QP Qp RR Rr RB Rb RN Rn RP Rp BB BN BP Bp NP Np PP Pp; do
     echo ${nonkings}
+    ../src/BoardTest/bin/Release/net5.0/BoardTest endgame ${nonkings} || exit $?
 done
+exit 0
 
 #        [Qq Rr Bb Nn Pp]                [size]
 #         10 00 00 00 00                 40,960
