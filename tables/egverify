@@ -1,7 +1,8 @@
 #!/bin/bash
-dotnet build ../src/BoardTest/BoardTest.csproj -c Release || exit $?
+dotnet build ../src/BoardTest -c Release || exit $?
 for nonkings in Q r P QQ Qq QR Qr QB Qb QN Qn QP Qp RR Rr RB Rb RN Rn RP Rp BB BN BP Bp NP Np PP Pp; do
-    echo ${nonkings}
+    echo ""
+    echo "egverify: Testing configuration ${nonkings}"
     ../src/BoardTest/bin/Release/net5.0/BoardTest endgame ${nonkings} || exit $?
 done
 exit 0

@@ -174,8 +174,14 @@ namespace BoardTest
                 return false;
 
             chrono.Stop();
-            Console.WriteLine("PASS TestEndgameWalk{0} : {1} nodes in {2} seconds.",
-                ConfigText(nonKingPieces), visitor.NodeCount, chrono.Elapsed.TotalSeconds.ToString("F3"));
+
+            Console.WriteLine("PASS TestEndgameWalk{0} : {1} nodes ({2} White wins, {3} Black wins, {4} draws) in {5} seconds.",
+                ConfigText(nonKingPieces),
+                visitor.NodeCount,
+                visitor.WhiteWonCount,
+                visitor.BlackWonCount,
+                visitor.DrawCount,
+                chrono.Elapsed.TotalSeconds.ToString("F3"));
 
             return true;
         }
