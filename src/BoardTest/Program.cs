@@ -105,14 +105,26 @@ namespace BoardTest
             {
                 // "Canned" tests...
 
-                var testList = new EndgamePositionTest[]
+                var positionList = new EndgamePositionTest[]
                 {
                     new EndgamePositionTest("8/8/8/8/5kp1/8/4K3/8 b - - 9 5", "#11"),
                     new EndgamePositionTest("1k6/8/1K6/8/8/1R6/8/8 w - - 1 1", "#2"),
+                    new EndgamePositionTest("K7/1P6/k7/8/8/8/3B4/8 w - - 0 1", "#8"),
                 };
 
-                foreach (EndgamePositionTest t in testList)
-                    if (!TestEndgamePosition(thinker, t.fen, t.score))
+                foreach (EndgamePositionTest p in positionList)
+                    if (!TestEndgamePosition(thinker, p.fen, p.score))
+                        return false;
+
+                var configurationList = new Square[][]
+                {
+                    new Square[] { Square.WQ },
+                    new Square[] { Square.BR },
+                    new Square[] { Square.BP },
+                };
+
+                foreach (Square[] config in configurationList)
+                    if (!TestEndgameWalk(thinker, config))
                         return false;
 
                 Console.WriteLine("PASS: TestEndgames");
