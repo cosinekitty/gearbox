@@ -12,6 +12,7 @@ namespace EndgameTableGen
         public override void Sweep(
             TableGenerator generator,
             Table table,
+            int max_search_ply,
             string whiteChildFileName,
             string whiteIndexFileName,
             string blackChildFileName,
@@ -21,7 +22,7 @@ namespace EndgameTableGen
             {
                 using (var blackChildReader = new ChildReader(blackChildFileName, blackIndexFileName))
                 {
-                    ForwardPropagate(generator, table, whiteChildReader, blackChildReader);
+                    ForwardPropagate(generator, table, max_search_ply, whiteChildReader, blackChildReader);
                 }
             }
 
@@ -35,6 +36,7 @@ namespace EndgameTableGen
         private void ForwardPropagate(
             TableGenerator generator,
             Table table,
+            int max_search_ply,
             ChildReader whiteChildReader,
             ChildReader blackChildReader)
         {
@@ -49,7 +51,7 @@ namespace EndgameTableGen
             int size = table.Size;
             int prev_progress = 1;
             int curr_progress = 0;
-            for (int ply = 1; prev_progress + curr_progress > 0; ++ply)
+            for (int ply = 1; prev_progress + curr_progress > 0 || ply <= max_search_ply + 1; ++ply)
             {
                 prev_progress = curr_progress;
                 int white_changes = 0;

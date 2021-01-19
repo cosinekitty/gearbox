@@ -7,6 +7,7 @@ namespace EndgameTableGen
         public abstract void Sweep(
             TableGenerator generator,
             Table table,
+            int max_search_ply,
             string whiteChildFileName,
             string whiteIndexFileName,
             string blackChildFileName,

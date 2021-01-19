@@ -37,6 +37,7 @@ namespace EndgameTableGen
         private ChildWriter blackChildWriter;
         private int prevTableIndex;     // detects generating table indexes out of order
         private TableSweeper sweeper;
+        private int max_search_ply;  // most distant forced mate that reaches into foreign tables
 
         public TableGenerator(int max_table_size, TableSweeper sweeper)
         {
@@ -144,6 +145,7 @@ namespace EndgameTableGen
 
                 if (sweeper != null)
                 {
+                    max_search_ply = 0;
                     table.SetAllScores(UnreachablePos);
 
                     string whiteChildFileName = Path.Combine(OutputDirectory(), configIdText + "_wc.temp");
@@ -161,7 +163,7 @@ namespace EndgameTableGen
                         whiteChildWriter.BeginParent(size);         // pad the end of the index file
                     }
 
-                    sweeper.Sweep(this, table, whiteChildFileName, whiteIndexFileName, blackChildFileName, blackIndexFileName);
+                    sweeper.Sweep(this, table, max_search_ply, whiteChildFileName, whiteIndexFileName, blackChildFileName, blackIndexFileName);
 
                     // Any lingering positions with undefined scores should be interpreted as draws.
                     table.ReplaceScores(UndefinedScore, DrawScore);
@@ -672,6 +674,7 @@ namespace EndgameTableGen
                 // Set the score for this position accordingly.
                 // We don't need to write anything to the child table because the score is settled.
                 int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
+                UpdateMaxSearchPly(score, board, tindex);
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
 
@@ -737,7 +740,25 @@ namespace EndgameTableGen
             // Remember the best-so-far score of any transitions into foreign tables
             // and commit this parent/children set.
             writer.FinishParent(best_foreign_score);
+
+            // Also track how far into the future (number of plies) the best foreign score reaches.
+            // This helps the propagators (Sweep functions) figure out how many times they have to iterate.
+            UpdateMaxSearchPly(best_foreign_score, board, tindex);
+
             return 0;
+        }
+
+        private void UpdateMaxSearchPly(int score, Board board, int tindex)
+        {
+            if (score != 0 && score >= FriendMatedScore && score <= EnemyMatedScore)
+            {
+                int plies = EnemyMatedScore - Math.Abs(score);
+                if (max_search_ply < plies)
+                {
+                    max_search_ply = plies;
+                    Log("WriteChildren: Updated max search ply to {0} for tindex={1} : {2}", plies, tindex, board.ForsythEdwardsNotation());
+                }
+            }
         }
 
         internal static int AdjustScoreForPly(int score)
