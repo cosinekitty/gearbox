@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+sudo apt-get update
+sudo apt-get -y upgrade
+curl -o packages-microsoft-prod.deb https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+sudo apt-get update
+sudo apt-get install -y apt-transport-https
+sudo apt-get update
+sudo apt-get install -y dotnet-sdk-5.0 git
+dotnet --info
+git --version
+git config --global user.name "Don Cross"
+git config --global user.email cosinekitty@gmail.com
+git config --global push.default simple
+mkdir github
+cd github
+git clone https://github.com/cosinekitty/gearbox.git
+cd gearbox/src/EndgameTableGen
+echo 'export GEARBOX_TABLEBASE_DIR=${HOME}/github/gearbox/tables' >> /home/don/.bash_aliases
