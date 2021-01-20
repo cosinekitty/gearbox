@@ -82,7 +82,7 @@ namespace EndgameTableGen
                 threadPool[i].Join();
 
             chrono.Stop();
-            Log("Finished after {0} = {1} seconds.", chrono.Elapsed, chrono.Elapsed.TotalSeconds);
+            Log("Finished after {0} = {1} seconds. Max parallel jobs = {2}.", chrono.Elapsed, chrono.Elapsed.TotalSeconds, MaxParallelJobs);
         }
 
         private bool GetNextAvailableJob(int thread_number, TableGenerator worker, out long config_id)
@@ -139,13 +139,14 @@ namespace EndgameTableGen
             return true;
         }
 
+        private int ParallelJobs;
+        private int MaxParallelJobs;
+
         private void ThreadFunc(object arg)
         {
             int thread_number = (int)arg;
-            var worker = new TableGenerator(max_table_size, sweeperForThread[thread_number])
-            {
-                LogTag = thread_number.ToString("00"),
-            };
+            using var worker = new TableGenerator(max_table_size, sweeperForThread[thread_number]);
+            worker.LogTag = thread_number.ToString("00");
             worker.Log("Thread starting");
             while (GetNextAvailableJob(thread_number, worker, out long config_id))
             {
@@ -157,6 +158,11 @@ namespace EndgameTableGen
                 {
                     foreach (var kv in finished)
                         worker.AddToFinishedTable(kv.Key, kv.Value);
+
+                    ++ParallelJobs;
+                    if (MaxParallelJobs < ParallelJobs)
+                        MaxParallelJobs = ParallelJobs;
+                    worker.Log("Incremented parallel jobs={0}, max={1}", ParallelJobs, MaxParallelJobs);
                 }
 
                 // Generate the table!
@@ -166,6 +172,8 @@ namespace EndgameTableGen
                 // Reflect this new work in the shared 'finished' table so other threads can use it.
                 lock (finished)
                 {
+                    --ParallelJobs;
+                    worker.Log("Decremented parallel jobs: {0}", ParallelJobs);
                     finished.Add(config_id, table);
                 }
 

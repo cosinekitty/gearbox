@@ -8,7 +8,9 @@ CONFIG=Release
 NTHREADS=4
 rm -rf ../../tables/*.endgame ../../tables/*.temp ../../tables/work_*
 dotnet build --configuration ${CONFIG} || exit $?
-bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} || exit $?
+bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} | tee pargen.log
+# Capture error from EndgameTableGen even though tee sets $? ...
+[[ ${PIPESTATUS[0]} == 0 ]] || exit 1
 if [[ -f ../../tables/reference/endgame.sha256 ]]; then
     cd ../../tables/
     sha256sum -c reference/endgame.sha256 || exit $?
