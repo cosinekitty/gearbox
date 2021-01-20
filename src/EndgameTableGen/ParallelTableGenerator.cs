@@ -71,6 +71,7 @@ namespace EndgameTableGen
                 {
                     IsBackground = false,
                     Name = $"Table Gen {i}/{num_threads}",
+                    Priority = ThreadPriority.BelowNormal,
                 };
                 threadPool[i].Start(i);
             }
