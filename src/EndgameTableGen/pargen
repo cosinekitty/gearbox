@@ -1,14 +1,14 @@
 #!/bin/bash
-if [[ -z "$1" ]]; then
-    SWEEPER=backward
-else
-    SWEEPER=$1
-fi
+SWEEPER=backward
 CONFIG=Release
 NTHREADS=4
-rm -rf ../../tables/*.endgame ../../tables/*.temp ../../tables/work_*
+NONKINGS=3
+if [[ "$1" == "restart" ]]; then
+    rm -rfv ../../tables/*.endgame ../../tables/*.temp ../../tables/work_*
+fi
 dotnet build --configuration ${CONFIG} || exit $?
-bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} | tee pargen.log
+bin/${CONFIG}/net5.0/EndgameTableGen pgen ${NONKINGS} ${NTHREADS} ${SWEEPER} | tee pargen.log
+
 # Capture error from EndgameTableGen even though tee sets $? ...
 [[ ${PIPESTATUS[0]} == 0 ]] || exit 1
 if [[ -f ../../tables/reference/endgame.sha256 ]]; then
