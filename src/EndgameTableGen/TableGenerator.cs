@@ -215,6 +215,7 @@ namespace EndgameTableGen
                 wkOffsetTable = EightfoldSymmetryTable;
             }
 
+            string config_text = ConfigString(config);
             for (int wkindex = 0; wkindex < wkOffsetTable.Length; ++wkindex)
             {
                 int wkofs = wkOffsetTable[wkindex];
@@ -227,6 +228,7 @@ namespace EndgameTableGen
                 // below the diagonal. If *all* pieces are on the diagonal, there is no redundancy to resolve.
                 int diag = Position.DiagonalHeight(Position.IndexFromOffset(wkofs));
                 bool need_diag_filter = (pawns == 0) && (diag == 0);
+                var timeSinceLastUpdate = Stopwatch.StartNew();
 
                 for (int bkindex = 0; bkindex < WholeBoardOffsetTable.Length; ++bkindex)
                 {
@@ -249,6 +251,19 @@ namespace EndgameTableGen
                             config[BLACK,Q_INDEX],
                             need_diag_filter && (bk_diag_height == 0),
                             0);
+
+                        if (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0)
+                        {
+                            Log("ForEachPosition[{0}]: wk={1}/{2}, bk={3}/{4}, sum={5}",
+                                config_text,
+                                wkindex,
+                                wkOffsetTable.Length,
+                                bkindex,
+                                WholeBoardOffsetTable.Length,
+                                sum);
+
+                            timeSinceLastUpdate.Restart();
+                        }
                     }
                 }
             }
