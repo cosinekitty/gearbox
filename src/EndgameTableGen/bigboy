@@ -1,0 +1,8 @@
+#!/bin/bash
+SWEEPER=backward
+CONFIG=Release
+NTHREADS=16
+LOGFILE=bigboy.log
+rm -rf ../../tables/*.endgame ../../tables/*.temp ../../tables/work_*
+dotnet build --configuration ${CONFIG} || exit $?
+nohup bin/${CONFIG}/net5.0/EndgameTableGen pgen 2 ${NTHREADS} ${SWEEPER} 2>&1 > bigboy.log &
