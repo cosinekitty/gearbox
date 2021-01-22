@@ -1,4 +1,0 @@
-#!/bin/bash
-dotnet run -- child_test || exit $?
-dotnet run -- test 2 || exit $?
-exit 0

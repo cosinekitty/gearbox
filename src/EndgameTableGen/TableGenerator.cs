@@ -33,13 +33,11 @@ namespace EndgameTableGen
         private readonly Dictionary<long, Table> finished = new();
         public long CurrentConfigId;
         private MemoryTable table;
-        private ChildWriter whiteChildWriter;
-        private ChildWriter blackChildWriter;
         private int prevTableIndex;     // detects generating table indexes out of order
-        private TableSweeper sweeper;
-        private int max_search_ply;  // most distant forced mate that reaches into foreign tables
+        private int search_ply;
+        private int max_search_ply;     // most distant forced mate that reaches into foreign tables
 
-        public TableGenerator(int max_table_size, TableSweeper sweeper)
+        public TableGenerator(int max_table_size)
         {
             if (max_table_size > 0)
             {
@@ -48,11 +46,6 @@ namespace EndgameTableGen
                 // We will adjust the effective table size as needed for each configuration.
                 table = new MemoryTable(0, max_table_size);
             }
-
-            this.sweeper = sweeper;
-
-            if (sweeper != null)
-                sweeper.Init(max_table_size);
         }
 
         public override void Dispose()
@@ -112,7 +105,7 @@ namespace EndgameTableGen
             long reverseConfigId = GetConfigId(config, true);
             Debug.Assert(ReverseSideConfigId(CurrentConfigId) == reverseConfigId);
 
-            if ((sweeper != null) && File.Exists(filename))
+            if (File.Exists(filename))
             {
                 // We have already calculated this endgame table. Fall through to code below to recycle the file.
                 Log("Recyling: {0}", filename);
@@ -135,55 +128,25 @@ namespace EndgameTableGen
                     table = new MemoryTable(size, size);
                 }
 
-                WhiteCount = BlackCount = 0;
-                int total = ForEachPosition(table, config, InitialPass);
-                double ratio = total / (2.0 * size);        // There are 2 scores per position (White and Black).
-                Log("InitialPass: {0:n0} White positions, {1:n0} Black positions, {2:n0} total; ratio = {3}.",
-                    WhiteCount, BlackCount, total, ratio.ToString("F6"));
-                Debug.Assert(total == WhiteCount + BlackCount);
-                Debug.Assert(total < 2*size);
+                max_search_ply = 0;
+                table.SetAllScores(UnreachablePos);
 
-                if (sweeper != null)
-                {
-                    max_search_ply = 0;
-                    table.SetAllScores(UnreachablePos);
+                for (search_ply = 0; search_ply <= max_search_ply; ++search_ply)
+                    ForEachPosition(table, config, VisitPosition);
 
-                    string whiteChildFileName = Path.Combine(OutputDirectory(), configIdText + "_wc.temp");
-                    string whiteIndexFileName = Path.Combine(OutputDirectory(), configIdText + "_wx.temp");
-                    string blackChildFileName = Path.Combine(OutputDirectory(), configIdText + "_bc.temp");
-                    string blackIndexFileName = Path.Combine(OutputDirectory(), configIdText + "_bx.temp");
+                // Any lingering positions with undefined scores should be interpreted as draws.
+                table.ReplaceScores(UndefinedScore, DrawScore);
 
-                    using (whiteChildWriter = new ChildWriter(whiteChildFileName, whiteIndexFileName))
-                    {
-                        using (blackChildWriter = new ChildWriter(blackChildFileName, blackIndexFileName))
-                        {
-                            ForEachPosition(table, config, WriteChildren);
-                            blackChildWriter.BeginParent(size);     // pad the end of the index file
-                        }
-                        whiteChildWriter.BeginParent(size);         // pad the end of the index file
-                    }
-
-                    sweeper.Sweep(this, table, max_search_ply, whiteChildFileName, whiteIndexFileName, blackChildFileName, blackIndexFileName);
-
-                    // Any lingering positions with undefined scores should be interpreted as draws.
-                    table.ReplaceScores(UndefinedScore, DrawScore);
-
-                    // Save the table to disk.
-                    table.Save(filename);
-                    Log("Saved: {0}", filename);
-                }
+                // Save the table to disk.
+                table.Save(filename);
+                Log("Saved: {0}", filename);
             }
 
-            if (sweeper != null)
-            {
-                // Migrate the table from high-speed/high-memory to slower/low-memory.
-                var diskTable = new DiskTable(size, filename);
-                diskTable.OpenForRead();
-                finished.Add(CurrentConfigId, diskTable);
-                return diskTable;
-            }
-
-            return null;
+            // Migrate the table from high-speed/high-memory to slower/low-memory.
+            var diskTable = new DiskTable(size, filename);
+            diskTable.OpenForRead();
+            finished.Add(CurrentConfigId, diskTable);
+            return diskTable;
         }
 
         public override void Finish()
@@ -254,8 +217,10 @@ namespace EndgameTableGen
 
                         if (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0)
                         {
-                            Log("ForEachPosition[{0}]: wk={1}/{2}, bk={3}/{4}, sum={5}",
+                            Log("ForEachPosition[{0} : {1:00}/{2:00}]: wk={3}/{4}, bk={5}/{6}, sum={7}",
                                 config_text,
+                                search_ply,
+                                max_search_ply,
                                 wkindex,
                                 wkOffsetTable.Length,
                                 bkindex,
@@ -622,46 +587,6 @@ namespace EndgameTableGen
             return s;
         }
 
-        private long CallCount;
-        private long WhiteCount;
-        private long BlackCount;
-
-        private int InitialPass(Table table, Board board, int tindex)
-        {
-            ++CallCount;
-
-            // Verify we are calculating all the table indexes correctly.
-            int check_tindex = board.GetEndgameTableIndex(false);
-            if (check_tindex != tindex)
-                throw new Exception(string.Format("#{0} Table index disagreement (check={1}, tindex={2}): {3}", CallCount, check_tindex, tindex, board.ForsythEdwardsNotation()));
-
-            // Verify we are calculating config identifiers consistently.
-            long check_id = board.GetEndgameConfigId(false);
-            if (check_id != CurrentConfigId)
-                throw new Exception(string.Format("#{0} Config identifier disagreement (check={1}, config={2}): {3}", CallCount, check_id, CurrentConfigId, board.ForsythEdwardsNotation()));
-
-            if (board.IsWhiteTurn)
-            {
-                ++WhiteCount;
-                if (table.GetWhiteScore(tindex) != 0)
-                    throw new Exception(string.Format("Duplicate White position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
-                table.SetWhiteScore(tindex, -57);
-                if (table.GetWhiteScore(tindex) != -57)
-                    throw new Exception("Could not read back White score at tindex=" + tindex);
-            }
-            else
-            {
-                ++BlackCount;
-                if (table.GetBlackScore(tindex) != 0)
-                    throw new Exception(string.Format("Duplicate Black position {0}: {1}", CallCount, board.ForsythEdwardsNotation()));
-                table.SetBlackScore(tindex, -987);
-                if (table.GetBlackScore(tindex) != -987)
-                    throw new Exception("Could not read back Black score at tindex=" + tindex);
-            }
-
-            return 1;
-        }
-
         private int GetScore(Table table, bool isWhiteTurn, int tindex)
         {
             return isWhiteTurn ? table.GetWhiteScore(tindex) : table.GetBlackScore(tindex);
@@ -676,10 +601,15 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private int WriteChildren(Table table, Board board, int tindex)
+        private int VisitPosition(Table table, Board board, int tindex)
         {
             // This function is called twice for each position:
             // once with White to move, the other with Black to move.
+
+            // If we have already scored this position, bail out immediately!
+            int score = GetScore(table, board.IsWhiteTurn, tindex);
+            if (score > UnreachablePos)
+                return 0;
 
             board.GenMoves(LegalMoveList);
 
@@ -687,8 +617,7 @@ namespace EndgameTableGen
             {
                 // This is either stalemate or checkmate.
                 // Set the score for this position accordingly.
-                // We don't need to write anything to the child table because the score is settled.
-                int score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
+                score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
                 UpdateMaxSearchPly(score, board, tindex);
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
@@ -696,21 +625,19 @@ namespace EndgameTableGen
             // Indicate that we did reach this as a valid position.
             SetScore(table, board.IsWhiteTurn, tindex, UndefinedScore);
 
-            var writer = board.IsWhiteTurn ? whiteChildWriter : blackChildWriter;
-            writer.BeginParent(tindex);
-
-            int best_foreign_score = UndefinedScore;
+            int best_score = UndefinedScore;
 
             for (int i = 0; i < LegalMoveList.nmoves; ++i)
             {
                 Move move = LegalMoveList.array[i];
                 board.PushMove(move);
                 long after_config_id = board.GetEndgameConfigId(false);
+                int after_score;
                 if (after_config_id == CurrentConfigId)
                 {
                     // The most common case: making a move stays inside the current endgame table.
                     int after_tindex = board.GetEndgameTableIndex(false);
-                    writer.AppendChild(after_tindex);
+                    after_score = GetScore(table, board.IsWhiteTurn, after_tindex);
                 }
                 else
                 {
@@ -718,7 +645,6 @@ namespace EndgameTableGen
                     // We do not save such children, because the score of the after-position
                     // is already decided. We just remember the best of these "foreign" scores
                     // and submit it below to the child writer, to close out this batch of children.
-                    int after_score;
                     Table after_table;
                     if (finished.TryGetValue(after_config_id, out after_table))
                     {
@@ -742,23 +668,52 @@ namespace EndgameTableGen
                             after_score = 0;
                         }
                     }
-
-                    // Find the score of this move that takes us into a foreign table,
-                    // adjusting for negamax and ply delay.
-                    int foreign_score = AdjustScoreForPly(after_score);
-                    if (foreign_score > best_foreign_score)
-                        best_foreign_score = foreign_score;
                 }
                 board.PopMove();
+
+                if (after_score > UnreachablePos)
+                {
+                    score = AdjustScoreForPly(after_score);
+                    if (score > best_score)
+                        best_score = score;
+                }
+                else
+                {
+                    // On even plies, we look for forced losses for the side to move.
+                    // A forced loss requires ALL children have known scores.
+                    // If we find any unknown score, bail out immediately so we don't waste time.
+                    if (0 == (search_ply & 1))
+                        return 0;
+                }
             }
 
-            // Remember the best-so-far score of any transitions into foreign tables
-            // and commit this parent/children set.
-            writer.FinishParent(best_foreign_score);
+            // Track how far into the future (number of plies) the best foreign score reaches.
+            // This controls how many times we iterate in the loop around the ForEachPosition call.
+            UpdateMaxSearchPly(best_score, board, tindex);
 
-            // Also track how far into the future (number of plies) the best foreign score reaches.
-            // This helps the propagators (Sweep functions) figure out how many times they have to iterate.
-            UpdateMaxSearchPly(best_foreign_score, board, tindex);
+            if (best_score > UnreachablePos)
+            {
+                if (0 != (search_ply & 1))
+                {
+                    // On odd plies, we look for forced wins with forced wins for the side to move.
+                    // A forced win occurs when at least one child node has the winning score
+                    // corresponding to this odd ply value.
+                    int winning_score = TableGenerator.EnemyMatedScore - search_ply;
+                    if (best_score == winning_score)
+                        return SetScore(table, board.IsWhiteTurn, tindex, best_score);
+                }
+                else
+                {
+                    // On even plies, we look for forced losses for the side to move.
+                    // A forced loss occurs when ALL children have known scores, and the score
+                    // is the exact score we expect for losing at the specified ply level.
+                    // Getting here means we didn't bail out early in the move loop,
+                    // which means we found all child scores.
+                    int losing_score = TableGenerator.FriendMatedScore + search_ply;
+                    if (best_score == losing_score)
+                        return SetScore(table, board.IsWhiteTurn, tindex, best_score);
+                }
+            }
 
             return 0;
         }
@@ -771,7 +726,7 @@ namespace EndgameTableGen
                 if (max_search_ply < plies)
                 {
                     max_search_ply = plies;
-                    Log("WriteChildren: Updated max search ply to {0} for tindex={1} : {2}", plies, tindex, board.ForsythEdwardsNotation());
+                    Log("Updated max search ply to {0} for tindex={1} : {2}", plies, tindex, board.ForsythEdwardsNotation());
                 }
             }
         }

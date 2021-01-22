@@ -24,22 +24,15 @@ EndgameTableGen plan N
     in dependency order, for all possible configurations of
     up to N non-king pieces/pawns, where N = 1..{0}.
 
-EndgameTableGen gen_forward N
-EndgameTableGen gen_backward N
+EndgameTableGen gen N
     Generates all tables for up to N non-king movers.
     If the program is interrupted and resumed, will
     load all the tables that were completed and resume
     at the first unwritten table.
 
-EndgameTableGen pgen N T [forward|backward]
+EndgameTableGen pgen N T
     Like 'gen N', only runs the generator in parallel
     using T = 1..{1} threads.
-    The final parameter specifies which propagation type to use.
-
-EndgameTableGen test N
-    Perform a self-test on generating distinct positions
-    without duplicates, consistent table indexes, etc.
-    Does not write any tables to disk.
 
 EndgameTableGen list filename
     Given a table filename, generates a text listing
@@ -63,9 +56,6 @@ EndgameTableGen decode config_id table_index side_to_move
 
 EndgameTableGen diff a.endgame b.endgame
     Compares the scores in the two endgame table files.
-
-EndgameTableGen child_test
-    Runs a unit test on writing/reading child index files.
 
 ", MaxNonKings, MaxThreads);
 
@@ -115,22 +105,6 @@ EndgameTableGen child_test
                     return 1;
                 }
 
-                TableSweeper sweeper;
-                switch (args[0])
-                {
-                    case "gen_forward":
-                        sweeper = new TableSweeper_Forward();
-                        break;
-
-                    case "gen_backward":
-                        sweeper = new TableSweeper_Backward();
-                        break;
-
-                    default:
-                        sweeper = null;
-                        break;
-                }
-
                 ITableWorker worker;
                 switch (args[0])
                 {
@@ -138,17 +112,12 @@ EndgameTableGen child_test
                         worker = new TablePrinter();
                         break;
 
-                    case "gen_forward":
-                    case "gen_backward":
+                    case "gen":
                         // Figure out the maximum possible table size up front.
                         int max_table_size = MaxTableSize(nonkings);
 
                         // Now the generator can pre-allocate the worst-case memory usage.
-                        worker = new TableGenerator(max_table_size, sweeper);
-                        break;
-
-                    case "test":
-                        worker = new TableGenerator(0, null);
+                        worker = new TableGenerator(max_table_size);
                         break;
 
                     default:
@@ -163,7 +132,7 @@ EndgameTableGen child_test
                 return 0;
             }
 
-            if (args.Length == 4 && args[0] == "pgen")
+            if (args.Length == 3 && args[0] == "pgen")
             {
                 if (!int.TryParse(args[1], out int nonkings) || (nonkings < 1) && (nonkings > MaxNonKings))
                 {
@@ -177,24 +146,8 @@ EndgameTableGen child_test
                     return 1;
                 }
 
-                Func<TableSweeper> sweeperFactory;
-                switch (args[3])
-                {
-                    case "forward":
-                        sweeperFactory = (() => new TableSweeper_Forward());
-                        break;
-
-                    case "backward":
-                        sweeperFactory = (() => new TableSweeper_Backward());
-                        break;
-
-                    default:
-                        Console.WriteLine("ERROR: Invalid propagation type: {0}", args[3]);
-                        return 1;
-                }
-
                 int max_table_size = MaxTableSize(nonkings);
-                var worker = new ParallelTableGenerator(max_table_size, num_threads, sweeperFactory);
+                var worker = new ParallelTableGenerator(max_table_size, num_threads);
                 using (var planner = new WorkPlanner(worker))
                 {
                     planner.Plan(nonkings);
@@ -207,118 +160,8 @@ EndgameTableGen child_test
                 return DiffEndgameTables(args[1], args[2]);
             }
 
-            if (args.Length == 1 && args[0] == "child_test")
-            {
-                return TestChildWriterReader();
-            }
-
             Console.WriteLine(UsageText);
             return 1;
-        }
-
-        private class ChildTestRecord
-        {
-            public int parent_tindex;
-            public int foreign_score;
-            public int[] child_tindex_list;
-        }
-
-        private static int TestChildWriterReader()
-        {
-            string childFileName = "test_child.temp";
-            string indexFileName = "test_index.temp";
-
-            var testList = new ChildTestRecord[]
-            {
-                new ChildTestRecord
-                {
-                    parent_tindex = 12,
-                    foreign_score = +1234,
-                    child_tindex_list = new int[] {171, 44, 99, 66, 77}
-                },
-                new ChildTestRecord
-                {
-                    parent_tindex = 45,
-                    foreign_score = -1792,
-                    child_tindex_list = new int[] {22, 22, 22, 22, 954, 22, 197}
-                },
-                new ChildTestRecord
-                {
-                    parent_tindex = 67,
-                    foreign_score = +776,
-                    child_tindex_list = new int[] {}
-                },
-                new ChildTestRecord
-                {
-                    parent_tindex = 227,
-                    foreign_score = 831,
-                    child_tindex_list = new int[] {45, 55, 197, 82, 14, 12}
-                },
-            };
-
-            using (var writer = new ChildWriter(childFileName, indexFileName))
-            {
-                foreach (ChildTestRecord t in testList)
-                {
-                    writer.BeginParent(t.parent_tindex);
-                    foreach (int child_tindex in t.child_tindex_list)
-                        writer.AppendChild(child_tindex);
-                    writer.FinishParent(t.foreign_score);
-                }
-            }
-
-            using (var reader = new ChildReader(childFileName, indexFileName))
-            {
-                int foreign_score;
-                var child_list = new List<int>();
-                foreach (ChildTestRecord t in testList)
-                {
-                    foreign_score = reader.Read(child_list, t.parent_tindex);
-                    if (t.foreign_score != foreign_score)
-                    {
-                        Console.WriteLine("FAIL(Child Reader/Writer): Expected foreign score {0}, but read {1}", t.foreign_score, foreign_score);
-                        return 1;
-                    }
-
-                    // Sort and remove duplicates, just like ChildWriter is supposed to do.
-                    int[] sorted = (new SortedSet<int>(t.child_tindex_list)).ToArray();
-
-                    if (sorted.Length != child_list.Count)
-                    {
-                        Console.WriteLine("FAIL(Child Reader/Writer): Expected {0} children, but found {1}", sorted.Length, child_list.Count);
-                        return 1;
-                    }
-
-                    for (int i = 0; i < sorted.Length; ++i)
-                    {
-                        if (sorted[i] != child_list[i])
-                        {
-                            Console.WriteLine("FAIL(Child Reader/Writer): Incorrect child index {0}: expected {1}.", child_list[i], sorted[i]);
-                            return 1;
-                        }
-                    }
-                }
-
-                // Verify an attempt to read a record we didn't write
-                // comes back with zero children and undefined foreign score.
-                foreign_score = reader.Read(child_list, 20);
-                if (foreign_score != TableGenerator.UndefinedScore)
-                {
-                    Console.WriteLine("FAIL(Child Reader/Writer): Expected undefined score but found {0}", foreign_score);
-                    return 1;
-                }
-
-                if (child_list.Count != 0)
-                {
-                    Console.WriteLine("FALI(Child Reader/Writer): Expected empty child list, but found {0} items.", child_list.Count);
-                    return 1;
-                }
-            }
-
-            File.Delete(childFileName);
-            File.Delete(indexFileName);
-            Console.WriteLine("PASS: Child Reader/Writer");
-            return 0;
         }
 
         private static int DiffEndgameTables(string filename1, string filename2)
@@ -437,7 +280,7 @@ EndgameTableGen child_test
             int[,] config = TableWorker.DecodeConfig(config_id);
             int size = (int) TableWorker.TableSize(config);
             Table table = MemoryTable.MemoryLoad(filename, size);
-            var worker = new TableGenerator(0, null);
+            var worker = new TableGenerator(0);
             worker.ForEachPosition(table, config, PrintNode);
             return 0;
         }
