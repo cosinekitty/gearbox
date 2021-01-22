@@ -6,7 +6,7 @@ NONKINGS=3
 if [[ "$1" == "restart" ]]; then
     rm -rfv ../../tables/*.endgame
 fi
-rm -rfv ../../tables/*.temp ../../tables/work_*
+rm -rfv ../../tables/*.temp ../../tables/work_* shutdown
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen ${NONKINGS} ${NTHREADS} ${SWEEPER} | tee pargen.log
 

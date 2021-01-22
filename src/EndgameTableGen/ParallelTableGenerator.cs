@@ -94,6 +94,18 @@ namespace EndgameTableGen
                 // unsatisfied dependencies.
                 lock (finished)
                 {
+                    if (File.Exists("shutdown"))
+                    {
+                        // Special signal to shut down gracefully after completing any tables in progress.
+                        // This lets me quit at the next convenient opportunity without losing any work.
+                        worker.Log("Found shutdown file. Exiting.");
+
+                        // Wake up any other blocked threads so they can see the shutdown signal too.
+                        WakeOtherThreads(thread_number);
+                        config_id = 0;
+                        return false;
+                    }
+
                     if (workList.Count == 0)
                     {
                         worker.Log("Work list is empty. Exiting.");
@@ -184,10 +196,15 @@ namespace EndgameTableGen
                 // in the call to GetNextAvailableJob() if it can't find a ready job.
                 // If we signal a thread that is currently running, it will cause
                 // an extra loop if it is stalled next time, but that causes no harm.
-                for (int i = 0; i < num_threads; ++i)
-                    if (i != thread_number)
-                        waiters[i].Set();
+                WakeOtherThreads(thread_number);
             }
+        }
+
+        private void WakeOtherThreads(int my_thread_number)
+        {
+            for (int i = 0; i < num_threads; ++i)
+                if (i != my_thread_number)
+                    waiters[i].Set();
         }
     }
 }
