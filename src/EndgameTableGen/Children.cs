@@ -7,12 +7,12 @@ namespace EndgameTableGen
     internal class ChildWriter : IDisposable
     {
         internal const int ChildRecordBytes = 4;
-        internal const int IndexRecordBytes = 7;
+        internal const int IndexRecordBytes = 8;
 
         private FileStream outChildFile;
         private FileStream outIndexFile;
         private readonly List<int> childTableIndexList = new();   // eliminates duplicate transitions caused by symmetry.
-        private int childFileOffset;
+        private long childFileOffset;
         private int indexFileOffset;
         private byte[] data = MakeDataBuffer();
         private byte[] nil = MakeDataBuffer();
@@ -21,7 +21,7 @@ namespace EndgameTableGen
         {
             // Make a data buffer that can hold the following struct:
             // uint8  num_children
-            // int32  child_file_offset
+            // int40  child_file_offset     // unusual 5-byte integer on purpose
             // int16  best_foreign_score
             byte[] data = new byte[IndexRecordBytes];
 
@@ -35,10 +35,11 @@ namespace EndgameTableGen
             data[2] = 0xff;
             data[3] = 0xff;
             data[4] = 0xff;
+            data[5] = 0xff;
 
             // best_foreign_score = UndefinedScore
-            data[5] = (byte)(TableGenerator.UndefinedScore & 0xff);
-            data[6] = (byte)((TableGenerator.UndefinedScore >> 8) & 0xff);
+            data[6] = (byte)(TableGenerator.UndefinedScore & 0xff);
+            data[7] = (byte)((TableGenerator.UndefinedScore >> 8) & 0xff);
 
             return data;
         }
@@ -74,7 +75,7 @@ namespace EndgameTableGen
             // the ChildReader can seek directly to the correct location in it.
             while (indexFileOffset < parent_tindex)
             {
-                outIndexFile.Write(nil, 0, 7);
+                outIndexFile.Write(nil, 0, IndexRecordBytes);
                 ++indexFileOffset;
             }
         }
@@ -122,17 +123,23 @@ namespace EndgameTableGen
                 data[2] = 0xff;
                 data[3] = 0xff;
                 data[4] = 0xff;
+                data[5] = 0xff;
             }
             else
             {
+                // Verify the childFileOffset fits in 39 bits (topmost bit must be clear, or it's negative!).
+                if (childFileOffset != (((1L << 39) - 1) & childFileOffset))
+                    throw new Exception($"childFileOffset={childFileOffset} does not fit in 39 bits.");
+
                 data[1] = (byte)(childFileOffset);
                 data[2] = (byte)(childFileOffset >> 8);
                 data[3] = (byte)(childFileOffset >> 16);
                 data[4] = (byte)(childFileOffset >> 24);
+                data[5] = (byte)(childFileOffset >> 32);
             }
 
-            data[5] = (byte)(best_foreign_score);
-            data[6] = (byte)(best_foreign_score >> 8);
+            data[6] = (byte)(best_foreign_score);
+            data[7] = (byte)(best_foreign_score >> 8);
 
             outIndexFile.Write(data, 0, IndexRecordBytes);
             ++indexFileOffset;
@@ -184,8 +191,15 @@ namespace EndgameTableGen
 
             // Decode the index record.
             int numChildren = (int)data[0];
-            int childFileOffset = ((int)data[1]) | ((int)data[2] << 8) | ((int)data[3] << 16) | ((int)data[4] << 24);
-            int bestForeignScore = (int)((short)data[5] | ((short)(data[6] << 8)));
+
+            long childFileOffset =
+                ((long)data[1]) |
+                ((long)data[2] << 8) |
+                ((long)data[3] << 16) |
+                ((long)data[4] << 24) |
+                ((long)data[5] << 32);
+
+            int bestForeignScore = (int)((short)data[6] | ((short)(data[7] << 8)));
 
             if (numChildren > 0)        // don't bother seeking if not going to read anything
             {
@@ -193,7 +207,7 @@ namespace EndgameTableGen
                     throw new Exception($"Negative child file offset {childFileOffset}, but numChildren={numChildren} is positive.");
 
                 // Seek to the beginning of the child tindex values.
-                long child_position = (long)ChildWriter.ChildRecordBytes * childFileOffset;
+                long child_position = ChildWriter.ChildRecordBytes * childFileOffset;
                 check = childFile.Seek(child_position, SeekOrigin.Begin);
                 if (check != child_position)
                     throw new Exception($"Cannot seek to position {child_position} in child file.");
