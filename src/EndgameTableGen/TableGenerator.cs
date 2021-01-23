@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using Gearbox;
 
 namespace EndgameTableGen
@@ -42,7 +41,7 @@ namespace EndgameTableGen
         private List<int> local_child_tindex_list = new();
         private int prevTableIndex;     // detects generating table indexes out of order
         private int child_ply;
-        private int max_child_ply;     // most distant forced mate that reaches into foreign tables
+        private int max_child_ply;
 
         public TableGenerator(int max_table_size)
         {
@@ -146,12 +145,14 @@ namespace EndgameTableGen
                 table.SetAllScores(UnreachablePos);
                 bestScoreSoFar.SetAllScores(UndefinedScore);
 
+                child_ply = -1;     // for logging in ForEachPosition, to indicate this is our initialization pass
                 max_child_ply = 0;
                 int progress = ForEachPosition(table, config, InitPosition);
                 for (child_ply = 0; child_ply <= max_child_ply || progress > 0; ++child_ply)
                 {
                     progress = ForEachPosition(table, config, VisitChildPosition);
                     progress += SweepParentPositions();
+                    max_child_ply = FarthestPly();
                 }
 
                 // Any lingering positions with undefined scores should be interpreted as draws.
@@ -621,19 +622,6 @@ namespace EndgameTableGen
             return 1;   // assist tallying the number of scores set
         }
 
-        private void UpdateMaxSearchPly(int score, Board board, int tindex)
-        {
-            if (score != 0 && score >= FriendMatedScore && score <= EnemyMatedScore)
-            {
-                int plies = EnemyMatedScore - Math.Abs(score);
-                if (max_child_ply < plies)
-                {
-                    max_child_ply = plies;
-                    Log("Updated max_child_ply={0} for tindex={1} : {2}", plies, tindex, board.ForsythEdwardsNotation());
-                }
-            }
-        }
-
         internal static int AdjustScoreForPly(int score)
         {
             if (score == UndefinedScore)
@@ -778,6 +766,36 @@ namespace EndgameTableGen
             board.RefreshAfterDangerousChanges();
         }
 
+        private int FarthestPly()
+        {
+            // Scan through the given table to find the node that has a forced win/loss
+            // with the largest ply count. Return that ply count.
+            // This is an indicator of how many plies we need to scan to make sure
+            // we have finished all the work we need to do in this endgame configuration.
+
+            int table_size = bestScoreSoFar.Size;
+            int max_ply = -1;
+            for (int tindex = 0; tindex < table_size; ++tindex)
+            {
+                int score = Math.Abs(bestScoreSoFar.GetWhiteScore(tindex));
+                if (score > 0 && score <= TableGenerator.EnemyMatedScore)
+                {
+                    int ply = TableGenerator.EnemyMatedScore - score;
+                    if (max_ply < ply)
+                        max_ply = ply;
+                }
+
+                score = Math.Abs(bestScoreSoFar.GetBlackScore(tindex));
+                if (score > 0 && score <= TableGenerator.EnemyMatedScore)
+                {
+                    int ply = TableGenerator.EnemyMatedScore - score;
+                    if (max_ply < ply)
+                        max_ply = ply;
+                }
+            }
+            return max_ply;
+        }
+
         private int InitPosition(Table table, Board board, int parent_tindex)
         {
             // This function is called twice for each position:
@@ -860,10 +878,6 @@ namespace EndgameTableGen
                 }
                 board.PopMove();
             }
-
-            // Track how far into the future (number of plies) the best foreign score reaches.
-            // This affects how many times we iterate in the loop around the ForEachPosition call.
-            UpdateMaxSearchPly(best_parent_score, board, parent_tindex);
 
             // Remember how many child nodes we have not yet resolved for this parent node.
             // To "resolve" means to put a finalized score into table[parent_index].
