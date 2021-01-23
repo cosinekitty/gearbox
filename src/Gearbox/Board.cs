@@ -1770,6 +1770,11 @@ namespace Gearbox
             playerCanMove = Ternary.Unknown;
         }
 
+        public bool BothSidesHavePawns()
+        {
+            return (inventory[(int)Square.WP] > 0) && (inventory[(int)Square.BP] > 0);
+        }
+
         public void SetEpTarget(int ep)
         {
             epTargetOffset = ep;
