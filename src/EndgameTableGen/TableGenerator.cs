@@ -128,11 +128,12 @@ namespace EndgameTableGen
                     table = new MemoryTable(size, size);
                 }
 
-                max_search_ply = 0;
                 table.SetAllScores(UnreachablePos);
 
-                for (search_ply = 0; search_ply <= max_search_ply; ++search_ply)
-                    ForEachPosition(table, config, VisitPosition);
+                int progress = 0;
+                max_search_ply = 0;
+                for (search_ply = 0; search_ply <= max_search_ply || progress > 0; ++search_ply)
+                    progress = ForEachPosition(table, config, VisitPosition);
 
                 // Any lingering positions with undefined scores should be interpreted as draws.
                 table.ReplaceScores(UndefinedScore, DrawScore);
@@ -215,7 +216,7 @@ namespace EndgameTableGen
                             need_diag_filter && (bk_diag_height == 0),
                             0);
 
-                        if (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0)
+                        if ((wkindex + 1 == wkOffsetTable.Length && bkindex + 1 == WholeBoardOffsetTable.Length) || (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0))
                         {
                             Log("ForEachPosition[{0} : {1:00}/{2:00}]: wk={3}/{4}, bk={5}/{6}, sum={7}",
                                 config_text,
@@ -618,7 +619,6 @@ namespace EndgameTableGen
                 // This is either stalemate or checkmate.
                 // Set the score for this position accordingly.
                 score = board.UncachedPlayerInCheck() ? FriendMatedScore : DrawScore;
-                UpdateMaxSearchPly(score, board, tindex);
                 return SetScore(table, board.IsWhiteTurn, tindex, score);
             }
 
@@ -687,12 +687,12 @@ namespace EndgameTableGen
                 }
             }
 
-            // Track how far into the future (number of plies) the best foreign score reaches.
-            // This controls how many times we iterate in the loop around the ForEachPosition call.
-            UpdateMaxSearchPly(best_score, board, tindex);
-
             if (best_score > UnreachablePos)
             {
+                // Track how far into the future (number of plies) the best foreign score reaches.
+                // This controls how many times we iterate in the loop around the ForEachPosition call.
+                UpdateMaxSearchPly(best_score, board, tindex);
+
                 if (0 != (search_ply & 1))
                 {
                     // On odd plies, we look for forced wins with forced wins for the side to move.
