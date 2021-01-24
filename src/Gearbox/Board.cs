@@ -1775,6 +1775,11 @@ namespace Gearbox
             return (inventory[(int)Square.WP] > 0) && (inventory[(int)Square.BP] > 0);
         }
 
+        public int PawnCount()
+        {
+            return inventory[(int)Square.WP] + inventory[(int)Square.BP];
+        }
+
         public void SetEpTarget(int ep)
         {
             epTargetOffset = ep;
@@ -1784,6 +1789,9 @@ namespace Gearbox
         {
             return epTargetOffset;
         }
+
+        public int WhiteKingOffset => wkofs;
+        public int BlackKingOffset => bkofs;
 
         public void PlaceWhiteKing(int ofs)
         {

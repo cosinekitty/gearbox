@@ -183,6 +183,7 @@ namespace EndgameTableGen
             prevTableIndex = 0;
 
             var board = new Board(false);       // start with a completely empty chess board
+            var timeSinceLastUpdate = Stopwatch.StartNew();
 
             int[] wkOffsetTable;
             int pawns = config[WHITE, P_INDEX] + config[BLACK, P_INDEX];
@@ -212,7 +213,6 @@ namespace EndgameTableGen
                 // below the diagonal. If *all* pieces are on the diagonal, there is no redundancy to resolve.
                 int diag = Position.DiagonalHeight(Position.IndexFromOffset(wkofs));
                 bool need_diag_filter = (pawns == 0) && (diag == 0);
-                var timeSinceLastUpdate = Stopwatch.StartNew();
 
                 for (int bkindex = 0; bkindex < WholeBoardOffsetTable.Length; ++bkindex)
                 {
@@ -522,43 +522,75 @@ namespace EndgameTableGen
                 prevTableIndex = tableIndex;
 
                 // Update board inventory after having poked and prodded the board.
+                // FIXFIXFIX_PERFORMANCE: we probably only need to do this ONCE per configuration, not per position, because only the inventory matters, and it doesn't change.
                 board.RefreshAfterDangerousChanges();
 
-                // Visit the resulting position from both points of view: White's and Black's.
-
-                // En passant states limit whether White or Black could possibly have the turn.
-                switch (board.GetEpTarget() / 10)
+                if (!IsDiagonalRedundancy(board, tableIndex))
                 {
-                    case 0:     // no en passant: either side could have the turn.
-                        // What if it is White's turn to move?
-                        board.SetTurn(true);
-                        if (board.IsValidPosition())
-                            sum += func(table, board, tableIndex);
+                    // Visit the resulting position from both points of view: White's and Black's.
 
-                        // What if it is Black's turn to move?
-                        board.SetTurn(false);
-                        if (board.IsValidPosition())
-                            sum += func(table, board, tableIndex);
-                        break;
+                    // En passant states limit whether White or Black could possibly have the turn.
+                    switch (board.GetEpTarget() / 10)
+                    {
+                        case 0:     // no en passant: either side could have the turn.
+                            // What if it is White's turn to move?
+                            board.SetTurn(true);
+                            if (board.IsValidPosition())
+                                sum += func(table, board, tableIndex);
 
-                    case 4:     // A white pawn is in the en passant state. Therefore, it can only be Black's turn.
-                        board.SetTurn(false);
-                        if (board.IsValidPosition())
-                            sum += func(table, board, tableIndex);
-                        break;
+                            // What if it is Black's turn to move?
+                            board.SetTurn(false);
+                            if (board.IsValidPosition())
+                                sum += func(table, board, tableIndex);
+                            break;
 
-                    case 7:     // A black pawn is in the en passant state. Therefore, it can only be White's turn.
-                        board.SetTurn(true);
-                        if (board.IsValidPosition())
-                            sum += func(table, board, tableIndex);
-                        break;
+                        case 4:     // A white pawn is in the en passant state. Therefore, it can only be Black's turn.
+                            board.SetTurn(false);
+                            if (board.IsValidPosition())
+                                sum += func(table, board, tableIndex);
+                            break;
 
-                    default:
-                        throw new Exception($"Invalid en passant target {board.GetEpTarget()} in position: {board.ForsythEdwardsNotation()}");
+                        case 7:     // A black pawn is in the en passant state. Therefore, it can only be White's turn.
+                            board.SetTurn(true);
+                            if (board.IsValidPosition())
+                                sum += func(table, board, tableIndex);
+                            break;
+
+                        default:
+                            throw new Exception($"Invalid en passant target {board.GetEpTarget()} in position: {board.ForsythEdwardsNotation()}");
+                    }
                 }
             }
 
             return sum;
+        }
+
+        private bool IsDiagonalRedundancy(Board board, int tableIndex)
+        {
+            // If both kings are on the a1..h8 diagonal, and there are no pawns,
+            // there are special cases where we generate duplicate positions.
+            // We filter them out here by checking the canonical table index with the one we generated.
+            // Only when they match do we proceed.
+
+            if (board.PawnCount() > 0)
+                return false;   // can't use diagonal symmetry when there are pawns
+
+            int wkofs = board.WhiteKingOffset;
+            int wk_rank = (wkofs / 10) - 2;
+            int wk_file = (wkofs % 10) - 1;
+            if (wk_rank != wk_file)
+                return false;   // White King is not on the diagonal
+
+            int bkofs = board.BlackKingOffset;
+            int bk_rank = (bkofs / 10) - 2;
+            int bk_file = (bkofs % 10) - 1;
+            if (bk_rank != bk_file)
+                return false;   // Black King is not on the diagonal
+
+            int canonicalTableIndex = board.GetEndgameTableIndex(false);
+            if (canonicalTableIndex > tableIndex)
+                throw new Exception($"Canonical table index {canonicalTableIndex} exceeds generated table index {tableIndex}");
+            return canonicalTableIndex != tableIndex;
         }
 
         private static Square MakeSquare(int side, int piece)
@@ -929,7 +961,7 @@ namespace EndgameTableGen
                 foreach (int parent_tindex in parent_tindex_list)
                 {
                     if (unresolvedChildren[parent_tindex] == 0)
-                        throw new Exception($"Expected unresolved child {child_tindex} for parent {parent_tindex}.");
+                        throw new Exception($"Expected unresolved child {child_tindex} for parent {parent_tindex} in config {CurrentConfigId:D10} for {board.ForsythEdwardsNotation()}.");
 
                     if (GetScore(bestScoreSoFar, parent_is_white, parent_tindex) < parent_target_score)
                         progress += SetScore(bestScoreSoFar, parent_is_white, parent_tindex, parent_target_score);

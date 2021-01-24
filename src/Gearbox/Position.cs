@@ -90,7 +90,7 @@ namespace Gearbox
             }
         }
 
-        public int FirstOffDiagonalHeight(Transform transform)
+        private int FirstOffDiagonalHeight(Transform transform, out int post_transform_index)
         {
             foreach (PieceLocationList list in PieceList)
             {
@@ -117,8 +117,12 @@ namespace Gearbox
                     }
                 }
                 if (bestHeight != 0)
+                {
+                    post_transform_index = bestFlip;
                     return bestHeight;
+                }
             }
+            post_transform_index = -1;
             return 0;       // Everything is on the a1..h8 diagonal.
         }
 
@@ -187,8 +191,8 @@ namespace Gearbox
             Debug.Assert(PieceList[Position.WK].Count == 1);
             Debug.Assert(PieceList[Position.BK].Count == 1);
 
-            int wkofs = PieceList[Position.WK].Array[0].Offset;
-            int bkofs = PieceList[Position.BK].Array[0].Offset;
+            int wkofs = PieceList[Position.WK].Array[0].Offset;     // FIXFIXFIX: eliminate if asserts below hold
+            int bkofs = PieceList[Position.BK].Array[0].Offset;     // FIXFIXFIX: eliminate if asserts below hold
 
             int wp = PieceList[Position.WP].Count;
             int bp = PieceList[Position.BP].Count;
@@ -196,6 +200,8 @@ namespace Gearbox
 
             int wkindex = IndexFromOffset(wkofs);
             int bkindex = IndexFromOffset(bkofs);
+            Debug.Assert(wkindex == PieceList[Position.WK].Array[0].Index);
+            Debug.Assert(bkindex == PieceList[Position.BK].Array[0].Index);
             int wkflip = -1;
             int bkflip = -1;
             Transform best_transform = Transform.Undefined;
@@ -204,8 +210,9 @@ namespace Gearbox
             {
                 // When there are no pawns, we get the most symmetry benefit
                 // from forcing the white king from a realm of 64 squares
-                // int a realm of 10 squares.
+                // into a realm of 10 squares.
                 int foundCount = 0;
+                int best_off_diag_index = int.MaxValue;
                 for (int t = 0; t < 8; ++t)
                 {
                     Transform transform = (Transform)t;
@@ -220,25 +227,31 @@ namespace Gearbox
                         // If such a piece exists, pick the transform
                         // that keeps it on or below the diagonal. If no such piece exists
                         // (everything is on the diagonal), then there is no ambiguity.
+                        // Special case: the following two positions are the same, but show up as duplicates:
+                        //    73816 = [8/8/8/8/Q7/2k5/8/KQ6 b - - 0 1]
+                        //    73928 = [8/8/8/8/8/2k5/Q7/K2Q4 b - - 0 1]
+                        // So when a case like this happens, we need to pick whichever one results
+                        // in the smaller table index, to break the tie.
+                        // That will be the one where the first off-diagonal piece has the smaller post-transformed index.
 
                         int wk_diag = DiagonalHeight(try_wkflip);
                         Debug.Assert(wk_diag <= 0);
                         if (wk_diag == 0)
                         {
-                            int p_diag = FirstOffDiagonalHeight(transform);
+                            int p_diag = FirstOffDiagonalHeight(transform, out int off_diag_index);
                             if (p_diag > 0)
                                 continue;   // Eliminate this redundant transform... try the next one.
+
+                            if (foundCount > 0 && off_diag_index >= best_off_diag_index)
+                                continue;
+
+                            best_off_diag_index = off_diag_index;
                         }
 
-                        // If there is at least one piece off the diagonal, we have found the unique solution.
-                        // If all pieces are on the diagonal, there will be two identical solutions:
-                        // [Identity, Diagonal].
-                        if (++foundCount == 1)
-                        {
-                            wkflip = try_wkflip;
-                            bkflip = try_bkflip;
-                            best_transform = transform;
-                        }
+                        ++foundCount;
+                        wkflip = try_wkflip;
+                        bkflip = try_bkflip;
+                        best_transform = transform;
                     }
                 }
 
