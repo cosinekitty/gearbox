@@ -191,17 +191,12 @@ namespace Gearbox
             Debug.Assert(PieceList[Position.WK].Count == 1);
             Debug.Assert(PieceList[Position.BK].Count == 1);
 
-            int wkofs = PieceList[Position.WK].Array[0].Offset;     // FIXFIXFIX: eliminate if asserts below hold
-            int bkofs = PieceList[Position.BK].Array[0].Offset;     // FIXFIXFIX: eliminate if asserts below hold
-
             int wp = PieceList[Position.WP].Count;
             int bp = PieceList[Position.BP].Count;
             int pawns = wp + bp;
 
-            int wkindex = IndexFromOffset(wkofs);
-            int bkindex = IndexFromOffset(bkofs);
-            Debug.Assert(wkindex == PieceList[Position.WK].Array[0].Index);
-            Debug.Assert(bkindex == PieceList[Position.BK].Array[0].Index);
+            int wkindex = PieceList[Position.WK].Array[0].Index;
+            int bkindex = PieceList[Position.BK].Array[0].Index;
             int wkflip = -1;
             int bkflip = -1;
             Transform best_transform = Transform.Undefined;
