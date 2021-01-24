@@ -1689,6 +1689,11 @@ namespace Gearbox
             return square;
         }
 
+        public int[] GetInventoryArray()
+        {
+            return inventory;
+        }
+
         public void Clear(bool whiteToMove)
         {
             // Remove all pieces from the board and completely reset the inner state.

@@ -183,6 +183,13 @@ namespace EndgameTableGen
             prevTableIndex = 0;
 
             var board = new Board(false);       // start with a completely empty chess board
+
+            // It was very time consuming (about 23% of total runtime) to repeatedly
+            // update the board's inventory after making each change.
+            // This was unnecessary because the configuration is fixed throughout
+            // the source. So now we initialize the board's inventory once and leave it alone.
+            SetInventory(board, config);
+
             var timeSinceLastUpdate = Stopwatch.StartNew();
 
             int[] wkOffsetTable;
@@ -255,6 +262,21 @@ namespace EndgameTableGen
             }
 
             return sum;
+        }
+
+        private static void SetInventory(Board board, int[,] config)
+        {
+            int[] inventory = board.GetInventoryArray();
+            Array.Clear(inventory, 0, inventory.Length);
+            inventory[(int)Square.WK] = 1;
+            inventory[(int)Square.BK] = 1;
+            for (int mover = 0; mover < NumNonKings; ++mover)
+            {
+                Square piece = MakeSquare(WHITE, mover);
+                inventory[(int)piece] = config[WHITE, mover];
+                piece = MakeSquare(BLACK, mover);
+                inventory[(int)piece] = config[BLACK, mover];
+            }
         }
 
         private static int RankNumber(int offset)
@@ -521,10 +543,6 @@ namespace EndgameTableGen
 
                 prevTableIndex = tableIndex;
 
-                // Update board inventory after having poked and prodded the board.
-                // FIXFIXFIX_PERFORMANCE: we probably only need to do this ONCE per configuration, not per position, because only the inventory matters, and it doesn't change.
-                board.RefreshAfterDangerousChanges();
-
                 if (!IsDiagonalRedundancy(board, tableIndex))
                 {
                     // Visit the resulting position from both points of view: White's and Black's.
@@ -565,7 +583,7 @@ namespace EndgameTableGen
             return sum;
         }
 
-        private bool IsDiagonalRedundancy(Board board, int tableIndex)
+        private static bool IsDiagonalRedundancy(Board board, int tableIndex)
         {
             // If both kings are on the a1..h8 diagonal, and there are no pawns,
             // there are special cases where we generate duplicate positions.
