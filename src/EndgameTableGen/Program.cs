@@ -281,7 +281,7 @@ EndgameTableGen diff a.endgame b.endgame
             int size = (int) TableWorker.TableSize(config);
             Table table = MemoryTable.MemoryLoad(filename, size);
             var worker = new TableGenerator(0);
-            worker.ForEachPosition(table, config, PrintNode);
+            worker.ForEachPosition(table, config, PrintNode, null);
             return 0;
         }
 

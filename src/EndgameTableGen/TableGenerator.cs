@@ -147,10 +147,10 @@ namespace EndgameTableGen
 
                 child_ply = -1;     // for logging in ForEachPosition, to indicate this is our initialization pass
                 max_child_ply = 0;
-                int progress = ForEachPosition(table, config, InitPosition);
+                int progress = ForEachPosition(table, config, InitPosition, "InitPosition");
                 for (child_ply = 0; child_ply <= max_child_ply || progress > 0; ++child_ply)
                 {
-                    progress = ForEachPosition(table, config, VisitChildPosition);
+                    progress = ForEachPosition(table, config, VisitChildPosition, "VisitChildPosition");
                     progress += SweepParentPositions();
                     max_child_ply = FarthestPly();
                 }
@@ -176,7 +176,7 @@ namespace EndgameTableGen
             Log("Finished after {0} = {1} seconds.", chrono.Elapsed, chrono.Elapsed.TotalSeconds);
         }
 
-        public int ForEachPosition(Table table, int[,] config, PositionVisitorFunc func)
+        public int ForEachPosition(Table table, int[,] config, PositionVisitorFunc func, string log_tag)
         {
             int sum = 0;
 
@@ -184,10 +184,10 @@ namespace EndgameTableGen
 
             var board = new Board(false);       // start with a completely empty chess board
 
-            // It was very time consuming (about 23% of total runtime) to repeatedly
+            // It was very time consuming (about 25% of total runtime) to repeatedly
             // update the board's inventory after making each change.
             // This was unnecessary because the configuration is fixed throughout
-            // the source. So now we initialize the board's inventory once and leave it alone.
+            // the search. So now we initialize the board's inventory once and leave it alone.
             SetInventory(board, config);
 
             var timeSinceLastUpdate = Stopwatch.StartNew();
@@ -243,9 +243,11 @@ namespace EndgameTableGen
                             need_diag_filter && (bk_diag_height == 0),
                             0);
 
-                        if ((wkindex + 1 == wkOffsetTable.Length && bkindex + 1 == WholeBoardOffsetTable.Length) || (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0))
+                        if ((log_tag != null) &&
+                            ((wkindex + 1 == wkOffsetTable.Length && bkindex + 1 == WholeBoardOffsetTable.Length) || (timeSinceLastUpdate.Elapsed.TotalSeconds > 15.0)))
                         {
-                            Log("ForEachPosition[{0} : {1:00}/{2:00}]: wk={3}/{4}, bk={5}/{6}, sum={7}",
+                            Log("{0}[{1} : {2:00}/{3:00}]: wk={4}/{5}, bk={6}/{7}, sum={8}",
+                                log_tag,
                                 config_text,
                                 child_ply,
                                 max_child_ply,
