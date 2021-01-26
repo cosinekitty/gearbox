@@ -1,12 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
-if "%1" == "" (
-    set CONFIG=Release
-) else (
-    set CONFIG=%1
-)
-if exist ..\..\tables\*.endgame (del ..\..\tables\*.endgame)
-
+set CONFIG=Release
+REM if exist ..\..\tables\*.endgame (del ..\..\tables\*.endgame)
 dotnet build --configuration !CONFIG!
 if errorlevel 1 (exit /b 1)
 
