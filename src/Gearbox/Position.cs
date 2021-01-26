@@ -42,10 +42,11 @@ namespace Gearbox
             PieceList[slot].Append(ofs);
         }
 
-        public void ApplyTransform(Transform transform)
+        private void TransformFrom(Position origin, Transform transform)
         {
-            foreach (PieceLocationList list in PieceList)
-                list.ApplyTransform(transform);
+            EpTargetOffset = origin.EpTargetOffset;
+            for (int k = 0; k < NumPieceTypes; ++k)
+                PieceList[k].TransformFrom(origin.PieceList[k], transform);
         }
 
         public static int ArraySlotForPiece(Square piece)
@@ -88,42 +89,6 @@ namespace Gearbox
                 default:
                     throw new ArgumentException(string.Format("Invalid slot index: {0}", slot));
             }
-        }
-
-        private int FirstOffDiagonalHeight(Transform transform, out int post_transform_index)
-        {
-            foreach (PieceLocationList list in PieceList)
-            {
-                // Redundancy elimination: when there are multiple pieces of
-                // the same kind on the board, we have to always consider them
-                // in ascending order of their post-transformed indexes.
-                // Therefore, if there is more than one piece of the same type
-                // off the diagonal a1..h8, pick the one with the lowest
-                // post-transformed index.
-                // This tricky bit of logic makes it unnecessary to transform
-                // and sort the entire data structure first, which would
-                // be more time-consuming for a relatively rare special case.
-
-                int bestFlip = int.MaxValue;
-                int bestHeight = 0;
-                for (int i = 0; i < list.Count; ++i)
-                {
-                    int flip = Symmetry.ForwardTransform(list.Array[i].Index, transform);
-                    int height = DiagonalHeight(flip);
-                    if (height != 0 && flip < bestFlip)
-                    {
-                        bestFlip = flip;
-                        bestHeight = height;
-                    }
-                }
-                if (bestHeight != 0)
-                {
-                    post_transform_index = bestFlip;
-                    return bestHeight;
-                }
-            }
-            post_transform_index = -1;
-            return 0;       // Everything is on the a1..h8 diagonal.
         }
 
         private static readonly int[] EightfoldSymmetryLookup = MakeKingSymmetryLookup();
@@ -186,7 +151,7 @@ namespace Gearbox
             return 21 + x + 10*y;
         }
 
-        public int GetEndgameTableIndex()
+        public int GetEndgameTableIndex(Position scratch)
         {
             Debug.Assert(PieceList[Position.WK].Count == 1);
             Debug.Assert(PieceList[Position.BK].Count == 1);
@@ -195,93 +160,50 @@ namespace Gearbox
             int bp = PieceList[Position.BP].Count;
             int pawns = wp + bp;
 
-            int wkindex = PieceList[Position.WK].Array[0].Index;
-            int bkindex = PieceList[Position.BK].Array[0].Index;
-            int wkflip = -1;
-            int bkflip = -1;
-            Transform best_transform = Transform.Undefined;
-            int tindex;
+            Transform maxTransform;
+            int[] whiteKingSymmetryLookup;
+
             if (pawns == 0)
             {
                 // When there are no pawns, we get the most symmetry benefit
                 // from forcing the white king from a realm of 64 squares
                 // into a realm of 10 squares.
-                int foundCount = 0;
-                int best_off_diag_index = int.MaxValue;
-                for (int t = 0; t < 8; ++t)
-                {
-                    Transform transform = (Transform)t;
-                    int try_wkflip = Symmetry.ForwardTransform(wkindex, transform);
-                    int try_bkflip = Symmetry.ForwardTransform(bkindex, transform);
-                    if (EightfoldSymmetryLookup[try_wkflip] >= 0)
-                    {
-                        // Depending on the position, there are either 1 or 2 distinct
-                        // transforms that flip the white king onto one of the magic group of 10 squares.
-                        // The double case is when the white king is on the diagonal a1..h8.
-                        // In that case, look for the first piece that is off the diagonal.
-                        // If such a piece exists, pick the transform
-                        // that keeps it on or below the diagonal. If no such piece exists
-                        // (everything is on the diagonal), then there is no ambiguity.
-                        // Special case: the following two positions are the same, but show up as duplicates:
-                        //    73816 = [8/8/8/8/Q7/2k5/8/KQ6 b - - 0 1]
-                        //    73928 = [8/8/8/8/8/2k5/Q7/K2Q4 b - - 0 1]
-                        // So when a case like this happens, we need to pick whichever one results
-                        // in the smaller table index, to break the tie.
-                        // That will be the one where the first off-diagonal piece has the smaller post-transformed index.
-
-                        int wk_diag = DiagonalHeight(try_wkflip);
-                        Debug.Assert(wk_diag <= 0);
-                        if (wk_diag == 0)
-                        {
-                            int p_diag = FirstOffDiagonalHeight(transform, out int off_diag_index);
-                            if (p_diag > 0)
-                                continue;   // Eliminate this redundant transform... try the next one.
-
-                            if (foundCount > 0 && off_diag_index >= best_off_diag_index)
-                                continue;
-
-                            best_off_diag_index = off_diag_index;
-                        }
-
-                        ++foundCount;
-                        wkflip = try_wkflip;
-                        bkflip = try_bkflip;
-                        best_transform = transform;
-                    }
-                }
-
-                switch (foundCount)
-                {
-                    case 0:
-                        throw new Exception("Did not find a transform solution.");
-
-                    case 1:
-                    case 2:
-                        break;
-
-                    default:
-                        throw new Exception($"Found unexpected number of transforms: {foundCount}");
-                }
-
-                tindex = 64*EightfoldSymmetryLookup[wkflip] + bkflip;
+                // Then we can use any of the 8 possible symmetry transforms.
+                whiteKingSymmetryLookup = EightfoldSymmetryLookup;
+                maxTransform = Transform.Maximum;
             }
             else
             {
-                // When there are pawns on the board, we can only use left/right symmetry.
-                // If the White King is on the right side of the board (files e..h),
-                // flip the board so that it moves to the left side (files a..d).
-                if (LeftRightSymmetryLookup[wkindex] >= 0)
-                    best_transform = Transform.Identity;
-                else
-                    best_transform = Transform.LeftRight;
-
-                wkflip = Symmetry.ForwardTransform(wkindex, best_transform);
-                bkflip = Symmetry.ForwardTransform(bkindex, best_transform);
-                tindex = 64*LeftRightSymmetryLookup[wkflip] + bkflip;
+                // With any pawns on the board, we are constrained to use
+                // left/right symmetry only.
+                whiteKingSymmetryLookup = LeftRightSymmetryLookup;
+                maxTransform = Transform.LeftRight;
             }
 
-            // Apply the best transform to all the pieces in the position.
-            ApplyTransform(best_transform);
+            int wkindex = PieceList[Position.WK].Array[0].Index;
+            int best_table_index = -1;
+            for (Transform transform = Transform.Identity; transform <= maxTransform; ++transform)
+            {
+                int wkflip = Symmetry.ForwardTransform(wkindex, transform);
+                int wkcode = whiteKingSymmetryLookup[wkflip];
+                if (wkcode >= 0)
+                {
+                    scratch.TransformFrom(this, transform);
+                    int table_index = scratch.GetEndgameTableIndex(wkcode);
+                    if (best_table_index < 0 || table_index < best_table_index)
+                        best_table_index = table_index;
+                }
+            }
+
+            if (best_table_index < 0)
+                throw new Exception("Unable to find any transform that generates a valid table index.");
+
+            return best_table_index;
+        }
+
+        private int GetEndgameTableIndex(int wk_code)
+        {
+            int tindex = 64*wk_code + PieceList[Position.BK].Array[0].Index;
 
             // The pieces that are not kings and not pawns are all the same.
             // They all contribute a base-64 digit to the table index.
@@ -308,6 +230,8 @@ namespace Gearbox
             // on their player's fourth rank can be in the en passant state.
 
             // Optimization: en passant is NOT possible unless both sides have at least one pawn.
+            int wp = PieceList[Position.WP].Count;
+            int bp = PieceList[Position.BP].Count;
             bool isEnPassantPossible = (wp > 0 && bp > 0);
             int pawnFactor = isEnPassantPossible ? 56 : 48;
 
@@ -378,12 +302,15 @@ namespace Gearbox
             };
         }
 
-        internal void ApplyTransform(Transform transform)
+        internal void TransformFrom(PieceLocationList origin, Transform transform)
         {
-            // Transform the 0..63 indexes, but NOT the 21..91 offsets (we need the original offsets for en passant).
-            for (int i=0; i < Count; ++i)
-                Array[i].Index = Symmetry.ForwardTransform(Array[i].Index, transform);
-
+            Count = origin.Count;
+            for (int i = 0; i < Count; ++i)
+            {
+                // Transform the 0..63 indexes, but NOT the 21..91 offsets (we need the original offsets for en passant).
+                Array[i].Index = Symmetry.ForwardTransform(origin.Array[i].Index, transform);
+                Array[i].Offset = origin.Array[i].Offset;
+            }
             Sort();
         }
 

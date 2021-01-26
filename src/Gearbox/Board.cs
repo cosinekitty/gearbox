@@ -1620,6 +1620,7 @@ namespace Gearbox
         }
 
         private readonly Position PositionCache = new Position();
+        private readonly Position PositionScratch = new Position();
 
         public void GetPosition(Position pos, bool reverseSides)
         {
@@ -1677,7 +1678,7 @@ namespace Gearbox
         public int GetEndgameTableIndex(bool reverseSides)
         {
             GetPosition(PositionCache, reverseSides);
-            return PositionCache.GetEndgameTableIndex();
+            return PositionCache.GetEndgameTableIndex(PositionScratch);
         }
 
         #endregion

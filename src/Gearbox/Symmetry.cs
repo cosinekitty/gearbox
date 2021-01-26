@@ -6,6 +6,7 @@ namespace Gearbox
         LeftRight  = 1,
         WhiteBlack = 2,
         Diagonal   = 4,
+        Maximum = LeftRight | WhiteBlack | Diagonal,
         Undefined  = 8,
     }
 
