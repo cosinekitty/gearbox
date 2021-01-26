@@ -1,10 +1,10 @@
 #!/bin/bash
 CONFIG=Release
-NTHREADS=2
+NTHREADS=16
 NONKINGS=3
 rm -f shutdown
 if [[ "$1" == "restart" ]]; then
-    rm -rfv ../../tables/*.endgame
+    rm -fv ../../tables/*.endgame
 fi
 dotnet build --configuration ${CONFIG} || exit $?
 bin/${CONFIG}/net5.0/EndgameTableGen pgen ${NONKINGS} ${NTHREADS} | tee pargen.log
