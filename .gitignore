@@ -2,10 +2,10 @@ bin
 obj
 *.user
 *.endgame
-work_*/
 .vscode
 .vs
 launchSettings.json
 *.diagsession
 *.log
 games/ 
+cloud/
