@@ -432,7 +432,8 @@ namespace EndgameTableGen
                     // "There can be only one!" -- Highlander.
                     if (isEnPassantPossible && (0 == board.GetEpTarget()))
                     {
-                        for (int i = 16; i < 24; ++i)
+                        int firstEpIndex = Math.Max(16, startIndex);
+                        for (int i = firstEpIndex; i < 24; ++i)
                         {
                             int ofs = PawnOffsetTable[i];
 
@@ -466,7 +467,7 @@ namespace EndgameTableGen
                     // We need to generate table indexes in strictly increasing order,
                     // and because of the way en passant is encoded, we must generate
                     // all non-en-passant placements before all en-passant placements.
-                    for (int i=0; i < PawnOffsetTable.Length; ++i)
+                    for (int i = startIndex; i < PawnOffsetTable.Length; ++i)
                     {
                         int ofs = PawnOffsetTable[i];
                         if (square[ofs] == Square.Empty)
@@ -507,7 +508,8 @@ namespace EndgameTableGen
                     // "There can be only one!" -- Highlander.
                     if (isEnPassantPossible && (0 == board.GetEpTarget()))
                     {
-                        for (int i = 24; i < 32; ++i)
+                        int firstEpIndex = Math.Max(24, startIndex);
+                        for (int i = firstEpIndex; i < 32; ++i)
                         {
                             int ofs = PawnOffsetTable[i];
 
@@ -856,6 +858,10 @@ namespace EndgameTableGen
             // from which emanate zero or more legal moves that lead to child position(s).
             bool parent_is_white = board.IsWhiteTurn;
             bool child_is_white = !parent_is_white;
+
+            int verify_parent_tindex = board.GetEndgameTableIndex(false);
+            if (verify_parent_tindex != parent_tindex)
+                throw new Exception($"Calculated tindex {verify_parent_tindex} does not match provided tindex {parent_tindex} for: {board.ForsythEdwardsNotation()}");
 
             // Initialize checkmates, stalemates, and foreign "best-so-far" table scores.
             // InitPoistion is the only time we have to generate legal moves.
