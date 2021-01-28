@@ -22,6 +22,10 @@ namespace Gearbox
             data = new byte[BytesPerPosition * size];
         }
 
+        public void Dispose()
+        {
+        }
+
         public static MemoryEndgameTable Load(string filename)
         {
             using (FileStream infile = File.OpenRead(filename))

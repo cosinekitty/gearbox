@@ -76,6 +76,9 @@ namespace Gearbox
 
         public void UnloadEndgameTables()
         {
+            foreach (IEndgameTable table in endgameTableForConfigId.Values)
+                table.Dispose();
+
             endgameTableForConfigId.Clear();
         }
 
@@ -106,15 +109,19 @@ namespace Gearbox
                         string config_text = Path.GetFileNameWithoutExtension(fn);
                         if (long.TryParse(config_text, out long config_id) && config_id >= 0 && config_id <= 9999999999)
                         {
-                            // Currently only in-memory tables are supported.
-                            // Tables larger than 2 nonking pieces will not fit in memory.
-                            // Later I will consider support tables based on seeking in a file.
+                            // Decide whether to put tables in memory or seek/read from disk
+                            // based on their size.
                             int nonking = NonKingPieceCount(config_id);
                             switch (nonking)
                             {
                                 case 1:
                                 case 2:
                                     endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(fn);
+                                    ++count;
+                                    break;
+
+                                case 3:
+                                    endgameTableForConfigId[config_id] = new DiskEndgameTable(fn);
                                     ++count;
                                     break;
 

@@ -667,12 +667,17 @@ namespace Gearbox
                 return GameResult.Draw;     // stalemate
             }
 
+#if false
+            // FIXFIXFIX: some endgame tables require more than 50 moves to force mate.
+            // Do not enforce the 50-move rule for now.
+            // For example: the following position has a forced mate in 69 moves:
+            // 3kq3/8/8/8/1BB5/1K6/8/8 b - - 1 1
             if (halfMoveClock > 100)
             {
                 // Draw by the 50-move rule.
-                // FIXFIXFIX: allow disabling this logic for endgame table analysis.
                 return GameResult.Draw;
             }
+#endif
 
             // It takes at least 4 full moves without captures or pawn movement
             // before it is possible to have a draw by repetition.
@@ -1580,7 +1585,7 @@ namespace Gearbox
             }
         }
 
-        #region Tablebase lookup support
+#region Tablebase lookup support
 
         public const int MaxEndgamePieces = 5;
 
@@ -1681,9 +1686,9 @@ namespace Gearbox
             return PositionCache.GetEndgameTableIndex(PositionScratch);
         }
 
-        #endregion
+#endregion
 
-        #region Dangerous functions for brute-force endgame solvers, etc.
+#region Dangerous functions for brute-force endgame solvers, etc.
 
         public Square[] GetSquaresArray()
         {
@@ -1841,6 +1846,6 @@ namespace Gearbox
                 : PlayerCanMove(Square.Black, Square.White, Direction.S, 7, 2);
         }
 
-        #endregion
+#endregion
     }
 }
