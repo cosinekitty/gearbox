@@ -311,48 +311,39 @@ EndgameTableGen diff a.endgame b.endgame
             int size = (int) TableWorker.TableSize(config);
             Table table = MemoryTable.MemoryLoad(filename, size);
             Console.WriteLine(filename);
-            Console.WriteLine("{0,12:n0} total position capacity", size);
-            int whiteWins=0, whiteLosses=0, blackWins=0, blackLosses=0, occupied=0;
-            int longestForcedMatePlies = -1;
+            Console.WriteLine("size = {0,12:n0}", size);
+            Console.WriteLine();
+
+            const int HistogramSize = (TableGenerator.EnemyMatedScore - TableGenerator.FriendMatedScore) + 1;
+            var whiteHistogram = new int[HistogramSize];
+            var blackHistogram = new int[HistogramSize];
             for (int tindex=0; tindex < size; ++tindex)
             {
                 int wscore = table.GetWhiteScore(tindex);
                 int bscore = table.GetBlackScore(tindex);
-                if (wscore != 0 || bscore != 0)
-                {
-                    ++occupied;
+                if (wscore >= TableGenerator.FriendMatedScore && wscore <= TableGenerator.EnemyMatedScore)
+                    ++whiteHistogram[wscore - TableGenerator.FriendMatedScore];
 
-                    if (wscore != 0)
-                    {
-                        if (wscore < 0)
-                            ++whiteLosses;
-                        else
-                            ++whiteWins;
-
-                        longestForcedMatePlies = Math.Max(longestForcedMatePlies, TableGenerator.EnemyMatedScore - Math.Abs(wscore));
-                    }
-
-                    if (bscore != 0)
-                    {
-                        if (bscore < 0)
-                            ++blackLosses;
-                        else
-                            ++blackWins;
-
-                        longestForcedMatePlies = Math.Max(longestForcedMatePlies, TableGenerator.EnemyMatedScore - Math.Abs(bscore));
-                    }
-                }
+                if (bscore >= TableGenerator.FriendMatedScore && bscore <= TableGenerator.EnemyMatedScore)
+                    ++blackHistogram[bscore - TableGenerator.FriendMatedScore];
             }
 
-            Console.WriteLine("{0,12:n0} occupied score slots; ratio = {1}", occupied, ((double)occupied / size).ToString("F6"));
-            Console.WriteLine("{0,12:n0} White wins", whiteWins);
-            Console.WriteLine("{0,12:n0} White losses", whiteLosses);
-            Console.WriteLine("{0,12:n0} Black wins", blackWins);
-            Console.WriteLine("{0,12:n0} Black losses.", blackLosses);
-            Console.WriteLine("Longest forced mate plies = {0}", longestForcedMatePlies);
-            Console.WriteLine();
+            PrintHistogram("White", whiteHistogram);
+            PrintHistogram("Black", blackHistogram);
 
             return 0;
+        }
+
+        private static void PrintHistogram(string title, int[] histogram)
+        {
+            Console.WriteLine("{0} histogram", title);
+            for (int score = TableGenerator.FriendMatedScore; score <= TableGenerator.EnemyMatedScore; ++score)
+            {
+                int count = histogram[score - TableGenerator.FriendMatedScore];
+                if (count != 0)
+                    Console.WriteLine("{0,5}  {1,12:n0}", score, count);
+            }
+            Console.WriteLine();
         }
     }
 }
