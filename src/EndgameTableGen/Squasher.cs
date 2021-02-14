@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using Gearbox;
@@ -87,6 +88,14 @@ namespace EndgameTableGen
                 int[][] whiteFrequency = MakeFrequencyTable(whiteHist);
                 int[][] blackFrequency = MakeFrequencyTable(blackHist);
 
+                // Build Huffman trees from the frequency tables.
+                HuffmanNode wtree = HuffmanEncoder.Compile(whiteFrequency);
+                HuffmanNode btree = HuffmanEncoder.Compile(blackFrequency);
+
+                // Build dictionaries of bit strings for each tree.
+                Dictionary<int, string> wdict = HuffmanEncoder.MakeEncoding(wtree);
+                Dictionary<int, string> bdict = HuffmanEncoder.MakeEncoding(btree);
+
                 // Open the output file.
                 using (FileStream outfile = File.Create(outFileName))
                 {
@@ -97,11 +106,16 @@ namespace EndgameTableGen
                         Signature = CompressedTableHeader.CorrectSignature,
                         TableSize = tableSize,
                         BlockSize = BlockSizeEntries,
-                        WhiteFrequency = whiteFrequency,
-                        BlackFrequency = blackFrequency,
+                        WhiteTree = wtree,
+                        BlackTree = btree,
                     };
 
-                    string json = JsonSerializer.Serialize(header) + "\n";
+                    var options = new JsonSerializerOptions
+                    {
+                        IncludeFields = true,
+                        IgnoreNullValues = true,
+                    };
+                    string json = JsonSerializer.Serialize(header, options) + "\n";
                     byte[] headerBytes = Encoding.UTF8.GetBytes(json);
                     outfile.Write(headerBytes, 0, headerBytes.Length);
 
