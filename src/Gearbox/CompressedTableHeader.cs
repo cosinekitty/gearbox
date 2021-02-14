@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Gearbox
 {
@@ -11,8 +12,8 @@ namespace Gearbox
         public string Signature;
         public int TableSize;   // number of (White,Black) 3-byte entries in the table
         public int BlockSize;   // number of entries per compressed block
-        public HuffmanNode WhiteTree;
-        public HuffmanNode BlackTree;
+        public int[][] WhiteTree;
+        public int[][] BlackTree;
     }
 
     public class HuffmanNode
@@ -21,6 +22,41 @@ namespace Gearbox
         public int Count;
         public HuffmanNode Left;
         public HuffmanNode Right;
+
+        private int Index = -1;
+
+        public int[][] Compact()
+        {
+            // Represent each node as an array of integers.
+            // A leaf node is the list [Score].
+            // A non-leaf node is the list [LeftIndex, RightIndex].
+            // All the nodes together are placed in a list and their indexes are used for identification.
+            var list = new List<HuffmanNode>();
+            Flatten(list);
+
+            var array = new int[list.Count][];
+            for (int i=0; i < list.Count; ++i)
+            {
+                HuffmanNode node = list[i];
+                if (node.Score.HasValue)
+                    array[i] = new int[] { node.Score.Value };
+                else
+                    array[i] = new int[] { node.Left.Index, node.Right.Index };
+            }
+            return array;
+        }
+
+        private void Flatten(List<HuffmanNode> list)
+        {
+            this.Index = list.Count;
+            list.Add(this);
+
+            if (Left != null)
+                Left.Flatten(list);
+
+            if (Right != null)
+                Right.Flatten(list);
+        }
     }
 
     public static class HuffmanEncoder

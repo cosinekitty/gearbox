@@ -106,8 +106,8 @@ namespace EndgameTableGen
                         Signature = CompressedTableHeader.CorrectSignature,
                         TableSize = tableSize,
                         BlockSize = BlockSizeEntries,
-                        WhiteTree = wtree,
-                        BlackTree = btree,
+                        WhiteTree = wtree.Compact(),
+                        BlackTree = btree.Compact(),
                     };
 
                     var options = new JsonSerializerOptions
