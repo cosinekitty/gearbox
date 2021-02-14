@@ -16,7 +16,7 @@ namespace Gearbox
         private byte[] data = new byte[3];
 
         public DiskEndgameTable(string filename)
-        {            
+        {
             infile = File.OpenRead(filename);
             long fsize = infile.Length / BytesPerPosition;
 

@@ -57,6 +57,10 @@ EndgameTableGen decode config_id table_index side_to_move
 EndgameTableGen diff a.endgame b.endgame
     Compares the scores in the two endgame table files.
 
+EndgameTableGen compress path/<config_id>.endgame
+    Opens the specified raw endgame file and writes a compressed
+    version of it to: path/x_<config_id>.endgame.
+
 ", MaxNonKings, MaxThreads);
 
         static int Main(string[] args)
@@ -69,6 +73,11 @@ EndgameTableGen diff a.endgame b.endgame
             if ((args.Length == 2) && (args[0] == "stats"))
             {
                 return PrintTableStats(args[1]);
+            }
+
+            if ((args.Length == 2) && (args[0] == "compress"))
+            {
+                return CompressEndgameTable(args[1]);
             }
 
             if ((args.Length == 4) && (args[0] == "decode"))
@@ -162,6 +171,30 @@ EndgameTableGen diff a.endgame b.endgame
 
             Console.WriteLine(UsageText);
             return 1;
+        }
+
+        private static int CompressEndgameTable(string inFileName)
+        {
+            const string RawEndgameSuffix = ".endgame";
+            const string CompressedEndgameSuffix = ".egm";
+
+            if (!inFileName.EndsWith(RawEndgameSuffix))
+            {
+                Console.WriteLine("ERROR: Input endgame filename must end with '{0}'.", RawEndgameSuffix);
+                return 1;
+            }
+
+            if (!ConfigIdFromFileName(inFileName, out long config_id))
+                return 1;
+
+            int[,] config = TableWorker.DecodeConfig(config_id);
+            int size = (int)TableWorker.TableSize(config);
+
+            // Convert the input filename to a matching output filename.
+            // For example, "../../tables/1100000010.endgame" becomes "../../tables/1100000010.egm".
+            string outFileName = inFileName.Substring(0, inFileName.Length - RawEndgameSuffix.Length) + CompressedEndgameSuffix;
+
+            return Squasher.Compress(size, inFileName, outFileName);
         }
 
         private static int DiffEndgameTables(string filename1, string filename2)
@@ -337,12 +370,20 @@ EndgameTableGen diff a.endgame b.endgame
         private static void PrintHistogram(string title, int[] histogram)
         {
             Console.WriteLine("{0} histogram", title);
+            int total = 0;
+            int sum = 0;
             for (int score = TableGenerator.FriendMatedScore; score <= TableGenerator.EnemyMatedScore; ++score)
             {
                 int count = histogram[score - TableGenerator.FriendMatedScore];
                 if (count != 0)
+                {
+                    ++total;
+                    sum += count;
                     Console.WriteLine("{0,5}  {1,12:n0}", score, count);
+                }
             }
+            Console.WriteLine("-----  ------------");
+            Console.WriteLine("{0,5}  {1,12:n0}", total, sum);
             Console.WriteLine();
         }
     }

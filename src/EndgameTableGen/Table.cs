@@ -4,7 +4,7 @@ namespace EndgameTableGen
 {
     internal abstract class Table : IDisposable
     {
-        protected const int BytesPerPosition = 3;
+        internal const int BytesPerPosition = 3;
         protected const int MaxTableSize = int.MaxValue / BytesPerPosition;
         protected int size;       // the total number of entries, NOT BYTES
 
