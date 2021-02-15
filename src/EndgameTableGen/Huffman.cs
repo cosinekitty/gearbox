@@ -24,11 +24,10 @@ namespace EndgameTableGen
             var array = new int[list.Count][];
             for (int i=0; i < list.Count; ++i)
             {
-                HuffmanNode node = list[i];
-                if (node.Score.HasValue)
-                    array[i] = new int[] { node.Score.Value };
+                if (list[i].Score.HasValue)
+                    array[i] = new int[] { list[i].Score.Value };
                 else
-                    array[i] = new int[] { node.Left.Index, node.Right.Index };
+                    array[i] = new int[] { list[i].Left.Index, list[i].Right.Index };
             }
             return array;
         }

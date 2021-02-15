@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using Gearbox;
@@ -95,6 +96,9 @@ namespace EndgameTableGen
                 Dictionary<int, string> wdict = HuffmanEncoder.MakeEncoding(wtree);
                 Dictionary<int, string> bdict = HuffmanEncoder.MakeEncoding(btree);
 
+                PrintHuffmanCode(wdict, "White");
+                PrintHuffmanCode(bdict, "Black");
+
                 // Open the output file.
                 using (FileStream outfile = File.Create(outFileName))
                 {
@@ -118,11 +122,73 @@ namespace EndgameTableGen
                     byte[] headerBytes = Encoding.UTF8.GetBytes(json);
                     outfile.Write(headerBytes, 0, headerBytes.Length);
 
-                    //var buffer = new byte[BlockSizeBytes];
+                    // Reserve space in the output file to hold the offset table.
+                    // The offset table requires an integer for each block.
+                    // We will come back and write the offset table once we finish compressing all the blocks.
+                    // IMPORTANT: We keep an extra entry at the end so we can always subtract to know how
+                    // long each block is.
+                    long offsetTablePosition = outfile.Position;
+                    int numBlocks = (tableSize + (BlockSizeEntries-1)) / BlockSizeEntries;
+                    outfile.SetLength(outfile.Length + 4*(numBlocks+1));
+                    outfile.Seek(0, SeekOrigin.End);
+
+                    var offsetTable = new int[numBlocks + 1];
+                    var blockBuffer = new byte[BlockSizeBytes];
+
+                    // Read the entire input file again, compressing each block.
+                    infile.Seek(0, SeekOrigin.Begin);
+                    bytesRemaining = fileSizeBytes;
+                    int block = 0;
+                    var writer = new BitWriter(outfile);
+                    while (bytesRemaining > 0)
+                    {
+                        offsetTable[block] = (int)outfile.Position;
+                        int attempt = (bytesRemaining < BlockSizeBytes) ? (int)bytesRemaining : BlockSizeBytes;
+                        if (attempt % Table.BytesPerPosition != 0)
+                            throw new Exception($"Invalid residual size: {attempt} bytes.");
+                        nread = infile.Read(inData, 0, attempt);
+                        if (nread != attempt)
+                            throw new Exception($"Tried to read {attempt} bytes, but received {nread}");
+                        int nslots = attempt / Table.BytesPerPosition;
+                        for (int i=0; i < nslots; ++i)
+                        {
+                            DecodeScores(inData, 3*i, out int wscore, out int bscore);
+                            writer.Write(wdict[wscore]);
+                            writer.Write(bdict[bscore]);
+                        }
+                        writer.Flush();
+                        bytesRemaining -= attempt;
+                        ++block;
+                    }
+                    if (block != numBlocks)
+                        throw new Exception($"Expected {numBlocks} blocks, but found {block}");
+                    offsetTable[block] = (int)outfile.Position;
+
+                    // Seek backwards and write the offsetTable.
+                    outfile.Seek(offsetTablePosition, SeekOrigin.Begin);
+                    var outBuffer = new byte[4];
+                    for (int i = 0; i <= numBlocks; ++i)
+                    {
+                        outBuffer[0] = (byte)offsetTable[i];
+                        outBuffer[1] = (byte)(offsetTable[i] >> 8);
+                        outBuffer[2] = (byte)(offsetTable[i] >> 16);
+                        outBuffer[3] = (byte)(offsetTable[i] >> 24);
+                        outfile.Write(outBuffer, 0, 4);
+                    }
                 }
             }
 
             return 0;
+        }
+
+        private static void PrintHuffmanCode(Dictionary<int, string> dict, string side)
+        {
+            Console.WriteLine("Huffman encoding for {0} scores:", side);
+            foreach (int score in dict.Keys.OrderBy(score => score))
+            {
+                Console.WriteLine("{0,5} = {1}", score, dict[score]);
+            }
+            Console.WriteLine();
         }
 
         private static int[][] MakeFrequencyTable(int[] histogram)
