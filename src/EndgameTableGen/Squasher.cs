@@ -122,17 +122,14 @@ namespace EndgameTableGen
                     byte[] headerBytes = Encoding.UTF8.GetBytes(json);
                     outfile.Write(headerBytes, 0, headerBytes.Length);
 
-                    // Reserve space in the output file to hold the offset table.
-                    // The offset table requires an integer for each block.
-                    // We will come back and write the offset table once we finish compressing all the blocks.
-                    // IMPORTANT: We keep an extra entry at the end so we can always subtract to know how
-                    // long each block is.
-                    long offsetTablePosition = outfile.Position;
+                    // Reserve space in the output file to hold the table of compressed block lengths.
+                    // We will come back and write the block length table once we finish compressing all the blocks.
+                    long blockLengthTablePosition = outfile.Position;
                     int numBlocks = (tableSize + (BlockSizeEntries-1)) / BlockSizeEntries;
-                    outfile.SetLength(outfile.Length + 4*(numBlocks+1));
+                    outfile.SetLength(outfile.Length + 2*numBlocks);    // 16-bit unsigned integer for each block length
                     outfile.Seek(0, SeekOrigin.End);
 
-                    var offsetTable = new int[numBlocks + 1];
+                    var blockLengthTable = new short[numBlocks];
                     var blockBuffer = new byte[BlockSizeBytes];
 
                     // Read the entire input file again, compressing each block.
@@ -140,9 +137,12 @@ namespace EndgameTableGen
                     bytesRemaining = fileSizeBytes;
                     int block = 0;
                     var writer = new BitWriter(outfile);
+
+                    long prevBlockOffset = outfile.Position;
+                    long minBlockLength = long.MaxValue;
+                    long maxBlockLength = long.MinValue;
                     while (bytesRemaining > 0)
                     {
-                        offsetTable[block] = (int)outfile.Position;
                         int attempt = (bytesRemaining < BlockSizeBytes) ? (int)bytesRemaining : BlockSizeBytes;
                         if (attempt % Table.BytesPerPosition != 0)
                             throw new Exception($"Invalid residual size: {attempt} bytes.");
@@ -157,23 +157,32 @@ namespace EndgameTableGen
                             writer.Write(bdict[bscore]);
                         }
                         writer.Flush();
+                        long offset = outfile.Position;
+                        long length = offset - prevBlockOffset;
+                        prevBlockOffset = offset;
+                        if ((length & 0x7fff) != length)
+                            throw new Exception($"Block length {length} cannot be represented as a 16-bit integer.");
+                        blockLengthTable[block] = (short)length;
+                        if (length > maxBlockLength)
+                            maxBlockLength = length;
+                        if (length < minBlockLength)
+                            minBlockLength = length;
                         bytesRemaining -= attempt;
                         ++block;
                     }
                     if (block != numBlocks)
                         throw new Exception($"Expected {numBlocks} blocks, but found {block}");
-                    offsetTable[block] = (int)outfile.Position;
 
-                    // Seek backwards and write the offsetTable.
-                    outfile.Seek(offsetTablePosition, SeekOrigin.Begin);
-                    var outBuffer = new byte[4];
-                    for (int i = 0; i <= numBlocks; ++i)
+                    Console.WriteLine("Min block length = {0}, max block length = {1}", minBlockLength, maxBlockLength);
+
+                    // Seek backwards and write the table of block lengths.
+                    outfile.Seek(blockLengthTablePosition, SeekOrigin.Begin);
+                    var outBuffer = new byte[2];
+                    for (int i = 0; i < numBlocks; ++i)
                     {
-                        outBuffer[0] = (byte)offsetTable[i];
-                        outBuffer[1] = (byte)(offsetTable[i] >> 8);
-                        outBuffer[2] = (byte)(offsetTable[i] >> 16);
-                        outBuffer[3] = (byte)(offsetTable[i] >> 24);
-                        outfile.Write(outBuffer, 0, 4);
+                        outBuffer[0] = (byte)blockLengthTable[i];
+                        outBuffer[1] = (byte)(blockLengthTable[i] >> 8);
+                        outfile.Write(outBuffer, 0, 2);
                     }
                 }
             }
