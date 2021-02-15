@@ -184,9 +184,53 @@ namespace EndgameTableGen
                         outBuffer[1] = (byte)(blockLengthTable[i] >> 8);
                         outfile.Write(outBuffer, 0, 2);
                     }
+
+                    outfile.Flush();
+                    long inFileLength = infile.Length;
+                    long outFileLength = outfile.Length;
+                    double ratio = (double)inFileLength / (double)outFileLength;
+                    Console.WriteLine("Compressed {0} bytes to {1} bytes. Ratio = {2}", inFileLength.ToString("n0"), outFileLength.ToString("n0"), ratio.ToString("0.0000"));
                 }
             }
 
+            return 0;
+        }
+
+        internal static int Verify(string rawFileName, string compressedFileName)
+        {
+            // Verify that we can decompress the compressed file and obtain
+            // an exact match for the original scores.
+            // Inaccessible/invalid positions will have a score of 0 in
+            // the decompressed data, so they don't need to match the original scores.
+            int tindex = 0;
+            using (var cmp = new CompressedEndgameTable(compressedFileName))
+            {
+                using (FileStream infile = File.OpenRead(rawFileName))
+                {
+                    byte[] buffer = new byte[Table.BytesPerPosition * cmp.BlockSize];
+                    while (true)
+                    {
+                        int nbytes = infile.Read(buffer, 0, buffer.Length);
+                        int nslots = nbytes / Table.BytesPerPosition;
+                        for (int i = 0; i < nslots; ++i)
+                        {
+                            DecodeScores(buffer, 3*i, out int wscore, out int bscore);
+                            int wcheck = cmp.GetRawScore(tindex, true);
+                            int bcheck = cmp.GetRawScore(tindex, false);
+                            ++tindex;
+                            if (wcheck != wscore || bcheck != bscore)
+                            {
+                                Console.WriteLine("FAIL(Verify): wscore={0}, wcheck={1}, bscore={2}, bcheck={3} tindex={4}", wscore, wcheck, bscore, bcheck, tindex);
+                                return 1;
+                            }
+                        }
+
+                        if (nbytes < buffer.Length)
+                            break;  // EOF
+                    }
+                }
+            }
+            Console.WriteLine("Verified {0} entries in file {1}", tindex.ToString("n0"), compressedFileName);
             return 0;
         }
 

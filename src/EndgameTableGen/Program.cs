@@ -194,7 +194,12 @@ EndgameTableGen compress path/<config_id>.endgame
             // For example, "../../tables/1100000010.endgame" becomes "../../tables/1100000010.egm".
             string outFileName = inFileName.Substring(0, inFileName.Length - RawEndgameSuffix.Length) + CompressedEndgameSuffix;
 
-            return Squasher.Compress(size, inFileName, outFileName);
+            int rc = Squasher.Compress(size, inFileName, outFileName);
+            if (rc != 0)
+                return rc;
+
+            rc = Squasher.Verify(inFileName, outFileName);
+            return rc;
         }
 
         private static int DiffEndgameTables(string filename1, string filename2)
