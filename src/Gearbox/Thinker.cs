@@ -95,15 +95,34 @@ namespace Gearbox
             {
                 dir = Path.GetFullPath(dir);
 
-                // Currently support endgame tables that can fit in memory only.
-                // This means nonking piece count <= 2.
+                // Valid filenames look like this: 1001000000.endgame (uncompressed)
+                // or 1001000000.egm (compressed).
+                // The first is the configuration ID, which is a decimal number
+                // whose digits represent how many of each piece there are,
+                // in the order QqRrBbNnPp.
+                // Load tables with 3 nonking pieces from compressed files (*.egm) if available,
+                // or uncompressed files (*.endgame) as a fallback.
+                // Load tables with 1 or 2 nonking pieces into memory from *.endgame.
 
                 foreach (string fn in Directory.EnumerateFiles(dir))
                 {
-                    // Valid filenames look like this: 1001000000.endgame.
-                    // The first is the configuration ID, which is a decimal number
-                    // whose digits represent how many of each piece there are,
-                    // in the order QqRrBbNnPp.
+                    if (Path.GetExtension(fn) == ".egm")
+                    {
+                        string config_text = Path.GetFileNameWithoutExtension(fn);
+                        if (long.TryParse(config_text, out long config_id) && config_id >= 0 && config_id <= 9999999999)
+                        {
+                            int nonking = NonKingPieceCount(config_id);
+                            if (nonking == 3)
+                            {
+                                endgameTableForConfigId[config_id] = new CompressedEndgameTable(fn);
+                                ++count;
+                            }
+                        }
+                    }
+                }
+
+                foreach (string fn in Directory.EnumerateFiles(dir))
+                {
                     if (Path.GetExtension(fn) == ".endgame")
                     {
                         string config_text = Path.GetFileNameWithoutExtension(fn);
@@ -121,8 +140,11 @@ namespace Gearbox
                                     break;
 
                                 case 3:
-                                    endgameTableForConfigId[config_id] = new DiskEndgameTable(fn);
-                                    ++count;
+                                    if (!endgameTableForConfigId.ContainsKey(config_id))
+                                    {
+                                        endgameTableForConfigId[config_id] = new DiskEndgameTable(fn);
+                                        ++count;
+                                    }
                                     break;
 
                                 default:
