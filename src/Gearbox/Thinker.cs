@@ -364,7 +364,7 @@ namespace Gearbox
             return bestMove;
         }
 
-        public bool EndgameEval(out int score, Board board)
+        public bool EndgameEval(out int score, Board board, int depth)
         {
             if (endgameTableForConfigId.Count > 0)
             {
@@ -375,6 +375,15 @@ namespace Gearbox
                 IEndgameTable table;
 
                 long config_id = board.GetEndgameConfigId(false);
+                int nonking = NonKingPieceCount(config_id);
+                if (nonking > 2 && depth > 0)
+                {
+                    // Using the 3-nonking tables requires disk I/O.
+                    // Prevent disk thrashing by limiting their use below beyond the top level of the tree.
+                    score = Score.Undefined;
+                    return false;
+                }
+
                 if (endgameTableForConfigId.TryGetValue(config_id, out table))
                 {
                     table_index = board.GetEndgameTableIndex(false);
@@ -425,7 +434,7 @@ namespace Gearbox
             // Check to see if this is a known endgame position.
             // If so, we can immediately determine the value of the position
             // without searching any deeper in the tree.
-            return EndgameEval(out score, board);
+            return EndgameEval(out score, board, depth);
         }
 
         private int NegaMax(Board board, int depth, int limit, int alpha, int beta, int checkCount)

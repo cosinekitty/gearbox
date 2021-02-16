@@ -47,7 +47,7 @@ namespace BoardTest
 
             // Find the endgame table's score for the current position.
 
-            if (!egThinker.EndgameEval(out int parentScore, board))
+            if (!egThinker.EndgameEval(out int parentScore, board, 0))
             {
                 Console.WriteLine("EndgameWalker{0}: EndgameEval failed for PARENT {1}", ConfigText(nonKingPieces), board.ForsythEdwardsNotation());
                 return false;
@@ -79,7 +79,7 @@ namespace BoardTest
                     {
                         Move move = legalMoveList.array[i];
                         board.PushMove(move);
-                        if (!egThinker.EndgameEval(out int opponentScore, board))
+                        if (!egThinker.EndgameEval(out int opponentScore, board, 0))
                         {
                             // This can happen if the game is a draw, e.g. a capture results in insufficient mating material.
                             // Technically, checkmates can be POSSIBLE in cases like KB:kb, but not forcible.
