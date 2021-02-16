@@ -57,9 +57,9 @@ EndgameTableGen decode config_id table_index side_to_move
 EndgameTableGen diff a.endgame b.endgame
     Compares the scores in the two endgame table files.
 
-EndgameTableGen compress path/<config_id>.endgame
-    Opens the specified raw endgame file and writes a compressed
-    version of it to: path/x_<config_id>.endgame.
+EndgameTableGen compress path/<config_id>.endgame ...
+    Opens the specified raw endgame file(s) and writes a compressed
+    version of each to: path/x_<config_id>.endgame.
 
 ", MaxNonKings, MaxThreads);
 
@@ -75,9 +75,15 @@ EndgameTableGen compress path/<config_id>.endgame
                 return PrintTableStats(args[1]);
             }
 
-            if ((args.Length == 2) && (args[0] == "compress"))
+            if ((args.Length >= 2) && (args[0] == "compress"))
             {
-                return CompressEndgameTable(args[1]);
+                for (int i = 1; i < args.Length; ++i)
+                {
+                    int rc = CompressEndgameTable(args[i]);
+                    if (rc != 0)
+                        return rc;
+                }
+                return 0;
             }
 
             if ((args.Length == 4) && (args[0] == "decode"))

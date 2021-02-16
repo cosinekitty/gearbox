@@ -17,7 +17,7 @@ namespace EndgameTableGen
         {
             if (File.Exists(outFileName))
             {
-                Console.WriteLine("Deleting existing file: {0}", outFileName);
+                //Console.WriteLine("Deleting existing file: {0}", outFileName);
                 File.Delete(outFileName);
             }
 
@@ -26,6 +26,8 @@ namespace EndgameTableGen
                 Console.WriteLine("ERROR: Input file does not exist: {0}", inFileName);
                 return 1;
             }
+
+            Console.WriteLine("Compressing: {0}", inFileName);
 
             long fileSizeBytes = (long)Table.BytesPerPosition * tableSize;
             using (FileStream infile = File.OpenRead(inFileName))
@@ -96,8 +98,8 @@ namespace EndgameTableGen
                 Dictionary<int, string> wdict = HuffmanEncoder.MakeEncoding(wtree);
                 Dictionary<int, string> bdict = HuffmanEncoder.MakeEncoding(btree);
 
-                PrintHuffmanCode(wdict, "White");
-                PrintHuffmanCode(bdict, "Black");
+                //PrintHuffmanCode(wdict, "White");
+                //PrintHuffmanCode(bdict, "Black");
 
                 // Open the output file.
                 using (FileStream outfile = File.Create(outFileName))
@@ -231,6 +233,7 @@ namespace EndgameTableGen
                 }
             }
             Console.WriteLine("Verified {0} entries in file {1}", tindex.ToString("n0"), compressedFileName);
+            Console.WriteLine();
             return 0;
         }
 

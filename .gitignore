@@ -2,6 +2,7 @@ bin
 obj
 *.user
 *.endgame
+*.egm
 .vscode
 .vs
 launchSettings.json
