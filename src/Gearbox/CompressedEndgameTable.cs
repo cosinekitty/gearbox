@@ -21,6 +21,7 @@ namespace Gearbox
         private int numBlocks;
         private long[] blockOffsetTable;
         private short[] blockLengthTable;
+        private BitReader reader = new();
 
         public CompressedEndgameTable(string filename)
         {
@@ -150,57 +151,32 @@ loaded_json_header:
                     blockLength = header.BlockSize;
             }
 
+            reader.Init(compressedBlockBuffer, nread);
+            DecodeBlockForSide(header.WhiteTree, reader, whiteBlock, blockLength);
+            DecodeBlockForSide(header.BlackTree, reader, blackBlock, blockLength);
+            currentBlockNumber = block;
+        }
+
+        private void DecodeBlockForSide(int[][] tree, BitReader reader, int[] block, int blockLength)
+        {
             int treeIndex = 0;
-            int compressedIndex = 0;
             int blockIndex = 0;
-            bool white = true;
-            int bitsInAccum = 0;
-            byte accum = 0;
-            int numScores = 2 * header.BlockSize;
-            int[][] tree = header.WhiteTree;
             while (true)
             {
-                if (bitsInAccum == 0)
-                {
-                    if (compressedIndex == compressedBlockBuffer.Length)
-                        break;
-                    accum = compressedBlockBuffer[compressedIndex++];
-                    bitsInAccum = 8;
-                }
-                int bit = (accum >> 7);
-                accum <<= 1;
-                --bitsInAccum;
-
                 if (tree[treeIndex].Length != 2)
                     throw new Exception("Decoder error: unexpected terminal node.");
 
+                int bit = reader.ReadBit();
                 treeIndex = tree[treeIndex][bit];
                 if (tree[treeIndex].Length == 1)
                 {
                     // We have decoded another score.
-                    // Store it in the appropriate table.
-                    if (white)
-                    {
-                        // Store White score and switch to Black.
-                        whiteBlock[blockIndex] = tree[treeIndex][0];
-                        tree = header.BlackTree;
-                        white = false;
-                    }
-                    else
-                    {
-                        // Store Black score and switch to White.
-                        blackBlock[blockIndex] = tree[treeIndex][0];
-                        tree = header.WhiteTree;
-                        ++blockIndex;
-                        if (blockIndex == blockLength)
-                            break;
-                        white = true;
-                    }
+                    block[blockIndex++] = tree[treeIndex][0];
+                    if (blockIndex == blockLength)
+                        return;
                     treeIndex = 0;
                 }
             }
-
-            currentBlockNumber = block;
         }
     }
 }

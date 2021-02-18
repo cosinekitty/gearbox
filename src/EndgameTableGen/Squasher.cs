@@ -98,9 +98,6 @@ namespace EndgameTableGen
                 Dictionary<int, string> wdict = HuffmanEncoder.MakeEncoding(wtree);
                 Dictionary<int, string> bdict = HuffmanEncoder.MakeEncoding(btree);
 
-                //PrintHuffmanCode(wdict, "White");
-                //PrintHuffmanCode(bdict, "Black");
-
                 // Open the output file.
                 using (FileStream outfile = File.Create(outFileName))
                 {
@@ -138,6 +135,8 @@ namespace EndgameTableGen
                     infile.Seek(0, SeekOrigin.Begin);
                     bytesRemaining = fileSizeBytes;
                     int block = 0;
+                    var wblock = new int[BlockSizeEntries];
+                    var bblock = new int[BlockSizeEntries];
                     var writer = new BitWriter(outfile);
 
                     long prevBlockOffset = outfile.Position;
@@ -151,14 +150,15 @@ namespace EndgameTableGen
                         nread = infile.Read(inData, 0, attempt);
                         if (nread != attempt)
                             throw new Exception($"Tried to read {attempt} bytes, but received {nread}");
+
                         int nslots = attempt / Table.BytesPerPosition;
                         for (int i=0; i < nslots; ++i)
-                        {
-                            DecodeScores(inData, 3*i, out int wscore, out int bscore);
-                            writer.Write(wdict[wscore]);
-                            writer.Write(bdict[bscore]);
-                        }
+                            DecodeScores(inData, 3*i, out wblock[i], out bblock[i]);
+
+                        WriteBlock(writer, nslots, wblock, wdict);
+                        WriteBlock(writer, nslots, bblock, bdict);
                         writer.Flush();
+
                         long offset = outfile.Position;
                         long length = offset - prevBlockOffset;
                         prevBlockOffset = offset;
@@ -196,6 +196,12 @@ namespace EndgameTableGen
             }
 
             return 0;
+        }
+
+        private static void WriteBlock(BitWriter writer, int nslots, int[] block, Dictionary<int, string> dict)
+        {
+            for (int i = 0; i < nslots; ++i)
+                writer.Write(dict[block[i]]);
         }
 
         internal static int Verify(string rawFileName, string compressedFileName)
