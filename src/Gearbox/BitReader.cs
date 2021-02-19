@@ -33,5 +33,13 @@ namespace Gearbox
             --bitsInAccum;
             return bit;
         }
+
+        public int ReadInteger(int nbits)
+        {
+            int value = 0;
+            for (int i = 0; i < nbits; ++i)
+                value = (value << 1) | ReadBit();
+            return value;
+        }
     }
 }

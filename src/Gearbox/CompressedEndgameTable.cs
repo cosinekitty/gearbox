@@ -159,24 +159,43 @@ loaded_json_header:
 
         private void DecodeBlockForSide(int[][] tree, BitReader reader, int[] block, int blockLength)
         {
-            int treeIndex = 0;
             int blockIndex = 0;
-            while (true)
+            while (blockIndex < blockLength)
             {
-                if (tree[treeIndex].Length != 2)
-                    throw new Exception("Decoder error: unexpected terminal node.");
+                // Read 1 bit to determine whether the next item is a run or a sequence.
+                int kind = reader.ReadBit();
+                int length = 1 + reader.ReadInteger(10);
+                if (blockIndex + length > blockLength)
+                    throw new Exception($"Block overflow in decoder: {blockIndex + length} > {blockLength}");
 
-                int bit = reader.ReadBit();
-                treeIndex = tree[treeIndex][bit];
-                if (tree[treeIndex].Length == 1)
+                if (kind == 0)
                 {
-                    // We have decoded another score.
-                    block[blockIndex++] = tree[treeIndex][0];
-                    if (blockIndex == blockLength)
-                        return;
-                    treeIndex = 0;
+                    for (int i = 0; i < length; ++i)
+                        block[blockIndex++] = DecodeScore(tree, reader);
+                }
+                else
+                {
+                    int score = DecodeScore(tree, reader);
+                    for (int i = 0; i < length; ++i)
+                        block[blockIndex++] = score;
                 }
             }
+        }
+
+        private int DecodeScore(int[][] tree, BitReader reader)
+        {
+            int treeIndex = 0;
+
+            while (tree[treeIndex].Length == 2)
+            {
+                int bit = reader.ReadBit();
+                treeIndex = tree[treeIndex][bit];
+            }
+
+            if (tree[treeIndex].Length != 1)
+                throw new Exception($"Decoder error: unexpected length {tree[treeIndex].Length} at index {treeIndex}.");
+
+            return tree[treeIndex][0];
         }
     }
 }

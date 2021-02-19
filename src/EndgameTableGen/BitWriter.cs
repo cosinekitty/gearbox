@@ -26,6 +26,19 @@ namespace EndgameTableGen
             }
         }
 
+        public void Write(int data, int nbits)
+        {
+            for (int i = 0; i < nbits; ++i)
+            {
+                accum[0] = (byte)((accum[0] << 1) | (1 & (data >> ((nbits - 1) - i))));
+                if (++bitCount == 8)
+                {
+                    outfile.Write(accum, 0, 1);
+                    bitCount = 0;
+                }
+            }
+        }
+
         public void Flush()
         {
             while (bitCount > 0)

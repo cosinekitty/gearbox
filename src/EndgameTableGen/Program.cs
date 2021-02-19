@@ -77,12 +77,14 @@ EndgameTableGen compress path/<config_id>.endgame ...
 
             if ((args.Length >= 2) && (args[0] == "compress"))
             {
+                long totalCompressedBytes = 0;
                 for (int i = 1; i < args.Length; ++i)
                 {
-                    int rc = CompressEndgameTable(args[i]);
+                    int rc = CompressEndgameTable(args[i], ref totalCompressedBytes);
                     if (rc != 0)
                         return rc;
                 }
+                Console.WriteLine("Total Compressed Bytes = {0}", totalCompressedBytes.ToString("n0"));
                 return 0;
             }
 
@@ -179,7 +181,7 @@ EndgameTableGen compress path/<config_id>.endgame ...
             return 1;
         }
 
-        private static int CompressEndgameTable(string inFileName)
+        private static int CompressEndgameTable(string inFileName, ref long totalCompressedBytes)
         {
             const string RawEndgameSuffix = ".endgame";
             const string CompressedEndgameSuffix = ".egm";
@@ -200,7 +202,7 @@ EndgameTableGen compress path/<config_id>.endgame ...
             // For example, "../../tables/1100000010.endgame" becomes "../../tables/1100000010.egm".
             string outFileName = inFileName.Substring(0, inFileName.Length - RawEndgameSuffix.Length) + CompressedEndgameSuffix;
 
-            int rc = Squasher.Compress(size, inFileName, outFileName);
+            int rc = Squasher.Compress(size, inFileName, outFileName, ref totalCompressedBytes);
             if (rc != 0)
                 return rc;
 

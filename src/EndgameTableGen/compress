@@ -1,5 +1,6 @@
 #!/bin/bash
 dotnet build -c Release || exit $?
 rm -f ../../tables/*.egm
-bin/Release/net5.0/EndgameTableGen compress ../../tables/*.endgame || exit $?
+time bin/Release/net5.0/EndgameTableGen compress ../../tables/*.endgame || exit $?
+exit 0
 

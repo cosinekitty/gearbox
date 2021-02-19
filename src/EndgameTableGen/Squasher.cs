@@ -13,7 +13,13 @@ namespace EndgameTableGen
         private const int BlockSizeEntries = 1024;
         private const int BlockSizeBytes = Table.BytesPerPosition * BlockSizeEntries;
 
-        public static int Compress(int tableSize, string inFileName, string outFileName)
+        private struct Run
+        {
+            public int Score;
+            public int Length;
+        }
+
+        public static int Compress(int tableSize, string inFileName, string outFileName, ref long totalCompressedBytes)
         {
             if (File.Exists(outFileName))
             {
@@ -138,6 +144,7 @@ namespace EndgameTableGen
                     var wblock = new int[BlockSizeEntries];
                     var bblock = new int[BlockSizeEntries];
                     var writer = new BitWriter(outfile);
+                    var runlist = new List<Run>();
 
                     long prevBlockOffset = outfile.Position;
                     long minBlockLength = long.MaxValue;
@@ -155,8 +162,8 @@ namespace EndgameTableGen
                         for (int i=0; i < nslots; ++i)
                             DecodeScores(inData, 3*i, out wblock[i], out bblock[i]);
 
-                        WriteBlock(writer, nslots, wblock, wdict);
-                        WriteBlock(writer, nslots, bblock, bdict);
+                        WriteBlock(writer, nslots, wblock, wdict, runlist);
+                        WriteBlock(writer, nslots, bblock, bdict, runlist);
                         writer.Flush();
 
                         long offset = outfile.Position;
@@ -192,16 +199,106 @@ namespace EndgameTableGen
                     long outFileLength = outfile.Length;
                     double ratio = (double)inFileLength / (double)outFileLength;
                     Console.WriteLine("Compressed {0} bytes to {1} bytes. Ratio = {2}", inFileLength.ToString("n0"), outFileLength.ToString("n0"), ratio.ToString("0.0000"));
+
+                    totalCompressedBytes += outFileLength;
                 }
             }
 
             return 0;
         }
 
-        private static void WriteBlock(BitWriter writer, int nslots, int[] block, Dictionary<int, string> dict)
+        private static void WriteBlock(
+            BitWriter writer,
+            int nslots,
+            int[] block,
+            Dictionary<int, string> dict,
+            List<Run> runlist)
         {
-            for (int i = 0; i < nslots; ++i)
-                writer.Write(dict[block[i]]);
+            // A combination of Huffman encoding and run-length encoding.
+            // We alternate between "run mode" and "individual score" mode.
+            // Each mode begins with a bit indicating which kind it is:
+            // 0 = sequence of individual scores
+            // 1 = run of identical scores
+            // Following the type bit is a 10-bit integer telling its length.
+            // A run then has a single score value, whereas a sequence has
+            // the specified number of scores.
+
+            // Convert the scores in 'block' into a run list.
+            runlist.Clear();
+
+            int f = 0;
+            for (int i = 1; i < nslots; ++i)
+            {
+                if (block[i] != block[f])
+                {
+                    // A run just ended.
+                    runlist.Add(new Run { Score = block[f], Length = i - f });
+                    f = i;
+                }
+            }
+
+            int length = nslots - f;
+            if (length > 0)
+                runlist.Add(new Run { Score = block[f], Length = length });
+
+            // Go back and encode every run whose length is at least MinRunLength.
+            // All other runs get expanded back to a sequence of individual scores.
+            const int MinRunLength = 20;        // tune experimentally for best compression
+            int sequenceFrontIndex = 0;
+            int sequenceLength = 0;
+            int checkLength = 0;
+            for (int i = 0; i < runlist.Count; ++i)
+            {
+                if (runlist[i].Length >= MinRunLength)
+                {
+                    if (sequenceLength > 0)
+                    {
+                        checkLength += sequenceLength;
+                        WriteSequence(writer, runlist, sequenceLength, sequenceFrontIndex, i, dict);
+                        sequenceLength = 0;
+                    }
+                    checkLength += runlist[i].Length;
+                    writer.Write(1, 1);                         // signal a run
+                    writer.Write(runlist[i].Length - 1, 10);    // encode run length
+                    writer.Write(dict[runlist[i].Score]);       // encode the score to be repeated
+                    sequenceFrontIndex = i + 1;
+                }
+                else
+                {
+                    sequenceLength += runlist[i].Length;
+                }
+            }
+
+            if (sequenceLength > 0)
+            {
+                checkLength += sequenceLength;
+                WriteSequence(writer, runlist, sequenceLength, sequenceFrontIndex, runlist.Count, dict);
+            }
+
+            if (checkLength != nslots)
+                throw new Exception($"Internal error: nslots={nslots}, checkLength={checkLength}");
+        }
+
+        private static void WriteSequence(
+            BitWriter writer,
+            List<Run> runlist,
+            int sequenceLength,
+            int front,
+            int back,
+            Dictionary<int, string> dict)
+        {
+            writer.Write(0, 1);                     // signal a sequence
+            writer.Write(sequenceLength - 1, 10);   // write total number of scores
+            int checkLength = 0;
+            for (int s = front; s < back; ++s)
+            {
+                checkLength += runlist[s].Length;
+                // Report all the scores, repeating each the required number of times.
+                for (int k = 0; k < runlist[s].Length; ++k)
+                    writer.Write(dict[runlist[s].Score]);
+            }
+            if (checkLength != sequenceLength)
+                throw new Exception($"Internal error: checkLength={checkLength}, sequenceLength={sequenceLength}");
         }
 
         internal static int Verify(string rawFileName, string compressedFileName)
