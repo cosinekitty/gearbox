@@ -243,13 +243,14 @@ namespace EndgameTableGen
 
             // Go back and encode every run whose length is at least MinRunLength.
             // All other runs get expanded back to a sequence of individual scores.
-            const int MinRunLength = 20;        // tune experimentally for best compression
+            const int MinRunLength = 15;
             int sequenceFrontIndex = 0;
             int sequenceLength = 0;
             int checkLength = 0;
             for (int i = 0; i < runlist.Count; ++i)
             {
-                if (runlist[i].Length >= MinRunLength)
+                int n = runlist[i].Length;
+                if (n >= MinRunLength)
                 {
                     if (sequenceLength > 0)
                     {
@@ -257,15 +258,15 @@ namespace EndgameTableGen
                         WriteSequence(writer, runlist, sequenceLength, sequenceFrontIndex, i, dict);
                         sequenceLength = 0;
                     }
-                    checkLength += runlist[i].Length;
-                    writer.Write(1, 1);                         // signal a run
-                    writer.Write(runlist[i].Length - 1, 10);    // encode run length
-                    writer.Write(dict[runlist[i].Score]);       // encode the score to be repeated
+                    checkLength += n;
+                    writer.Write(1, 1);                     // signal a run
+                    writer.Write(n-1, 10);                  // encode run length (subtract 1 to fit in 10 bits)
+                    writer.Write(dict[runlist[i].Score]);   // encode the score to be repeated
                     sequenceFrontIndex = i + 1;
                 }
                 else
                 {
-                    sequenceLength += runlist[i].Length;
+                    sequenceLength += n;
                 }
             }
 
