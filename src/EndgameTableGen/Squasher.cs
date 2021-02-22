@@ -12,6 +12,7 @@ namespace EndgameTableGen
     {
         private const int BlockSizeEntries = 1024;
         private const int BlockSizeBytes = Table.BytesPerPosition * BlockSizeEntries;
+        private const int MaxThreshold = 23;    // maximum value that was ever chosen in 1..50: probably because 2*11+1 = 23.
 
         private struct Run
         {
@@ -21,6 +22,8 @@ namespace EndgameTableGen
 
         public static int Compress(int tableSize, string inFileName, string outFileName, ref long totalCompressedBytes)
         {
+            var histogram = new int[MaxThreshold+1];
+
             if (File.Exists(outFileName))
             {
                 //Console.WriteLine("Deleting existing file: {0}", outFileName);
@@ -162,8 +165,8 @@ namespace EndgameTableGen
                         for (int i=0; i < nslots; ++i)
                             DecodeScores(inData, 3*i, out wblock[i], out bblock[i]);
 
-                        WriteBlock(writer, nslots, wblock, wdict, runlist);
-                        WriteBlock(writer, nslots, bblock, bdict, runlist);
+                        WriteBlock(writer, nslots, wblock, wdict, runlist, histogram);
+                        WriteBlock(writer, nslots, bblock, bdict, runlist, histogram);
                         writer.Flush();
 
                         long offset = outfile.Position;
@@ -199,6 +202,8 @@ namespace EndgameTableGen
                     long outFileLength = outfile.Length;
                     double ratio = (double)inFileLength / (double)outFileLength;
                     Console.WriteLine("Compressed {0} bytes to {1} bytes. Ratio = {2}", inFileLength.ToString("n0"), outFileLength.ToString("n0"), ratio.ToString("0.0000"));
+                    for (int i = 1; i < histogram.Length; ++i)
+                        Console.WriteLine("histogram[{0,4}] = {1,20}", i, histogram[i].ToString("n0"));
 
                     totalCompressedBytes += outFileLength;
                 }
@@ -212,7 +217,8 @@ namespace EndgameTableGen
             int nslots,
             int[] block,
             Dictionary<int, string> dict,
-            List<Run> runlist)
+            List<Run> runlist,
+            int[] histogram)
         {
             // A combination of Huffman encoding and run-length encoding.
             // We alternate between "run mode" and "individual score" mode.
@@ -241,16 +247,18 @@ namespace EndgameTableGen
             if (length > 0)
                 runlist.Add(new Run { Score = block[f], Length = length });
 
-            // Go back and encode every run whose length is at least MinRunLength.
+            int runLengthThreshold = BestRunLengthThreshold(runlist, dict);
+            ++histogram[runLengthThreshold];
+
+            // Go back and encode every run whose length is at least runLengthThreshold.
             // All other runs get expanded back to a sequence of individual scores.
-            const int MinRunLength = 15;
             int sequenceFrontIndex = 0;
             int sequenceLength = 0;
             int checkLength = 0;
             for (int i = 0; i < runlist.Count; ++i)
             {
                 int n = runlist[i].Length;
-                if (n >= MinRunLength)
+                if (n >= runLengthThreshold)
                 {
                     if (sequenceLength > 0)
                     {
@@ -278,6 +286,46 @@ namespace EndgameTableGen
 
             if (checkLength != nslots)
                 throw new Exception($"Internal error: nslots={nslots}, checkLength={checkLength}");
+        }
+
+        private static int BestRunLengthThreshold(List<Run> runlist, Dictionary<int, string> dict)
+        {
+            int bestThresh = -1;
+            int bestBitCount = int.MaxValue;
+            for (int thresh = 1; thresh <= MaxThreshold; ++thresh)
+            {
+                int bitcount = 0;
+                int sequenceBits = 0;
+                for (int i = 0; i < runlist.Count; ++i)
+                {
+                    int n = runlist[i].Length;
+                    if (n >= thresh)
+                    {
+                        if (sequenceBits > 0)
+                        {
+                            bitcount += 11 + sequenceBits;
+                            sequenceBits = 0;
+                        }
+                        bitcount += 11 + dict[runlist[i].Score].Length;
+                    }
+                    else
+                    {
+                        sequenceBits += n * dict[runlist[i].Score].Length;
+                    }
+                }
+
+                if (sequenceBits > 0)
+                {
+                    bitcount += 11 + sequenceBits;
+                }
+
+                if (bitcount < bestBitCount)
+                {
+                    bestBitCount = bitcount;
+                    bestThresh = thresh;
+                }
+            }
+            return bestThresh;
         }
 
         private static void WriteSequence(
