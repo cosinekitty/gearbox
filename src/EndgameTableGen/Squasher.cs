@@ -86,12 +86,47 @@ namespace EndgameTableGen
                     if (nread != attempt)
                         throw new Exception($"Tried to read {attempt} bytes, but received {nread}");
                     int nslots = attempt / Table.BytesPerPosition;
+                    int prev_wscore = int.MinValue;
+                    int prev_bscore = int.MinValue;
+                    int wrun = 0;
+                    int brun = 0;
+                    const int MeanThreshold = 11;
                     for (int i=0; i < nslots; ++i)
                     {
                         DecodeScores(inData, 3*i, out int wscore, out int bscore);
-                        ++whiteHist[wscore - TableGenerator.FriendMatedScore];
-                        ++blackHist[bscore - TableGenerator.FriendMatedScore];
+
+                        if (wscore == prev_wscore)
+                        {
+                            ++wrun;
+                        }
+                        else
+                        {
+                            // More accurate histograms for compression: if there are enough in a row, count as a single instance, because the score will likely be run-length encoded.
+                            if (wrun > 0)
+                                whiteHist[prev_wscore - TableGenerator.FriendMatedScore] += ((wrun > MeanThreshold) ? 1 : wrun);
+                            prev_wscore = wscore;
+                            wrun = 1;
+                        }
+
+                        if (bscore == prev_bscore)
+                        {
+                            ++brun;
+                        }
+                        else
+                        {
+                            if (brun > 0)
+                                blackHist[prev_bscore - TableGenerator.FriendMatedScore] += ((brun > MeanThreshold) ? 1 : brun);
+                            prev_bscore = bscore;
+                            brun = 1;
+                        }
                     }
+
+                    if (wrun > 0)
+                        whiteHist[prev_wscore - TableGenerator.FriendMatedScore] += ((wrun > MeanThreshold) ? 1 : wrun);
+
+                    if (brun > 0)
+                        blackHist[prev_bscore - TableGenerator.FriendMatedScore] += ((brun > MeanThreshold) ? 1 : brun);
+
                     bytesRemaining -= attempt;
                 }
 
