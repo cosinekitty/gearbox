@@ -480,6 +480,10 @@ namespace Gearbox
                 throw new ArgumentException("FEN invalid fullmove number.");
 
             initialFen = string.Join(" ", token);   // normalize the whitespace in the FEN string
+
+            // One final sanity check: make sure the side not having the turn is not in check.
+            if (!IsValidPosition())
+                throw new ArgumentException("The non-moving player is in check.");
         }
 
         public string MoveNotation(Move move, MoveList legalMoves, MoveList scratch)
