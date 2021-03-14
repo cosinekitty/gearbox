@@ -100,9 +100,7 @@ namespace Gearbox
                 // The first is the configuration ID, which is a decimal number
                 // whose digits represent how many of each piece there are,
                 // in the order QqRrBbNnPp.
-                // Load tables with 3 nonking pieces from compressed files (*.egm) if available,
-                // or uncompressed files (*.endgame) as a fallback.
-                // Load tables with 1 or 2 nonking pieces into memory from *.endgame.
+                // Prefer to load all compressed endgame tables, which use little memory also.
 
                 foreach (string fn in Directory.EnumerateFiles(dir))
                 {
@@ -112,7 +110,7 @@ namespace Gearbox
                         if (long.TryParse(config_text, out long config_id) && config_id >= 0 && config_id <= 9999999999)
                         {
                             int nonking = NonKingPieceCount(config_id);
-                            if (nonking == 3)
+                            if (nonking <= 3)
                             {
                                 endgameTableForConfigId[config_id] = new CompressedEndgameTable(fn);
                                 ++count;
@@ -121,6 +119,9 @@ namespace Gearbox
                     }
                 }
 
+                // For development/testing, fall back to uncompressed *.endgame files
+                // if compressed *.egm files are not available.
+
                 foreach (string fn in Directory.EnumerateFiles(dir))
                 {
                     if (Path.GetExtension(fn) == ".endgame")
@@ -128,28 +129,31 @@ namespace Gearbox
                         string config_text = Path.GetFileNameWithoutExtension(fn);
                         if (long.TryParse(config_text, out long config_id) && config_id >= 0 && config_id <= 9999999999)
                         {
-                            // Decide whether to put tables in memory or seek/read from disk
-                            // based on their size.
-                            int nonking = NonKingPieceCount(config_id);
-                            switch (nonking)
+                            if (!endgameTableForConfigId.ContainsKey(config_id))
                             {
-                                case 1:
-                                case 2:
-                                    endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(fn);
-                                    ++count;
-                                    break;
-
-                                case 3:
-                                    if (!endgameTableForConfigId.ContainsKey(config_id))
-                                    {
-                                        endgameTableForConfigId[config_id] = new DiskEndgameTable(fn);
+                                // Decide whether to put tables in memory or seek/read from disk
+                                // based on their size.
+                                int nonking = NonKingPieceCount(config_id);
+                                switch (nonking)
+                                {
+                                    case 1:
+                                    case 2:
+                                        endgameTableForConfigId[config_id] = MemoryEndgameTable.Load(fn);
                                         ++count;
-                                    }
-                                    break;
+                                        break;
 
-                                default:
-                                    // do nothing
-                                    break;
+                                    case 3:
+                                        if (!endgameTableForConfigId.ContainsKey(config_id))
+                                        {
+                                            endgameTableForConfigId[config_id] = new DiskEndgameTable(fn);
+                                            ++count;
+                                        }
+                                        break;
+
+                                    default:
+                                        // do nothing
+                                        break;
+                                }
                             }
                         }
                     }
