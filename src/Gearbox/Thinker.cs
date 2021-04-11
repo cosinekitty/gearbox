@@ -380,10 +380,10 @@ namespace Gearbox
 
                 long config_id = board.GetEndgameConfigId(false);
                 int nonking = NonKingPieceCount(config_id);
-                if (nonking > 2 && depth > 0)
+                if (nonking > 2 && depth > 1)
                 {
                     // Using the 3-nonking tables requires disk I/O.
-                    // Prevent disk thrashing by limiting their use below beyond the top level of the tree.
+                    // Prevent disk thrashing by limiting their use below beyond a very shallow depth.
                     score = Score.Undefined;
                     return false;
                 }
