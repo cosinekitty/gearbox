@@ -1,4 +1,4 @@
-# Gearbox <span style="vertical-align: middle;">[![Build Status](https://travis-ci.com/cosinekitty/astronomy.svg)](https://travis-ci.com/cosinekitty/gearbox)</span>
+# Gearbox
 A chess engine written in C# for all .NET 5.0 target platforms.
 A sample graphical interface is provided for Windows.
 

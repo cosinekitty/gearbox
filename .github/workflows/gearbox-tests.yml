@@ -1,0 +1,13 @@
+name: Gearbox Chess Engine Unit Tests
+on: [push]
+jobs:
+  Gearbox-Engine:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Init dotnet core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+    - name: Test Gearbox Engine
+      run: cd src && ./testall
